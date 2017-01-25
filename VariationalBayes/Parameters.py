@@ -1,5 +1,6 @@
 import math
-import numpy as np
+#import numpy as np # Won't work with autodiff
+import autograd.numpy as np
 import copy
 
 def unconstrain_vector(vec, lb, ub):
