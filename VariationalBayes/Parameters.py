@@ -15,7 +15,7 @@ def unconstrain_scalar(val, lb, ub):
     return unconstrain(val, lb, ub)
 
 
-def unconstrain(vec, lb, ub):    
+def unconstrain(vec, lb, ub):
     if ub <= lb: raise ValueError('Upper bound must be greater than lower bound')
     if ub == float("inf"):
         if lb == -float("inf"):
