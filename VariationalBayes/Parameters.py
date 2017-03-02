@@ -166,8 +166,8 @@ class PosDefMatrixParam(object):
         return self.__size
     def free_size(self):
         return self.__vec_size
-        
-        
+
+
 class ModelParamsDict(object):
     def __init__(self):
         self.param_dict = {}
@@ -179,21 +179,21 @@ class ModelParamsDict(object):
         return self.param_dict[key]
     def push_param(self, param):
         self.param_dict[param.name] = param
-        self.__size = self.__size + param.size()
-        self.__free_size = self.__free_size + param.size()
-    def set(self, vec):
-        if vec.size != self.__size: raise ValueError("Wrong size.")
-        offset = 0
-        for param in self.param_dict.values():
-            param.set(vec[offset:(offset + param.size())])
-            offset = offset + param.size()
-    def get(self):
-        vec = np.empty(self.size())
-        offset = 0
-        for param in self.param_dict.values():
-            vec[offset:(offset + param.size())] = param.get()
-            offset = offset + param.size()
-        return vec
+        # self.__size = self.__size + param.size()
+        self.__free_size = self.__free_size + param.free_size()
+    # def set(self, vec):
+    #     if vec.size != self.__size: raise ValueError("Wrong size.")
+    #     offset = 0
+    #     for param in self.param_dict.values():
+    #         param.set(vec[offset:(offset + param.size())])
+    #         offset = offset + param.size()
+    # def get(self):
+    #     vec = np.empty(self.size())
+    #     offset = 0
+    #     for param in self.param_dict.values():
+    #         vec[offset:(offset + param.size())] = param.get()
+    #         offset = offset + param.size()
+    #     return vec
     def set_free(self, vec):
         if vec.size != self.__free_size: raise ValueError("Wrong size.")
         offset = 0
@@ -209,7 +209,7 @@ class ModelParamsDict(object):
         return vec
     def names(self):
         return np.concatenate([ param.names() for param in self.param_dict.values()])
-    def size(self):
-        return self.__size
+    # def size(self):
+    #     return self.__size
     def free_size(self):
         return self.__free_size
