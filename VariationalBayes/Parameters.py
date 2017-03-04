@@ -19,6 +19,7 @@ def unconstrain(vec, lb, ub):
     if ub <= lb: raise ValueError('Upper bound must be greater than lower bound')
     if ub == float("inf"):
         if lb == -float("inf"):
+            # TODO: I'm not sure this copy work with autodiff.
             return copy.copy(vec)
         else:
             return np.log(vec - lb)
@@ -33,6 +34,7 @@ def constrain(free_vec, lb, ub):
     if ub <= lb: raise ValueError('Upper bound must be greater than lower bound')
     if ub == float("inf"):
         if lb == -float("inf"):
+            # TODO: I'm not sure this copy work with autodiff.
             return copy.copy(free_vec)
         else:
             return np.exp(free_vec) + lb
@@ -42,8 +44,21 @@ def constrain(free_vec, lb, ub):
         else:
             exp_vec = np.exp(free_vec) 
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
-            
-            
+
+
+# Sets the param using the slice in free_vec starting at offset.
+# Returns the next offset.
+def set_free_offset(param, free_vec, offset):
+    param.set_free(free_vec[offset:(offset + param.free_size())])
+    return offset + param.free_size()
+
+# Sets the value of vec starting at offset with the param's free value.
+# Returns the next offset.
+def get_free_offset(param, vec, offset):
+    vec[offset:(offset + param.free_size())] = param.get_free()
+    return offset + param.free_size()
+
+
 class VectorParam(object):
     def __init__(self, name, size, lb=-float("inf"), ub=float("inf")):
         self.name = name
@@ -54,7 +69,7 @@ class VectorParam(object):
         self.__lb = lb
         self.__ub = ub
     def __str__(self):
-        return self.name + ': ' + str(self.__val)
+        return self.name + ':\n' + str(self.__val)
     def names(self):
         return [ self.name + '_' + str(k) for k in range(self.size()) ]
     def set(self, val):
@@ -148,7 +163,7 @@ class PosDefMatrixParam(object):
         self.__vec_size = size * (size + 1) / 2
         self.__val = np.matrix(np.zeros([size, size]))
     def __str__(self):
-        return self.name + ': ' + str(self.__val)
+        return self.name + ':\n' + str(self.__val)
     def names(self):
         return [ self.name ]
     def set(self, val):
@@ -181,31 +196,20 @@ class ModelParamsDict(object):
         self.param_dict[param.name] = param
         # self.__size = self.__size + param.size()
         self.__free_size = self.__free_size + param.free_size()
-    # def set(self, vec):
-    #     if vec.size != self.__size: raise ValueError("Wrong size.")
-    #     offset = 0
-    #     for param in self.param_dict.values():
-    #         param.set(vec[offset:(offset + param.size())])
-    #         offset = offset + param.size()
-    # def get(self):
-    #     vec = np.empty(self.size())
-    #     offset = 0
-    #     for param in self.param_dict.values():
-    #         vec[offset:(offset + param.size())] = param.get()
-    #         offset = offset + param.size()
-    #     return vec
     def set_free(self, vec):
         if vec.size != self.__free_size: raise ValueError("Wrong size.")
         offset = 0
         for param in self.param_dict.values():
-            param.set_free(vec[offset:(offset + param.free_size())])
-            offset = offset + param.free_size()
+            offset = set_free_offset(param, vec, offset)
+            # param.set_free(vec[offset:(offset + param.free_size())])
+            # offset = offset + param.free_size()
     def get_free(self):
         vec = np.empty(self.free_size())
         offset = 0
         for param in self.param_dict.values():
-            vec[offset:(offset + param.free_size())] = param.get_free()
-            offset = offset + param.free_size()
+            offset = get_free_offset(param, vec, offset)
+            # vec[offset:(offset + param.free_size())] = param.get_free()
+            # offset = offset + param.free_size()
         return vec
     def names(self):
         return np.concatenate([ param.names() for param in self.param_dict.values()])
@@ -213,3 +217,37 @@ class ModelParamsDict(object):
     #     return self.__size
     def free_size(self):
         return self.__free_size
+
+
+# Not to be confused with a VectorParam -- this is a vector of abstract
+# parameter types.  Note that for the purposes of vectorization it might
+# be better to use an object with arrays of attributes rather than an array
+# of parameters with singelton attributes.
+class ParamVector(object):
+    def __init__(self, name, param_vec):
+        self.name = name
+        self.params = param_vec
+        self.__free_size = np.sum([ par.free_size() for par in self.params ])
+    def __str__(self):
+        return '\n'.join([ str(par) for par in self.params ])
+    def __len__(self):
+        return len(self.params)
+    def names(self):
+        return '\n'.join([ names(par) for par in self.params ])
+    def set_free(self, free_val):
+        if free_val.size != self.__free_size: raise ValueError('Wrong size for ParamVector ' + self.name)
+        offset = 0
+        for par in self.params:
+            offset = set_free_offset(par, free_val, offset)
+    def get_free(self):
+        vec = np.empty(self.__free_size)
+        offset = 0
+        for par in self.params:
+            offset = get_free_offset(par, vec, offset)
+        return vec
+    def free_size(self):
+        return self.__free_size
+    def __getitem__(self, key):
+        return self.params[key]
+    def __setitem__(self, key, value):
+        self.params[key] = value
