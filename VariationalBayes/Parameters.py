@@ -2,6 +2,7 @@ import math
 #import numpy as np # Won't work with autodiff
 import autograd.numpy as np
 import copy
+import math
 
 def unconstrain_vector(vec, lb, ub):
     if not all(vec <= ub): raise ValueError('Elements larger than the upper bound')
@@ -113,46 +114,40 @@ class ScalarParam(object):
         return 1
 
 
-# Uses 0-indexing.
-def sym_index(row, col):
-    if row <= col:
-        return col * (col + 1) / 2 + row
-    else:
-        return row * (row + 1) / 2 + col
-        
+# Uses 0-indexing. (row, col) = (k1, k2)
+def SymIndex(k1, k2):
+    def LDInd(k1, k2):
+        return k2 + k1 * (k1 + 1) / 2
 
-def vectorize_matrix(mat, ld=True):
+    if k2 <= k1:
+        return LDInd(k1, k2)
+    else:
+        return LDInd(k2, k1)
+    
+
+def vectorize_matrix(mat):
     nrow, ncol = np.shape(mat)
     if nrow != ncol: raise ValueError('mat must be square')
-    vec_size = nrow * (nrow + 1) / 2
-    vec = np.empty(vec_size)
-    for col in range(ncol):
-        for row in range(col + 1):
-            if ld:
-                vec[sym_index(row, col)] = mat[col, row]                
-            else:
-                vec[sym_index(row, col)] = mat[row, col]
-    return vec
+    return mat[np.triu_indices(nrow)]
 
 
-def unvectorize_matrix(vec, ld_only=False):
+def unvectorize_matrix(vec):
     mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
-    if mat_size * (mat_size + 1) / 2 != vec.size: raise ValueError('Vector is an impossible size')
-    mat = np.matrix(np.zeros([ mat_size, mat_size ]))
-    for row in range(mat_size):
-        for col in range(row + 1):
-            mat[row, col] = vec[sym_index(row, col)]
-            if (not ld_only) and row != col:
-                mat[col, row] = mat[row, col]
-    return mat
+    if mat_size * (mat_size + 1) / 2 != vec.size: \
+        raise ValueError('Vector is an impossible size')
+    nums = []
+    for k1 in range(mat_size):
+        for k2 in range(mat_size):
+            nums.append(vec[SymIndex(k1, k2)])
+    return np.array(nums).reshape(mat_size, mat_size)
 
 
 def pack_posdef_matrix(mat):
-    return vectorize_matrix(np.linalg.cholesky(mat), ld=True)
+    return vectorize_matrix(np.linalg.cholesky(mat))
 
 
 def unpack_posdef_matrix(free_vec):
-    mat_chol = unvectorize_matrix(free_vec, ld_only=True)
+    mat_chol = unvectorize_matrix(free_vec)
     return mat_chol * mat_chol.T
 
 
