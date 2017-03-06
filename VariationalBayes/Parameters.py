@@ -1,6 +1,7 @@
 import math
 #import numpy as np # Won't work with autodiff
 import autograd.numpy as np
+from autograd.core import primitive
 import copy
 import math
 
@@ -125,29 +126,43 @@ def SymIndex(k1, k2):
         return LDInd(k2, k1)
     
 
-def vectorize_matrix(mat):
+def VectorizeSymMatrix(mat):
     nrow, ncol = np.shape(mat)
     if nrow != ncol: raise ValueError('mat must be square')
     return mat[np.triu_indices(nrow)]
 
 
-def unvectorize_matrix(vec):
+# Because we cannot use autograd with array assignment, just define the
+# vector jacobian product directly..
+@primitive
+def UnvectorizeSymMatrix(vec):
     mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
     if mat_size * (mat_size + 1) / 2 != vec.size: \
         raise ValueError('Vector is an impossible size')
-    nums = []
+    mat = np.empty((mat_size, mat_size))
     for k1 in range(mat_size):
         for k2 in range(mat_size):
-            nums.append(vec[SymIndex(k1, k2)])
-    return np.array(nums).reshape(mat_size, mat_size)
+            mat[k1, k2] = vec[SymIndex(k1, k2)]
+    return mat
 
+
+def UnvectorizeSymMatrix_vjp(g, ans, vs, gvs, vec):
+    assert g.shape[0] == g.shape[1]
+    mat_size = g.shape[0]
+    vjp = np.zeros(mat_size * (mat_size + 1) / 2)
+    for k1 in range(mat_size):
+        for k2 in range(mat_size):
+            vjp[SymIndex(k1, k2)] += g[k1, k2]
+    return vjp
+
+UnvectorizeSymMatrix.defvjp(UnvectorizeSymMatrix_vjp)
 
 def pack_posdef_matrix(mat):
-    return vectorize_matrix(np.linalg.cholesky(mat))
+    return VectorizeSymMatrix(np.linalg.cholesky(mat))
 
 
 def unpack_posdef_matrix(free_vec):
-    mat_chol = unvectorize_matrix(free_vec)
+    mat_chol = UnvectorizeSymMatrix(free_vec)
     return mat_chol * mat_chol.T
 
 
