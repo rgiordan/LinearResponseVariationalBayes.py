@@ -1,6 +1,6 @@
 from Parameters import ScalarParam, VectorParam, PosDefMatrixParam
 from Parameters import set_free_offset, get_free_offset
-import numpy as np
+import autograd.numpy as np
 
 class MVNParam(object):
     def __init__(self, name, dim):
@@ -17,7 +17,8 @@ class MVNParam(object):
         return self.mean.get()
     def e_outer(self):
         mean = self.mean.get()
-        return np.outer(mean, mean) + self.cov.get()
+        cov = self.cov.get()
+        return np.outer(mean, mean) + cov
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
             raise ValueError('Wrong size for MVNParam ' + self.name)

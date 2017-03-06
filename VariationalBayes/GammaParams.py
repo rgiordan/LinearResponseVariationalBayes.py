@@ -1,6 +1,6 @@
 from Parameters import ScalarParam, set_free_offset, get_free_offset
-import numpy as np
-from scipy.special import digamma
+import autograd.numpy as np
+import autograd.scipy as asp
 
 class GammaParam(object):
     def __init__(self, name, min_rate=0.0):
@@ -15,7 +15,7 @@ class GammaParam(object):
     def e(self):
         return self.shape.get() / self.rate.get()
     def e_log(self):
-        return digamma(self.shape.get()) - np.log(self.rate.get())
+        return asp.special.digamma(self.shape.get()) - np.log(self.rate.get())
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
             raise ValueError('Wrong size for GammaParam ' + self.name)

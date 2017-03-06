@@ -1,9 +1,7 @@
 import math
-#import numpy as np # Won't work with autodiff
 import autograd.numpy as np
 from autograd.core import primitive
 import copy
-import math
 
 def unconstrain_vector(vec, lb, ub):
     if not all(vec <= ub): raise ValueError('Elements larger than the upper bound')
@@ -126,44 +124,45 @@ def SymIndex(k1, k2):
         return LDInd(k2, k1)
     
 
-def VectorizeSymMatrix(mat):
+def VectorizeLDMatrix(mat):
     nrow, ncol = np.shape(mat)
     if nrow != ncol: raise ValueError('mat must be square')
-    return mat[np.triu_indices(nrow)]
+    return mat[np.tril_indices(nrow)]
 
 
 # Because we cannot use autograd with array assignment, just define the
 # vector jacobian product directly..
 @primitive
-def UnvectorizeSymMatrix(vec):
+def UnvectorizeLDMatrix(vec):
     mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
     if mat_size * (mat_size + 1) / 2 != vec.size: \
         raise ValueError('Vector is an impossible size')
-    mat = np.empty((mat_size, mat_size))
+    mat = np.zeros((mat_size, mat_size))
     for k1 in range(mat_size):
-        for k2 in range(mat_size):
+        for k2 in range(k1 + 1):
             mat[k1, k2] = vec[SymIndex(k1, k2)]
     return mat
 
 
-def UnvectorizeSymMatrix_vjp(g, ans, vs, gvs, vec):
+def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
     assert g.shape[0] == g.shape[1]
-    mat_size = g.shape[0]
-    vjp = np.zeros(mat_size * (mat_size + 1) / 2)
-    for k1 in range(mat_size):
-        for k2 in range(mat_size):
-            vjp[SymIndex(k1, k2)] += g[k1, k2]
-    return vjp
+    # mat_size = g.shape[0]
+    # vjp = np.zeros(mat_size * (mat_size + 1) / 2)
+    return VectorizeLDMatrix(g)
+    # for k1 in range(mat_size):
+    #     for k2 in range(k1 + 1):
+    #         vjp[SymIndex(k1, k2)] += g[k1, k2]
+    # return vjp
 
-UnvectorizeSymMatrix.defvjp(UnvectorizeSymMatrix_vjp)
+UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
 
 def pack_posdef_matrix(mat):
-    return VectorizeSymMatrix(np.linalg.cholesky(mat))
+    return VectorizeLDMatrix(np.linalg.cholesky(mat))
 
 
 def unpack_posdef_matrix(free_vec):
-    mat_chol = UnvectorizeSymMatrix(free_vec)
-    return mat_chol * mat_chol.T
+    mat_chol = UnvectorizeLDMatrix(free_vec)
+    return np.matmul(mat_chol, mat_chol.T)
 
 
 class PosDefMatrixParam(object):
