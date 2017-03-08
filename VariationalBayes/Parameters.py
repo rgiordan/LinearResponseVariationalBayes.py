@@ -1,7 +1,8 @@
 import math
+import copy
+
 import autograd.numpy as np
 from autograd.core import primitive
-import copy
 
 def unconstrain_vector(vec, lb, ub):
     if not all(vec <= ub): raise ValueError('Elements larger than the upper bound')
@@ -144,6 +145,7 @@ def UnvectorizeLDMatrix(vec):
     return mat
 
 
+# TODO: test this as a derivative
 def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
     assert g.shape[0] == g.shape[1]
     # mat_size = g.shape[0]
