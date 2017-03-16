@@ -1,5 +1,6 @@
 import math
 import copy
+import numbers
 
 import autograd.numpy as np
 from autograd.core import primitive
@@ -76,15 +77,16 @@ class VectorParam(object):
     def set(self, val):
         if val.size != self.size():
             raise ValueError('Wrong size for vector ' + self.name)
-        if any(val < self.__lb):
+        if any(val <= self.__lb):
             raise ValueError('Value beneath lower bound.')
-        if any(val > self.__ub):
+        if any(val >= self.__ub):
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
         return self.__val
     def set_free(self, free_val):
-        if free_val.size != self.size(): raise ValueError('Wrong size for vector ' + self.name)
+        if free_val.size != self.size():
+            raise ValueError('Wrong size for vector ' + self.name)
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
         return unconstrain_vector(self.__val, self.__lb, self.__ub)
@@ -97,7 +99,8 @@ class VectorParam(object):
 class ScalarParam(object):
     def __init__(self, name, lb=-float("inf"), ub=float("inf")):
         self.name = name
-        if lb >= ub: raise ValueError('Upper bound must strictly exceed lower bound')
+        if lb >= ub:
+            raise ValueError('Upper bound must strictly exceed lower bound')
         self.__val = 0.5 * (ub + lb)
         self.__lb = lb
         self.__ub = ub
@@ -106,6 +109,12 @@ class ScalarParam(object):
     def names(self):
         return [ self.name ]
     def set(self, val):
+        if not isinstance(val, numbers.Number):
+            raise ValueError('val is not a number.')
+        if val <= self.__lb:
+            raise ValueError('val is less than the lower bound.')
+        if val >= self.__ub:
+            raise ValueError('val is less than the lower bound.')
         self.__val = val
     def get(self):
         return self.__val

@@ -56,5 +56,32 @@ class TestParameters(unittest.TestCase):
         vp.names()
         str(vp)
 
+    def test_ScalarParam(self):
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vp = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1)
+
+        # Check setting.
+        self.assertRaises(ValueError, vp.set, np.array([val, val]))
+        self.assertRaises(ValueError, vp.set, lb - abs(val))
+        self.assertRaises(ValueError, vp.set, ub + abs(val))
+        vp.set(val)
+
+        # Check size.
+        self.assertEqual(1, vp.free_size())
+
+        # Check getting and free parameters.
+        self.assertAlmostEqual(val, vp.get())
+        val_free = vp.get_free()
+        vp.set(0.)
+        vp.set_free(val_free)
+        self.assertAlmostEqual(val, vp.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+
+
 if __name__ == '__main__':
     unittest.main()
