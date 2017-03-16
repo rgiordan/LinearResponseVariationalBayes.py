@@ -110,7 +110,8 @@ class ScalarParam(object):
         return [ self.name ]
     def set(self, val):
         if not isinstance(val, numbers.Number):
-            raise ValueError('val is not a number.')
+            if len(val) != 1:
+                raise ValueError('val must be a number or length-one array.')
         if val <= self.__lb:
             raise ValueError('val is less than the lower bound.')
         if val >= self.__ub:
@@ -224,27 +225,20 @@ class ModelParamsDict(object):
         return self.param_dict[key]
     def push_param(self, param):
         self.param_dict[param.name] = param
-        # self.__size = self.__size + param.size()
         self.__free_size = self.__free_size + param.free_size()
     def set_free(self, vec):
         if vec.size != self.__free_size: raise ValueError("Wrong size.")
         offset = 0
         for param in self.param_dict.values():
             offset = set_free_offset(param, vec, offset)
-            # param.set_free(vec[offset:(offset + param.free_size())])
-            # offset = offset + param.free_size()
     def get_free(self):
         vec = np.empty(self.free_size())
         offset = 0
         for param in self.param_dict.values():
             offset = get_free_offset(param, vec, offset)
-            # vec[offset:(offset + param.free_size())] = param.get_free()
-            # offset = offset + param.free_size()
         return vec
     def names(self):
         return np.concatenate([ param.names() for param in self.param_dict.values()])
-    # def size(self):
-    #     return self.__size
     def free_size(self):
         return self.__free_size
 

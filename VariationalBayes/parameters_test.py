@@ -5,7 +5,7 @@ import numpy as np
 import numpy.testing as np_test
 import copy
 
-from Parameters import VectorParam, ScalarParam, PosDefMatrixParam
+from Parameters import VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
 
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
@@ -68,6 +68,7 @@ class TestParameters(unittest.TestCase):
         self.assertRaises(ValueError, vp.set, lb - abs(val))
         self.assertRaises(ValueError, vp.set, ub + abs(val))
         vp.set(val)
+        vp.set(np.array([val]))
 
         # Check size.
         self.assertEqual(1, vp.free_size())
@@ -124,7 +125,46 @@ class TestParameters(unittest.TestCase):
         vp.names()
         str(vp)
 
+    def test_ModelParamsDict(self):
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vec = np.linspace(lb, ub, k)
+
+        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
+        vp_mat = PosDefMatrixParam('matrix', k)
+        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
+
+        mp = ModelParamsDict()
+        mp.push_param(vp_scalar)
+        mp.push_param(vp_vec)
+        mp.push_param(vp_mat)
+
+        mp['scalar'].set(val)
+        mp['vector'].set(vec)
+        mp['matrix'].set(mat)
+        self.assertAlmostEqual(val, mp['scalar'].get())
+        np_test.assert_array_almost_equal(vec, mp['vector'].get())
+        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
+
+        free_vec = mp.get_free()
+        mp['scalar'].set(0.)
+        mp['vector'].set(np.full(k, 0.))
+        mp['matrix'].set(np.full((k, k), 0.))
+
+        mp.set_free(free_vec)
+        self.assertAlmostEqual(val, mp['scalar'].get())
+        np_test.assert_array_almost_equal(vec, mp['vector'].get())
+        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
+
+        self.assertEqual(len(free_vec), mp.free_size())
+
+        # Just check that these run.
+        mp.names()
+        str(mp)
 
 
 if __name__ == '__main__':
