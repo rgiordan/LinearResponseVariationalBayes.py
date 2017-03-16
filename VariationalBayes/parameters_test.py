@@ -1,5 +1,6 @@
 
 import autograd.numpy as np
+from autograd import grad, jacobian, hessian
 from autograd.util import quick_grad_check
 import copy
 from itertools import product
@@ -198,7 +199,8 @@ class TestDifferentiation(unittest.TestCase):
         mp.push_param(vp_mat)
 
         # To take advantage of quick_grad_check(), define scalar functions of
-        # each parameter.
+        # each parameter.  It would be nice to have an easy-to-use test for
+        # Jacobians.
         def ScalarFun(val_free):
             vp_scalar_ad = copy.deepcopy(vp_scalar)
             vp_scalar_ad.set_free(val_free)
@@ -226,6 +228,49 @@ class TestDifferentiation(unittest.TestCase):
         quick_grad_check(VecFun, vp_vec.get_free())
         quick_grad_check(MatFun, vp_mat.get_free())
         quick_grad_check(ParamsFun, mp.get_free())
+
+
+    def test_LDMatrixParamDerivatives(self):
+        # Test the LD matrix extra carefully since we define our own
+        # autograd derivatives.
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+        vp = PosDefMatrixParam('test', k)
+        vp.set(mat)
+        mat_free = vp.get_free()
+
+        def MatFun(mat_free):
+            vp_ad = copy.deepcopy(vp)
+            vp_ad.set_free(mat_free)
+            return vp_ad.get()
+
+        MatFunJac = jacobian(MatFun)
+        MatFunHess = hessian(MatFun)
+
+        # Test the jacobian
+        eps = 1e-4
+        for ind in range(len(mat_free)):
+            mat_free_eps = copy.deepcopy(mat_free)
+            mat_free_eps[ind] += eps
+            num_grad = MatFun(mat_free_eps) - MatFun(mat_free)
+            np_test.assert_array_almost_equal(num_grad, eps * MatFunJac(mat_free)[:, :, ind])
+
+        # Test the hessian
+        eps = 1e-2
+        for ind1 in range(len(mat_free)):
+            for ind2 in range(len(mat_free)):
+
+                eps1_vec = np.zeros_like(mat_free)
+                eps2_vec = np.zeros_like(mat_free)
+                eps1_vec[ind1] = eps
+                eps2_vec[ind2] = eps
+
+                num_hess = MatFun(mat_free + eps1_vec + eps2_vec) - \
+                           MatFun(mat_free + eps2_vec) - \
+                           (MatFun(mat_free + eps1_vec) - MatFun(mat_free))
+                np_test.assert_array_almost_equal(
+                    num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
+
 
 
 if __name__ == '__main__':
