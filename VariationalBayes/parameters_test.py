@@ -9,6 +9,7 @@ import Parameters
 from Parameters import \
     VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
 from NormalParams import MVNParam, UVNParam
+from GammaParams import GammaParam
 import unittest
 
 # Lower and upper bounds for unit tests.
@@ -205,7 +206,7 @@ class TestParameters(unittest.TestCase):
 
     def test_UVNParam(self):
         vp_mean = 0.2
-        vp_var = 0.2
+        vp_var = 1.2
 
         vp = UVNParam('test', min_var=0.1)
 
@@ -223,6 +224,31 @@ class TestParameters(unittest.TestCase):
         vp.set_free(free_par)
         self.assertAlmostEqual(vp_mean, vp.mean.get())
         self.assertAlmostEqual(vp_var, vp.var.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+
+    def test_GammaParam(self):
+        shape = 0.2
+        rate = 0.4
+
+        vp = GammaParam('test', min_rate=0.1)
+
+        # Check setting.
+        vp.shape.set(shape)
+        vp.rate.set(rate)
+
+        # Check size.
+        free_par = vp.get_free()
+        self.assertEqual(len(free_par), vp.free_size())
+
+        # Check getting and free parameters.
+        vp.shape.set(1.0)
+        vp.rate.set(1.0)
+        vp.set_free(free_par)
+        self.assertAlmostEqual(shape, vp.shape.get())
+        self.assertAlmostEqual(rate, vp.rate.get())
 
         # Just make sure these run without error.
         vp.names()
