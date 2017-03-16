@@ -146,7 +146,7 @@ def VectorizeLDMatrix(mat):
 
 
 # Because we cannot use autograd with array assignment, just define the
-# vector jacobian product directly..
+# vector jacobian product directly.
 @primitive
 def UnvectorizeLDMatrix(vec):
     mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
@@ -193,12 +193,17 @@ class PosDefMatrixParam(object):
         return [ self.name ]
     def set(self, val):
         nrow, ncol = np.shape(val)
-        if nrow != self.__size or ncol != self.__size: raise ValueError('Matrix is a different size')
+        if nrow != self.__size or ncol != self.__size:
+            raise ValueError('Matrix is a different size')
+        if not (val.transpose() == val).all():
+            raise ValueError('Matrix is not symmetric')
+
         self.__val = val
     def get(self):
         return self.__val
     def set_free(self, free_val):
-        if free_val.size != self.__vec_size: raise ValueError('Free value is the wrong length')
+        if free_val.size != self.__vec_size:
+            raise ValueError('Free value is the wrong length')
         self.set(unpack_posdef_matrix(free_val))
     def get_free(self):
         return pack_posdef_matrix(self.__val)
