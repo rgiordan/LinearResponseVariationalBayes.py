@@ -43,7 +43,7 @@ def constrain(free_vec, lb, ub):
         if lb == -float("inf"):
             return ub - np.exp(-1 * free_vec)
         else:
-            exp_vec = np.exp(free_vec) 
+            exp_vec = np.exp(free_vec)
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
 
@@ -74,7 +74,12 @@ class VectorParam(object):
     def names(self):
         return [ self.name + '_' + str(k) for k in range(self.size()) ]
     def set(self, val):
-        if val.size != self.size(): raise ValueError('Wrong size for vector ' + self.name)
+        if val.size != self.size():
+            raise ValueError('Wrong size for vector ' + self.name)
+        if any(val < self.__lb):
+            raise ValueError('Value beneath lower bound.')
+        if any(val > self.__ub):
+            raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
         return self.__val
@@ -88,7 +93,7 @@ class VectorParam(object):
     def free_size(self):
         return self.__free_size
 
-    
+
 class ScalarParam(object):
     def __init__(self, name, lb=-float("inf"), ub=float("inf")):
         self.name = name
@@ -123,7 +128,7 @@ def SymIndex(k1, k2):
         return LDInd(k1, k2)
     else:
         return LDInd(k2, k1)
-    
+
 
 def VectorizeLDMatrix(mat):
     nrow, ncol = np.shape(mat)
