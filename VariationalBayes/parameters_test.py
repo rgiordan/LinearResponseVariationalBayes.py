@@ -8,6 +8,7 @@ import numpy.testing as np_test
 import Parameters
 from Parameters import \
     VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
+from NormalParams import MVNParam, UVNParam
 import unittest
 
 # Lower and upper bounds for unit tests.
@@ -15,7 +16,6 @@ lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
 class TestParameters(unittest.TestCase):
-
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
             if ub > lb:
@@ -174,6 +174,60 @@ class TestParameters(unittest.TestCase):
         mp.names()
         str(mp)
 
+    def test_MVNParam(self):
+        k = 2
+        vec = np.full(2, 0.2)
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+
+        vp = MVNParam('test', k)
+
+        # Check setting.
+        self.assertRaises(ValueError, vp.mean.set, vec[-1])
+        self.assertRaises(ValueError, vp.cov.set, np.eye(k + 1))
+        vp.mean.set(vec)
+        vp.cov.set(mat)
+
+        # Check size.
+        free_par = vp.get_free()
+        self.assertEqual(len(free_par), vp.free_size())
+        self.assertEqual(k, vp.dim())
+
+        # Check getting and free parameters.
+        vp.mean.set(np.full(k, 0.))
+        vp.cov.set(np.full((k, k), 0.))
+        vp.set_free(free_par)
+        np_test.assert_array_almost_equal(mat, vp.cov.get())
+        np_test.assert_array_almost_equal(vec, vp.mean.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+
+    def test_UVNParam(self):
+        vp_mean = 0.2
+        vp_var = 0.2
+
+        vp = UVNParam('test', min_var=0.1)
+
+        # Check setting.
+        vp.mean.set(vp_mean)
+        vp.var.set(vp_var)
+
+        # Check size.
+        free_par = vp.get_free()
+        self.assertEqual(len(free_par), vp.free_size())
+
+        # Check getting and free parameters.
+        vp.mean.set(0.)
+        vp.var.set(1.0)
+        vp.set_free(free_par)
+        self.assertAlmostEqual(vp_mean, vp.mean.get())
+        self.assertAlmostEqual(vp_var, vp.var.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+
 
 class TestDifferentiation(unittest.TestCase):
     def test_free_grads(self):
@@ -270,7 +324,6 @@ class TestDifferentiation(unittest.TestCase):
                            (MatFun(mat_free + eps1_vec) - MatFun(mat_free))
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
-
 
 
 if __name__ == '__main__':
