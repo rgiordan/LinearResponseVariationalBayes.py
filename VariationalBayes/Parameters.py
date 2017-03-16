@@ -109,9 +109,11 @@ class ScalarParam(object):
     def names(self):
         return [ self.name ]
     def set(self, val):
-        if not isinstance(val, numbers.Number):
-            if len(val) != 1:
-                raise ValueError('val must be a number or length-one array.')
+        # Asserting that you are getting something of length one doesn't
+        # seem trivial in python.
+        # if not isinstance(val, numbers.Number):
+        #     if len(val) != 1:
+        #         raise ValueError('val must be a number or length-one array.')
         if val <= self.__lb:
             raise ValueError('val is less than the lower bound.')
         if val >= self.__ub:
@@ -247,6 +249,7 @@ class ModelParamsDict(object):
 # parameter types.  Note that for the purposes of vectorization it might
 # be better to use an object with arrays of attributes rather than an array
 # of parameters with singelton attributes.
+# This is not currently tested.
 class ParamVector(object):
     def __init__(self, name, param_vec):
         self.name = name

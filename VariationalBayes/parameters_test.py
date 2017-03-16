@@ -1,16 +1,20 @@
-import Parameters
-import unittest
-from itertools import product
-import numpy as np
-import numpy.testing as np_test
+
+import autograd.numpy as np
+from autograd.util import quick_grad_check
 import copy
+from itertools import product
+import numpy.testing as np_test
+import Parameters
+from Parameters import \
+    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
+import unittest
 
-from Parameters import VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
-
+# Lower and upper bounds for unit tests.
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
 class TestParameters(unittest.TestCase):
+
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
             if ub > lb:
@@ -64,7 +68,10 @@ class TestParameters(unittest.TestCase):
         vp = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1)
 
         # Check setting.
-        self.assertRaises(ValueError, vp.set, np.array([val, val]))
+
+        # Asserting that you are getting something of length one doesn't
+        # seem trivial in python.
+        # self.assertRaises(ValueError, vp.set, np.array([val, val]))
         self.assertRaises(ValueError, vp.set, lb - abs(val))
         self.assertRaises(ValueError, vp.set, ub + abs(val))
         vp.set(val)
@@ -165,6 +172,60 @@ class TestParameters(unittest.TestCase):
         # Just check that these run.
         mp.names()
         str(mp)
+
+
+class TestDifferentiation(unittest.TestCase):
+    def test_free_grads(self):
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vec = np.linspace(lb, ub, k)
+
+        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
+        vp_mat = PosDefMatrixParam('matrix', k)
+        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
+
+        vp_scalar.set(val)
+        vp_vec.set(vec)
+        vp_mat.set(mat)
+
+        mp = ModelParamsDict()
+        mp.push_param(vp_scalar)
+        mp.push_param(vp_vec)
+        mp.push_param(vp_mat)
+
+        # To take advantage of quick_grad_check(), define scalar functions of
+        # each parameter.
+        def ScalarFun(val_free):
+            vp_scalar_ad = copy.deepcopy(vp_scalar)
+            vp_scalar_ad.set_free(val_free)
+            return vp_scalar_ad.get()
+
+        def VecFun(val_free):
+            vp_vec_ad = copy.deepcopy(vp_vec)
+            vp_vec_ad.set_free(val_free)
+            return np.linalg.norm(vp_vec_ad.get())
+
+        def MatFun(val_free):
+            vp_mat_ad = copy.deepcopy(vp_mat)
+            vp_mat_ad.set_free(val_free)
+            return np.linalg.norm(vp_mat_ad.get())
+
+        def ParamsFun(val_free):
+            mp_ad = copy.deepcopy(mp)
+            mp_ad.set_free(val_free)
+            return mp_ad['scalar'].get() + \
+                   np.linalg.norm(mp_ad['vector'].get()) + \
+                   np.linalg.norm(mp_ad['matrix'].get())
+
+
+        quick_grad_check(ScalarFun, vp_scalar.get_free())
+        quick_grad_check(VecFun, vp_vec.get_free())
+        quick_grad_check(MatFun, vp_mat.get_free())
+        quick_grad_check(ParamsFun, mp.get_free())
 
 
 if __name__ == '__main__':
