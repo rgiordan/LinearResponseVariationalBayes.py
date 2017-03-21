@@ -14,6 +14,8 @@ class MVNParam(object):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.cov)
     def names(self):
         return self.mean.names() + self.cov.names()
+    def dictval(self):
+        return { 'mean': self.mean.dictval(), 'cov': self.cov.dictval() }
     def e(self):
         return self.mean.get()
     def e_outer(self):
@@ -51,6 +53,8 @@ class UVNParam(object):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.var)
     def names(self):
         return self.mean.names() + self.var.names()
+    def dictval(self):
+        return { 'mean': self.mean.dictval(), 'var': self.var.dictval() }
     def e(self):
         return self.mean.get()
     def e_outer(self):
@@ -84,6 +88,8 @@ class UVNParamVector(object):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.var)
     def names(self):
         return self.mean.names() + self.var.names()
+    def dictval(self):
+        return { 'mean': self.mean.dictval(), 'var': self.var.dictval() }
     def e(self):
         return self.mean.get()
     def e_outer(self):

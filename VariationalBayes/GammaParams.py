@@ -13,6 +13,8 @@ class GammaParam(object):
         return self.name + ':\n' + str(self.shape) + '\n' + str(self.rate)
     def names(self):
         return self.shape.names() + self.rate.names()
+    def dictval(self):
+        return { 'shape': self.shape.dictval(), 'rate': self.rate.dictval() }
     def e(self):
         return self.shape.get() / self.rate.get()
     def e_log(self):

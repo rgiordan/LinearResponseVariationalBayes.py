@@ -71,6 +71,12 @@ class ScalarParam(object):
         return self.name + ': ' + str(self.__val)
     def names(self):
         return [ self.name ]
+    def dictval(self):
+        # Assume it's either a numpy array or a float. :(
+        if isinstance(self.__val, numbers.Number):
+            return self.__val
+        else:
+            return self.__val.tolist()
 
     def set(self, val):
         # Asserting that you are getting something of length one doesn't
@@ -120,6 +126,8 @@ class VectorParam(object):
         return self.name + ':\n' + str(self.__val)
     def names(self):
         return [ self.name + '_' + str(k) for k in range(self.size()) ]
+    def dictval(self):
+        return self.__val.tolist()
 
     def set(self, val):
         if val.size != self.size():
@@ -218,6 +226,8 @@ class PosDefMatrixParam(object):
         return self.name + ':\n' + str(self.__val)
     def names(self):
         return [ self.name ]
+    def dictval(self):
+        return self.__val.tolist()
 
     def set(self, val):
         nrow, ncol = np.shape(val)
@@ -303,6 +313,11 @@ class ModelParamsDict(object):
         self.__vector_size = self.__vector_size + param.vector_size()
     def set_name(self, name):
         self.__name = name
+    def dictval(self):
+        result = {}
+        for param in self.param_dict.values():
+            result[param.name] = param.dictval()
+        return result
 
     def set_free(self, vec):
         if vec.size != self.__free_size: raise ValueError("Wrong size.")

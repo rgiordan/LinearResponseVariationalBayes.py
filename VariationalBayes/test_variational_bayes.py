@@ -70,6 +70,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_ScalarParam(self):
         lb = -0.1
@@ -108,6 +109,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
@@ -157,6 +159,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_ModelParamsDict(self):
         k = 2
@@ -206,6 +209,8 @@ class TestParameters(unittest.TestCase):
         # Just check that these run.
         mp.names()
         str(mp)
+        mp.dictval()
+
 
     def test_MVNParam(self):
         k = 2
@@ -235,6 +240,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_UVNParam(self):
         vp_mean = 0.2
@@ -260,6 +266,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_UVNParamVector(self):
         k = 2
@@ -286,6 +293,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
     def test_GammaParam(self):
         shape = 0.2
@@ -311,6 +319,7 @@ class TestParameters(unittest.TestCase):
         # Just make sure these run without error.
         vp.names()
         str(vp)
+        vp.dictval()
 
 
 class TestDifferentiation(unittest.TestCase):
