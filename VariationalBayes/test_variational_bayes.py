@@ -8,7 +8,7 @@ import numpy.testing as np_test
 import Parameters
 from Parameters import \
     VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
-from NormalParams import MVNParam, UVNParam
+from NormalParams import MVNParam, UVNParam, UVNParamVector
 from GammaParams import GammaParam
 import unittest
 
@@ -224,6 +224,32 @@ class TestParameters(unittest.TestCase):
         vp.set_free(free_par)
         self.assertAlmostEqual(vp_mean, vp.mean.get())
         self.assertAlmostEqual(vp_var, vp.var.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+
+    def test_UVNParamVector(self):
+        k = 2
+        vp_mean = np.array([ 0.2, 0.5 ])
+        vp_var = np.array([ 1.2, 2.1 ])
+
+        vp = UVNParamVector('test', k, min_var=0.1)
+
+        # Check setting.
+        vp.mean.set(vp_mean)
+        vp.var.set(vp_var)
+
+        # Check size.
+        free_par = vp.get_free()
+        self.assertEqual(len(free_par), vp.free_size())
+
+        # Check getting and free parameters.
+        vp.mean.set(np.full(k, 0.))
+        vp.var.set(np.full(k, 1.))
+        vp.set_free(free_par)
+        np_test.assert_array_almost_equal(vp_mean, vp.mean.get())
+        np_test.assert_array_almost_equal(vp_var, vp.var.get())
 
         # Just make sure these run without error.
         vp.names()

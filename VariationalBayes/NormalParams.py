@@ -35,7 +35,7 @@ class MVNParam(object):
         return self.__free_size
     def dim(self):
         return self.__dim
-    
+
 
 class UVNParam(object):
     def __init__(self, name, min_var=0.0):
@@ -65,4 +65,33 @@ class UVNParam(object):
         return vec
     def free_size(self):
         return self.__free_size
-    
+
+
+class UVNParamVector(object):
+    def __init__(self, name, length, min_var=0.0):
+        self.name = name
+        self.mean = VectorParam(name + '_mean', length)
+        self.var = VectorParam(name + '_var', length, lb=min_var)
+        self.__free_size = self.mean.free_size() + self.var.free_size()
+    def __str__(self):
+        return self.name + ':\n' + str(self.mean) + '\n' + str(self.var)
+    def names(self):
+        return self.mean.names() + self.var.names()
+    def e(self):
+        return self.mean.get()
+    def e_outer(self):
+        mean = self.mean.get() ** 2 + self.var.get()
+    def set_free(self, free_val):
+        if free_val.size != self.__free_size: \
+            raise ValueError('Wrong size for UVNParam ' + self.name)
+        offset = 0
+        offset = set_free_offset(self.mean, free_val, offset)
+        offset = set_free_offset(self.var, free_val, offset)
+    def get_free(self):
+        vec = np.empty(self.__free_size)
+        offset = 0
+        offset = get_free_offset(self.mean, vec, offset)
+        offset = get_free_offset(self.var, vec, offset)
+        return vec
+    def free_size(self):
+        return self.__free_size
