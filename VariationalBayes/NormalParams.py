@@ -9,6 +9,7 @@ class MVNParam(object):
         self.mean = VectorParam(name + '_mean', dim)
         self.cov = PosDefMatrixParam(name + '_cov', dim)
         self.__free_size = self.mean.free_size() + self.cov.free_size()
+        self.__vector_size = self.mean.vector_size() + self.cov.vector_size()
     def __str__(self):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.cov)
     def names(self):
@@ -33,6 +34,8 @@ class MVNParam(object):
         return vec
     def free_size(self):
         return self.__free_size
+    def vector_size(self):
+        return self.__vector_size
     def dim(self):
         return self.__dim
 
@@ -43,6 +46,7 @@ class UVNParam(object):
         self.mean = ScalarParam(name + '_mean')
         self.var = ScalarParam(name + '_var', lb=min_var)
         self.__free_size = self.mean.free_size() + self.var.free_size()
+        self.__vector_size = self.mean.vector_size() + self.var.vector_size()
     def __str__(self):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.var)
     def names(self):
@@ -65,6 +69,8 @@ class UVNParam(object):
         return vec
     def free_size(self):
         return self.__free_size
+    def vector_size(self):
+        return self.__vector_size
 
 
 class UVNParamVector(object):
@@ -73,6 +79,7 @@ class UVNParamVector(object):
         self.mean = VectorParam(name + '_mean', length)
         self.var = VectorParam(name + '_var', length, lb=min_var)
         self.__free_size = self.mean.free_size() + self.var.free_size()
+        self.__vector_size = self.mean.vector_size() + self.var.vector_size()
     def __str__(self):
         return self.name + ':\n' + str(self.mean) + '\n' + str(self.var)
     def names(self):
@@ -95,3 +102,5 @@ class UVNParamVector(object):
         return vec
     def free_size(self):
         return self.__free_size
+    def vector_size(self):
+        return self.__vector_size

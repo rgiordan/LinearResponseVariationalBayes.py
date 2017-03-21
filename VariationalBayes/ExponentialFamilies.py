@@ -1,4 +1,5 @@
 import autograd.numpy as np
+import autograd.scipy as asp
 
 # Entropies
 

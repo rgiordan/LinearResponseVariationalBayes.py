@@ -5,6 +5,8 @@ import numbers
 import autograd.numpy as np
 from autograd.core import primitive
 
+from collections import OrderedDict
+
 def unconstrain_vector(vec, lb, ub):
     if not all(vec <= ub):
         raise ValueError('Elements larger than the upper bound')
@@ -54,85 +56,17 @@ def constrain(free_vec, lb, ub):
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
 
-# Sets the param using the slice in free_vec starting at offset.
-# Returns the next offset.
-def set_free_offset(param, free_vec, offset):
-    param.set_free(free_vec[offset:(offset + param.free_size())])
-    return offset + param.free_size()
-
-# Sets the value of vec starting at offset with the param's free value.
-# Returns the next offset.
-def get_free_offset(param, vec, offset):
-    vec[offset:(offset + param.free_size())] = param.get_free()
-    return offset + param.free_size()
-
-
-# Sets the param using the slice in free_vec starting at offset.
-# Returns the next offset.
-def set_vector_offset(param, vec, offset):
-    param.set_vector(vec[offset:(offset + param.vector_size())])
-    return offset + param.vector_size()
-
-# Sets the value of vec starting at offset with the param's free value.
-# Returns the next offset.
-def get_vector_offset(param, vec, offset):
-    vec[offset:(offset + param.vector_size())] = param.get_vector()
-    return offset + param.vector_size()
-
-
-class VectorParam(object):
-    def __init__(self, name, size, lb=-float("inf"), ub=float("inf")):
-        self.name = name
-        self.__size = size
-        self.__val = np.empty(size)
-        if lb >= ub:
-            raise ValueError('Upper bound must strictly exceed lower bound')
-        self.__lb = lb
-        self.__ub = ub
-    def __str__(self):
-        return self.name + ':\n' + str(self.__val)
-    def names(self):
-        return [ self.name + '_' + str(k) for k in range(self.size()) ]
-
-    def set(self, val):
-        if val.size != self.size():
-            raise ValueError('Wrong size for vector ' + self.name)
-        if any(val <= self.__lb):
-            raise ValueError('Value beneath lower bound.')
-        if any(val >= self.__ub):
-            raise ValueError('Value above upper bound.')
-        self.__val = val
-    def get(self):
-        return self.__val
-
-    def set_free(self, free_val):
-        if free_val.size != self.size():
-            raise ValueError('Wrong size for vector ' + self.name)
-        self.set(constrain(free_val, self.__lb, self.__ub))
-    def get_free(self):
-        return unconstrain_vector(self.__val, self.__lb, self.__ub)
-
-    def set_vector(self, val):
-        self.set(val)
-    def get_vector(self):
-        return self.__val
-
-    def size(self):
-        return self.__size
-    def free_size(self):
-        return self.__size
-    def vector_size(self):
-        return self.__size
-
-
 class ScalarParam(object):
-    def __init__(self, name, lb=-float("inf"), ub=float("inf")):
+    def __init__(self, name, lb=-float("inf"), ub=float("inf"), val=None):
         self.name = name
         if lb >= ub:
             raise ValueError('Upper bound must strictly exceed lower bound')
-        self.__val = 0.5 * (ub + lb)
         self.__lb = lb
         self.__ub = ub
+        if val is None:
+            self.__val = 0.5 * (ub + lb)
+        else:
+            self.set(val)
     def __str__(self):
         return self.name + ': ' + str(self.__val)
     def names(self):
@@ -168,6 +102,54 @@ class ScalarParam(object):
         return 1
     def vector_size(self):
         return 1
+
+
+class VectorParam(object):
+    def __init__(self, name, size, lb=-float("inf"), ub=float("inf"), val=None):
+        self.name = name
+        self.__size = size
+        self.__lb = lb
+        self.__ub = ub
+        if val is None:
+            self.__val = np.empty(size)
+        else:
+            self.set(val)
+        if lb >= ub:
+            raise ValueError('Upper bound must strictly exceed lower bound')
+    def __str__(self):
+        return self.name + ':\n' + str(self.__val)
+    def names(self):
+        return [ self.name + '_' + str(k) for k in range(self.size()) ]
+
+    def set(self, val):
+        if val.size != self.size():
+            raise ValueError('Wrong size for vector ' + self.name)
+        if any(val <= self.__lb):
+            raise ValueError('Value beneath lower bound.')
+        if any(val >= self.__ub):
+            raise ValueError('Value above upper bound.')
+        self.__val = val
+    def get(self):
+        return self.__val
+
+    def set_free(self, free_val):
+        if free_val.size != self.size():
+            raise ValueError('Wrong size for vector ' + self.name)
+        self.set(constrain(free_val, self.__lb, self.__ub))
+    def get_free(self):
+        return unconstrain_vector(self.__val, self.__lb, self.__ub)
+
+    def set_vector(self, val):
+        self.set(val)
+    def get_vector(self):
+        return self.__val
+
+    def size(self):
+        return self.__size
+    def free_size(self):
+        return self.__size
+    def vector_size(self):
+        return self.__size
 
 
 # Uses 0-indexing. (row, col) = (k1, k2)
@@ -224,11 +206,14 @@ def unpack_posdef_matrix(free_vec):
 
 
 class PosDefMatrixParam(object):
-    def __init__(self, name, size):
+    def __init__(self, name, size, val=None):
         self.name = name
         self.__size = size
         self.__vec_size = size * (size + 1) / 2
-        self.__val = np.matrix(np.zeros([size, size]))
+        if val is None:
+            self.__val = np.matrix(np.zeros([size, size]))
+        else:
+            self.set(val)
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
     def names(self):
@@ -273,15 +258,42 @@ class PosDefMatrixParam(object):
         return self.__vec_size
 
 
+# Sets the param using the slice in free_vec starting at offset.
+# Returns the next offset.
+def set_free_offset(param, free_vec, offset):
+    param.set_free(free_vec[offset:(offset + param.free_size())])
+    return offset + param.free_size()
+
+# Sets the value of vec starting at offset with the param's free value.
+# Returns the next offset.
+def get_free_offset(param, vec, offset):
+    vec[offset:(offset + param.free_size())] = param.get_free()
+    return offset + param.free_size()
+
+
+# Sets the param using the slice in free_vec starting at offset.
+# Returns the next offset.
+def set_vector_offset(param, vec, offset):
+    param.set_vector(vec[offset:(offset + param.vector_size())])
+    return offset + param.vector_size()
+
+# Sets the value of vec starting at offset with the param's free value.
+# Returns the next offset.
+def get_vector_offset(param, vec, offset):
+    vec[offset:(offset + param.vector_size())] = param.get_vector()
+    return offset + param.vector_size()
+
+
 class ModelParamsDict(object):
-    def __init__(self):
-        self.param_dict = {}
+    def __init__(self, name='ModelParamsDict'):
+        self.param_dict = OrderedDict()
+        self.__name = name
         # You will want free_size and vector_size to be different when you
         # are encoding simplexes.
         self.__free_size = 0
         self.__vector_size = 0
     def __str__(self):
-        return 'ModelParamsList:\n' + \
+        return self.__name + ':\n' + \
             '\n'.join([ '\t' + str(param) for param in self.param_dict.values() ])
     def __getitem__(self, key):
         return self.param_dict[key]
@@ -289,6 +301,8 @@ class ModelParamsDict(object):
         self.param_dict[param.name] = param
         self.__free_size = self.__free_size + param.free_size()
         self.__vector_size = self.__vector_size + param.vector_size()
+    def set_name(self, name):
+        self.__name = name
 
     def set_free(self, vec):
         if vec.size != self.__free_size: raise ValueError("Wrong size.")

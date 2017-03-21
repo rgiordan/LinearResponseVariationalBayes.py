@@ -43,6 +43,9 @@ class TestParameters(unittest.TestCase):
         vp = VectorParam('test', k, lb=lb - 0.1, ub=ub + 0.1)
 
         # Check setting.
+        vp_init = VectorParam('test', k, lb=lb - 0.1, ub=ub + 0.1, val=val)
+        np_test.assert_array_almost_equal(val, vp_init.get())
+
         self.assertRaises(ValueError, vp.set, val[-1])
         self.assertRaises(ValueError, vp.set, bad_val_ub)
         self.assertRaises(ValueError, vp.set, bad_val_lb)
@@ -74,7 +77,10 @@ class TestParameters(unittest.TestCase):
         val = 0.5 * (ub - lb) + lb
         vp = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1)
 
+
         # Check setting.
+        vp_init = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1, val=4.0)
+        self.assertEqual(vp_init.get(), 4.0)
 
         # Asserting that you are getting something of length one doesn't
         # seem trivial in python.
@@ -114,7 +120,7 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(
             mat, Parameters.unpack_posdef_matrix(mat_vec))
 
-    def test_LDMatrixParam(self):
+    def test_PosDefMatrixParam(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
@@ -125,6 +131,9 @@ class TestParameters(unittest.TestCase):
         vp = PosDefMatrixParam('test', k)
 
         # Check setting.
+        vp_init = PosDefMatrixParam('test', k, val=mat)
+        np_test.assert_array_almost_equal(mat, vp_init.get())
+
         self.assertRaises(ValueError, vp.set, bad_mat)
         self.assertRaises(ValueError, vp.set, np.eye(k + 1))
         vp.set(mat)
@@ -404,7 +413,6 @@ class TestDifferentiation(unittest.TestCase):
             return mp_ad['scalar'].get() + \
                    np.linalg.norm(mp_ad['vector'].get()) + \
                    np.linalg.norm(mp_ad['matrix'].get())
-
 
         quick_grad_check(ScalarFun, vp_scalar.get_vector())
         quick_grad_check(VecFun, vp_vec.get_vector())

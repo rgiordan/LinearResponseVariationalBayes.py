@@ -8,6 +8,7 @@ class GammaParam(object):
         self.shape = ScalarParam(name + '_shape')
         self.rate = ScalarParam(name + '_rate', lb=min_rate)
         self.__free_size = self.shape.free_size() + self.rate.free_size()
+        self.__vector_size = self.shape.vector_size() + self.rate.vector_size()
     def __str__(self):
         return self.name + ':\n' + str(self.shape) + '\n' + str(self.rate)
     def names(self):
@@ -30,4 +31,5 @@ class GammaParam(object):
         return vec
     def free_size(self):
         return self.__free_size
-    
+    def vector_size(self):
+        return self.__vector_size
