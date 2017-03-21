@@ -59,6 +59,11 @@ class TestParameters(unittest.TestCase):
         vp.set_free(val_free)
         np_test.assert_array_almost_equal(val, vp.get())
 
+        val_vec = vp.get_vector()
+        vp.set(np.full(k, 0.))
+        vp.set_vector(val_vec)
+        np_test.assert_array_almost_equal(val, vp.get())
+
         # Just make sure these run without error.
         vp.names()
         str(vp)
@@ -87,6 +92,11 @@ class TestParameters(unittest.TestCase):
         val_free = vp.get_free()
         vp.set(0.)
         vp.set_free(val_free)
+        self.assertAlmostEqual(val, vp.get())
+
+        val_vec = vp.get_vector()
+        vp.set(0.)
+        vp.set_vector(val_vec)
         self.assertAlmostEqual(val, vp.get())
 
         # Just make sure these run without error.
@@ -130,6 +140,11 @@ class TestParameters(unittest.TestCase):
         vp.set_free(mat_free)
         np_test.assert_array_almost_equal(mat, vp.get())
 
+        mat_vectorized = vp.get_vector()
+        vp.set(np.full((k, k), 0.))
+        vp.set_vector(mat_vectorized)
+        np_test.assert_array_almost_equal(mat, vp.get())
+
         # Just make sure these run without error.
         vp.names()
         str(vp)
@@ -163,13 +178,21 @@ class TestParameters(unittest.TestCase):
         mp['scalar'].set(0.)
         mp['vector'].set(np.full(k, 0.))
         mp['matrix'].set(np.full((k, k), 0.))
-
         mp.set_free(free_vec)
         self.assertAlmostEqual(val, mp['scalar'].get())
         np_test.assert_array_almost_equal(vec, mp['vector'].get())
         np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-
         self.assertEqual(len(free_vec), mp.free_size())
+
+        param_vec = mp.get_vector()
+        mp['scalar'].set(0.)
+        mp['vector'].set(np.full(k, 0.))
+        mp['matrix'].set(np.full((k, k), 0.))
+        mp.set_vector(param_vec)
+        self.assertAlmostEqual(val, mp['scalar'].get())
+        np_test.assert_array_almost_equal(vec, mp['vector'].get())
+        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
+        self.assertEqual(len(param_vec), mp.vector_size())
 
         # Just check that these run.
         mp.names()
@@ -334,6 +357,59 @@ class TestDifferentiation(unittest.TestCase):
         quick_grad_check(VecFun, vp_vec.get_free())
         quick_grad_check(MatFun, vp_mat.get_free())
         quick_grad_check(ParamsFun, mp.get_free())
+
+    def test_vector_grads(self):
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vec = np.linspace(lb, ub, k)
+
+        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
+        vp_mat = PosDefMatrixParam('matrix', k)
+        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
+
+        vp_scalar.set(val)
+        vp_vec.set(vec)
+        vp_mat.set(mat)
+
+        mp = ModelParamsDict()
+        mp.push_param(vp_scalar)
+        mp.push_param(vp_vec)
+        mp.push_param(vp_mat)
+
+        # To take advantage of quick_grad_check(), define scalar functions of
+        # each parameter.  It would be nice to have an easy-to-use test for
+        # Jacobians.
+        def ScalarFun(val_vec):
+            vp_scalar_ad = copy.deepcopy(vp_scalar)
+            vp_scalar_ad.set_vector(val_vec)
+            return vp_scalar_ad.get()
+
+        def VecFun(val_vec):
+            vp_vec_ad = copy.deepcopy(vp_vec)
+            vp_vec_ad.set_vector(val_vec)
+            return np.linalg.norm(vp_vec_ad.get())
+
+        def MatFun(val_vec):
+            vp_mat_ad = copy.deepcopy(vp_mat)
+            vp_mat_ad.set_vector(val_vec)
+            return np.linalg.norm(vp_mat_ad.get())
+
+        def ParamsFun(val_vec):
+            mp_ad = copy.deepcopy(mp)
+            mp_ad.set_vector(val_vec)
+            return mp_ad['scalar'].get() + \
+                   np.linalg.norm(mp_ad['vector'].get()) + \
+                   np.linalg.norm(mp_ad['matrix'].get())
+
+
+        quick_grad_check(ScalarFun, vp_scalar.get_vector())
+        quick_grad_check(VecFun, vp_vec.get_vector())
+        quick_grad_check(MatFun, vp_mat.get_vector())
+        quick_grad_check(ParamsFun, mp.get_vector())
 
 
     def test_LDMatrixParamDerivatives(self):
