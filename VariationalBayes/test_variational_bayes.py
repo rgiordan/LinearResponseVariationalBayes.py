@@ -10,7 +10,10 @@ from Parameters import \
     VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
 from NormalParams import MVNParam, UVNParam, UVNParamVector
 from GammaParams import GammaParam
+from ExponentialFamilies import \
+    UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy
 import unittest
+import scipy as sp
 
 # Lower and upper bounds for unit tests.
 lbs = [ 0., -2., 1.2, -float("inf")]
@@ -469,6 +472,28 @@ class TestDifferentiation(unittest.TestCase):
                            (MatFun(mat_free + eps1_vec) - MatFun(mat_free))
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
+
+
+class TestEntropy(unittest.TestCase):
+    def test_uvn_entropy(self):
+        mean_par = 2.0
+        var_par = 1.5
+        num_draws = 10000
+        norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(var_par))
+        self.assertAlmostEqual(norm_dist.entropy(), UnivariateNormalEntropy(var_par))
+
+    def test_mvn_entropy(self):
+        mean_par = np.array([1., 2.])
+        cov_par = np.eye(2) + np.full((2, 2), 0.1)
+        norm_dist = sp.stats.multivariate_normal(mean=mean_par, cov=cov_par)
+        self.assertAlmostEqual(norm_dist.entropy(), MultivariateNormalEntropy(cov_par))
+
+    def test_gamma_entropy(self):
+        shape = 3.0
+        rate = 2.4
+        gamma_dist = sp.stats.gamma(a=shape, scale=1 / rate)
+        self.assertAlmostEqual(gamma_dist.entropy(), GammaEntropy(shape, rate))
+
 
 
 if __name__ == '__main__':
