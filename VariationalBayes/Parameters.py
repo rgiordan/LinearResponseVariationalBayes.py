@@ -325,11 +325,12 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             offset = set_free_offset(param, vec, offset)
     def get_free(self):
-        vec = np.empty(self.free_size())
-        offset = 0
-        for param in self.param_dict.values():
-            offset = get_free_offset(param, vec, offset)
-        return vec
+        # vec = np.empty(self.free_size())
+        # offset = 0
+        # for param in self.param_dict.values():
+        #     offset = get_free_offset(param, vec, offset)
+        # return vec
+        return np.hstack([ par.get_free() for par in self.param_dict.values() ])
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size: raise ValueError("Wrong size.")
@@ -337,11 +338,7 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             offset = set_vector_offset(param, vec, offset)
     def get_vector(self):
-        vec = np.empty(self.vector_size())
-        offset = 0
-        for param in self.param_dict.values():
-            offset = get_vector_offset(param, vec, offset)
-        return vec
+        return np.hstack([ par.get_vector() for par in self.param_dict.values() ])
 
     def names(self):
         return np.concatenate([ param.names() for param in self.param_dict.values()])
