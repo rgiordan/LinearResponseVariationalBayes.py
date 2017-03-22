@@ -495,6 +495,5 @@ class TestEntropy(unittest.TestCase):
         self.assertAlmostEqual(gamma_dist.entropy(), GammaEntropy(shape, rate))
 
 
-
 if __name__ == '__main__':
     unittest.main()
