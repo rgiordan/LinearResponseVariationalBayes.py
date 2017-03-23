@@ -258,11 +258,20 @@ class TestParameters(unittest.TestCase):
         # Check size.
         free_par = vp.get_free()
         self.assertEqual(len(free_par), vp.free_size())
+        vec_par = vp.get_vector()
+        self.assertEqual(len(vec_par), vp.vector_size())
 
         # Check getting and free parameters.
         vp.mean.set(0.)
         vp.var.set(1.0)
         vp.set_free(free_par)
+        self.assertAlmostEqual(vp_mean, vp.mean.get())
+        self.assertAlmostEqual(vp_var, vp.var.get())
+
+        # Check getting and free parameters.
+        vp.mean.set(0.)
+        vp.var.set(1.0)
+        vp.set_vector(vec_par)
         self.assertAlmostEqual(vp_mean, vp.mean.get())
         self.assertAlmostEqual(vp_var, vp.var.get())
 

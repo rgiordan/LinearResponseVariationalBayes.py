@@ -1,5 +1,5 @@
 from Parameters import ScalarParam, VectorParam, PosDefMatrixParam
-from Parameters import set_free_offset, get_free_offset
+from Parameters import set_free_offset, set_vector_offset
 import autograd.numpy as np
 
 class MVNParam(object):
@@ -22,6 +22,7 @@ class MVNParam(object):
         mean = self.mean.get()
         cov = self.cov.get()
         return np.outer(mean, mean) + cov
+
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
             raise ValueError('Wrong size for MVNParam ' + self.name)
@@ -29,11 +30,16 @@ class MVNParam(object):
         offset = set_free_offset(self.mean, free_val, offset)
         offset = set_free_offset(self.cov, free_val, offset)
     def get_free(self):
-        vec = np.empty(self.__free_size)
+        return np.hstack([ self.mean.get_free(), self.cov.get_free() ])
+
+    def set_vector(self, vec):
+        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
         offset = 0
-        offset = get_free_offset(self.mean, vec, offset)
-        offset = get_free_offset(self.cov, vec, offset)
-        return vec
+        offset = set_vector_offset(self.mean, vec, offset)
+        offset = set_vector_offset(self.cov, vec, offset)
+    def get_vector(self):
+        return np.hstack([ self.mean.get_vector(), self.cov.get_vector() ])
+
     def free_size(self):
         return self.__free_size
     def vector_size(self):
@@ -59,6 +65,7 @@ class UVNParam(object):
         return self.mean.get()
     def e_outer(self):
         mean = self.mean.get() ** 2 + self.var.get()
+
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
             raise ValueError('Wrong size for UVNParam ' + self.name)
@@ -66,11 +73,16 @@ class UVNParam(object):
         offset = set_free_offset(self.mean, free_val, offset)
         offset = set_free_offset(self.var, free_val, offset)
     def get_free(self):
-        vec = np.empty(self.__free_size)
+        return np.hstack([ self.mean.get_free(), self.var.get_free() ])
+
+    def set_vector(self, vec):
+        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
         offset = 0
-        offset = get_free_offset(self.mean, vec, offset)
-        offset = get_free_offset(self.var, vec, offset)
-        return vec
+        offset = set_vector_offset(self.mean, vec, offset)
+        offset = set_vector_offset(self.var, vec, offset)
+    def get_vector(self):
+        return np.hstack([ self.mean.get_vector(), self.var.get_vector() ])
+
     def free_size(self):
         return self.__free_size
     def vector_size(self):
@@ -94,6 +106,7 @@ class UVNParamVector(object):
         return self.mean.get()
     def e_outer(self):
         mean = self.mean.get() ** 2 + self.var.get()
+
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
             raise ValueError('Wrong size for UVNParam ' + self.name)
@@ -101,11 +114,16 @@ class UVNParamVector(object):
         offset = set_free_offset(self.mean, free_val, offset)
         offset = set_free_offset(self.var, free_val, offset)
     def get_free(self):
-        vec = np.empty(self.__free_size)
+        return np.hstack([ self.mean.get_free(), self.var.get_free() ])
+
+    def set_vector(self, vec):
+        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
         offset = 0
-        offset = get_free_offset(self.mean, vec, offset)
-        offset = get_free_offset(self.var, vec, offset)
-        return vec
+        offset = set_vector_offset(self.mean, vec, offset)
+        offset = set_vector_offset(self.var, vec, offset)
+    def get_vector(self):
+        return np.hstack([ self.mean.get_vector(), self.var.get_vector() ])
+
     def free_size(self):
         return self.__free_size
     def vector_size(self):
