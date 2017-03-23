@@ -224,9 +224,9 @@ class TestParameters(unittest.TestCase):
 
         # Check setting.
         self.assertRaises(ValueError, vp.mean.set, vec[-1])
-        self.assertRaises(ValueError, vp.cov.set, np.eye(k + 1))
+        self.assertRaises(ValueError, vp.info.set, np.eye(k + 1))
         vp.mean.set(vec)
-        vp.cov.set(mat)
+        vp.info.set(mat)
 
         # Check size.
         free_par = vp.get_free()
@@ -235,9 +235,9 @@ class TestParameters(unittest.TestCase):
 
         # Check getting and free parameters.
         vp.mean.set(np.full(k, 0.))
-        vp.cov.set(np.full((k, k), 0.))
+        vp.info.set(np.full((k, k), 0.))
         vp.set_free(free_par)
-        np_test.assert_array_almost_equal(mat, vp.cov.get())
+        np_test.assert_array_almost_equal(mat, vp.info.get())
         np_test.assert_array_almost_equal(vec, vp.mean.get())
 
         # Just make sure these run without error.
@@ -247,13 +247,13 @@ class TestParameters(unittest.TestCase):
 
     def test_UVNParam(self):
         vp_mean = 0.2
-        vp_var = 1.2
+        vp_info = 1.2
 
-        vp = UVNParam('test', min_var=0.1)
+        vp = UVNParam('test', min_info=0.1)
 
         # Check setting.
         vp.mean.set(vp_mean)
-        vp.var.set(vp_var)
+        vp.info.set(vp_info)
 
         # Check size.
         free_par = vp.get_free()
@@ -263,17 +263,17 @@ class TestParameters(unittest.TestCase):
 
         # Check getting and free parameters.
         vp.mean.set(0.)
-        vp.var.set(1.0)
+        vp.info.set(1.0)
         vp.set_free(free_par)
         self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_var, vp.var.get())
+        self.assertAlmostEqual(vp_info, vp.info.get())
 
         # Check getting and free parameters.
         vp.mean.set(0.)
-        vp.var.set(1.0)
+        vp.info.set(1.0)
         vp.set_vector(vec_par)
         self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_var, vp.var.get())
+        self.assertAlmostEqual(vp_info, vp.info.get())
 
         # Just make sure these run without error.
         vp.names()
@@ -283,13 +283,13 @@ class TestParameters(unittest.TestCase):
     def test_UVNParamVector(self):
         k = 2
         vp_mean = np.array([ 0.2, 0.5 ])
-        vp_var = np.array([ 1.2, 2.1 ])
+        vp_info = np.array([ 1.2, 2.1 ])
 
-        vp = UVNParamVector('test', k, min_var=0.1)
+        vp = UVNParamVector('test', k, min_info=0.1)
 
         # Check setting.
         vp.mean.set(vp_mean)
-        vp.var.set(vp_var)
+        vp.info.set(vp_info)
 
         # Check size.
         free_par = vp.get_free()
@@ -297,10 +297,10 @@ class TestParameters(unittest.TestCase):
 
         # Check getting and free parameters.
         vp.mean.set(np.full(k, 0.))
-        vp.var.set(np.full(k, 1.))
+        vp.info.set(np.full(k, 1.))
         vp.set_free(free_par)
         np_test.assert_array_almost_equal(vp_mean, vp.mean.get())
-        np_test.assert_array_almost_equal(vp_var, vp.var.get())
+        np_test.assert_array_almost_equal(vp_info, vp.info.get())
 
         # Just make sure these run without error.
         vp.names()
@@ -486,16 +486,18 @@ class TestDifferentiation(unittest.TestCase):
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
         mean_par = 2.0
-        var_par = 1.5
+        info_par = 1.5
         num_draws = 10000
-        norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(var_par))
-        self.assertAlmostEqual(norm_dist.entropy(), UnivariateNormalEntropy(var_par))
+        norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(1 / info_par))
+        self.assertAlmostEqual(norm_dist.entropy(), UnivariateNormalEntropy(info_par))
 
     def test_mvn_entropy(self):
         mean_par = np.array([1., 2.])
-        cov_par = np.eye(2) + np.full((2, 2), 0.1)
-        norm_dist = sp.stats.multivariate_normal(mean=mean_par, cov=cov_par)
-        self.assertAlmostEqual(norm_dist.entropy(), MultivariateNormalEntropy(cov_par))
+        info_par = np.eye(2) + np.full((2, 2), 0.1)
+        norm_dist = sp.stats.multivariate_normal(
+            mean=mean_par, cov=np.linalg.inv(info_par))
+        self.assertAlmostEqual(
+            norm_dist.entropy(), MultivariateNormalEntropy(info_par))
 
     def test_gamma_entropy(self):
         shape = 3.0

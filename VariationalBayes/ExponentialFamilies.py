@@ -4,15 +4,15 @@ import math
 
 # Entropies.  Note that autograd hasn't defined these yet.
 
-def UnivariateNormalEntropy(var_obs):
+def UnivariateNormalEntropy(info_obs):
     # np.sum(asp.stats.norm.entropy(scale=np.sqrt(var_obs)))
-    return 0.5 * np.sum(np.log(var_obs) + 1 + np.log(2 * math.pi))
+    return 0.5 * np.sum(-1 * np.log(info_obs) + 1 + np.log(2 * math.pi))
 
-def MultivariateNormalEntropy(cov_obs):
-    sign, logdet = np.linalg.slogdet(cov_obs)
+def MultivariateNormalEntropy(info_obs):
+    sign, logdet = np.linalg.slogdet(info_obs)
     assert sign > 0
-    k = cov_obs.shape[0]
-    return 0.5 * (logdet + k + k * np.log(2 * math.pi))
+    k = info_obs.shape[0]
+    return 0.5 * (-1 * logdet + k + k * np.log(2 * math.pi))
 
 def GammaEntropy(shape, rate):
     return np.sum(shape - np.log(rate) + asp.special.gammaln(shape) + \
