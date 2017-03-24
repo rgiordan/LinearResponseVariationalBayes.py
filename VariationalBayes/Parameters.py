@@ -191,24 +191,19 @@ def UnvectorizeLDMatrix(vec):
     return mat
 
 
-# TODO: test this as a derivative
 def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
     assert g.shape[0] == g.shape[1]
-    # mat_size = g.shape[0]
-    # vjp = np.zeros(mat_size * (mat_size + 1) / 2)
     return VectorizeLDMatrix(g)
-    # for k1 in range(mat_size):
-    #     for k2 in range(k1 + 1):
-    #         vjp[SymIndex(k1, k2)] += g[k1, k2]
-    # return vjp
 
 UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
 
 def pack_posdef_matrix(mat):
+    # TODO: you need to constrain the diagonals to be positive.
     return VectorizeLDMatrix(np.linalg.cholesky(mat))
 
 
 def unpack_posdef_matrix(free_vec):
+    # TODO: you need to constrain the diagonals to be positive.
     mat_chol = UnvectorizeLDMatrix(free_vec)
     return np.matmul(mat_chol, mat_chol.T)
 

@@ -21,7 +21,7 @@ class MVNParam(object):
     def e_outer(self):
         mean = self.mean.get()
         info = self.info.get()
-        return np.outer(mean, mean) + np.linalg.solve(info)
+        return np.outer(mean, mean) + np.linalg.inv(info)
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
@@ -64,7 +64,7 @@ class UVNParam(object):
     def e(self):
         return self.mean.get()
     def e_outer(self):
-        mean = self.mean.get() ** 2 + 1 / self.info.get()
+        return self.mean.get() ** 2 + 1 / self.info.get()
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
@@ -105,7 +105,7 @@ class UVNParamVector(object):
     def e(self):
         return self.mean.get()
     def e_outer(self):
-        mean = self.mean.get() ** 2 + 1 / self.info.get()
+        return self.mean.get() ** 2 + 1 / self.info.get()
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
