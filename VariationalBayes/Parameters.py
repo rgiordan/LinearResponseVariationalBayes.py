@@ -197,38 +197,6 @@ def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
 
 UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
 
-# @primitive
-# def exp_matrix_diagonal(mat):
-#     assert mat.shape[0] == mat.shape[1]
-#     k = mat.shape[0]
-#     new_mat = copy.deepcopy(mat)
-#     new_mat[range(k), range(k)] = np.exp(np.diag(new_mat))
-#     return new_mat
-#
-# def exp_matrix_diagonal_vjp(g, ans, vs, gvs, mat):
-#     assert g.shape[0] == g.shape[1]
-#     result = np.ones(g.shape)
-#     result[range(result.shape[0]), range(result.shape[1])] = np.diag(ans)
-#     return result * g
-#
-# exp_matrix_diagonal.defvjp(exp_matrix_diagonal_vjp)
-#
-# @primitive
-# def log_matrix_diagonal(mat):
-#     assert mat.shape[0] == mat.shape[1]
-#     k = mat.shape[0]
-#     new_mat = copy.deepcopy(mat)
-#     new_mat[range(k), range(k)] = np.log(np.diag(new_mat))
-#     return new_mat
-#
-# def log_matrix_diagonal_vjp(g, ans, vs, gvs, mat):
-#     assert g.shape[0] == g.shape[1]
-#     result = np.ones(g.shape)
-#     result[range(result.shape[0]), range(result.shape[1])] = 1 / np.diag(mat)
-#     return result * g
-#
-# log_matrix_diagonal.defvjp(log_matrix_diagonal_vjp)
-
 def exp_matrix_diagonal(mat):
     assert mat.shape[0] == mat.shape[1]
     # make_diagonal() is only defined in the autograd version of numpy
@@ -245,20 +213,25 @@ def log_matrix_diagonal(mat):
     return mat_log_diag + mat - mat_diag
 
 
-def pack_posdef_matrix(mat):
-    return VectorizeLDMatrix(log_matrix_diagonal(np.linalg.cholesky(mat)))
+def pack_posdef_matrix(mat, diag_lb=0.0):
+    k = mat.shape[0]
+    mat_lb = mat - np.make_diagonal(np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
+    return VectorizeLDMatrix(log_matrix_diagonal(np.linalg.cholesky(mat_lb)))
 
 
-def unpack_posdef_matrix(free_vec):
+def unpack_posdef_matrix(free_vec, diag_lb=0.0):
     mat_chol = exp_matrix_diagonal(UnvectorizeLDMatrix(free_vec))
-    return np.matmul(mat_chol, mat_chol.T)
+    mat = np.matmul(mat_chol, mat_chol.T)
+    k = mat.shape[0]
+    return mat + np.make_diagonal(np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
 
 
 class PosDefMatrixParam(object):
-    def __init__(self, name, size, val=None):
+    def __init__(self, name, size, diag_lb=0.0, val=None):
         self.name = name
         self.__size = size
         self.__vec_size = size * (size + 1) / 2
+        self.__diag_lb = diag_lb
         if val is None:
             self.__val = np.matrix(np.zeros([size, size]))
         else:
@@ -283,9 +256,9 @@ class PosDefMatrixParam(object):
     def set_free(self, free_val):
         if free_val.size != self.__vec_size:
             raise ValueError('Free value is the wrong length')
-        self.set(unpack_posdef_matrix(free_val))
+        self.set(unpack_posdef_matrix(free_val, diag_lb=self.__diag_lb))
     def get_free(self):
-        return pack_posdef_matrix(self.__val)
+        return pack_posdef_matrix(self.__val, diag_lb=self.__diag_lb)
 
     def set_vector(self, vec_val):
         if vec_val.size != self.__vec_size:

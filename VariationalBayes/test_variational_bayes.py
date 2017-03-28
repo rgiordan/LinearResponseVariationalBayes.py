@@ -440,13 +440,13 @@ class TestDifferentiation(unittest.TestCase):
         quick_grad_check(MatFun, vp_mat.get_vector())
         quick_grad_check(ParamsFun, mp.get_vector())
 
-
     def test_LDMatrixParamDerivatives(self):
         # Test the LD matrix extra carefully since we define our own
         # autograd derivatives.
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-        vp = PosDefMatrixParam('test', k)
+        diag_lb = 0.5
+        vp = PosDefMatrixParam('test', k, diag_lb=diag_lb)
         vp.set(mat)
         mat_free = vp.get_free()
 
@@ -464,7 +464,8 @@ class TestDifferentiation(unittest.TestCase):
             mat_free_eps = copy.deepcopy(mat_free)
             mat_free_eps[ind] += eps
             num_grad = MatFun(mat_free_eps) - MatFun(mat_free)
-            np_test.assert_array_almost_equal(num_grad, eps * MatFunJac(mat_free)[:, :, ind])
+            np_test.assert_array_almost_equal(
+                num_grad, eps * MatFunJac(mat_free)[:, :, ind])
 
         # Test the hessian
         eps = 1e-4

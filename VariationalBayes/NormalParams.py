@@ -3,11 +3,11 @@ from Parameters import set_free_offset, set_vector_offset
 import autograd.numpy as np
 
 class MVNParam(object):
-    def __init__(self, name, dim):
+    def __init__(self, name, dim, min_info=0.0):
         self.name = name
         self.__dim = dim
         self.mean = VectorParam(name + '_mean', dim)
-        self.info = PosDefMatrixParam(name + '_info', dim)
+        self.info = PosDefMatrixParam(name + '_info', dim, diag_lb=min_info)
         self.__free_size = self.mean.free_size() + self.info.free_size()
         self.__vector_size = self.mean.vector_size() + self.info.vector_size()
     def __str__(self):
