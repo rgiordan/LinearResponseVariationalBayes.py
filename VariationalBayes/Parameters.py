@@ -197,14 +197,60 @@ def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
 
 UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
 
+# @primitive
+# def exp_matrix_diagonal(mat):
+#     assert mat.shape[0] == mat.shape[1]
+#     k = mat.shape[0]
+#     new_mat = copy.deepcopy(mat)
+#     new_mat[range(k), range(k)] = np.exp(np.diag(new_mat))
+#     return new_mat
+#
+# def exp_matrix_diagonal_vjp(g, ans, vs, gvs, mat):
+#     assert g.shape[0] == g.shape[1]
+#     result = np.ones(g.shape)
+#     result[range(result.shape[0]), range(result.shape[1])] = np.diag(ans)
+#     return result * g
+#
+# exp_matrix_diagonal.defvjp(exp_matrix_diagonal_vjp)
+#
+# @primitive
+# def log_matrix_diagonal(mat):
+#     assert mat.shape[0] == mat.shape[1]
+#     k = mat.shape[0]
+#     new_mat = copy.deepcopy(mat)
+#     new_mat[range(k), range(k)] = np.log(np.diag(new_mat))
+#     return new_mat
+#
+# def log_matrix_diagonal_vjp(g, ans, vs, gvs, mat):
+#     assert g.shape[0] == g.shape[1]
+#     result = np.ones(g.shape)
+#     result[range(result.shape[0]), range(result.shape[1])] = 1 / np.diag(mat)
+#     return result * g
+#
+# log_matrix_diagonal.defvjp(log_matrix_diagonal_vjp)
+
+def exp_matrix_diagonal(mat):
+    assert mat.shape[0] == mat.shape[1]
+    # make_diagonal() is only defined in the autograd version of numpy
+    mat_exp_diag = np.make_diagonal(np.exp(np.diag(mat)), offset=0, axis1=-1, axis2=-2)
+    mat_diag = np.make_diagonal(np.diag(mat), offset=0, axis1=-1, axis2=-2)
+    return mat_exp_diag + mat - mat_diag
+
+
+def log_matrix_diagonal(mat):
+    assert mat.shape[0] == mat.shape[1]
+    # make_diagonal() is only defined in the autograd version of numpy
+    mat_log_diag = np.make_diagonal(np.log(np.diag(mat)), offset=0, axis1=-1, axis2=-2)
+    mat_diag = np.make_diagonal(np.diag(mat), offset=0, axis1=-1, axis2=-2)
+    return mat_log_diag + mat - mat_diag
+
+
 def pack_posdef_matrix(mat):
-    # TODO: you need to constrain the diagonals to be positive.
-    return VectorizeLDMatrix(np.linalg.cholesky(mat))
+    return VectorizeLDMatrix(log_matrix_diagonal(np.linalg.cholesky(mat)))
 
 
 def unpack_posdef_matrix(free_vec):
-    # TODO: you need to constrain the diagonals to be positive.
-    mat_chol = UnvectorizeLDMatrix(free_vec)
+    mat_chol = exp_matrix_diagonal(UnvectorizeLDMatrix(free_vec))
     return np.matmul(mat_chol, mat_chol.T)
 
 

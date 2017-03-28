@@ -467,7 +467,7 @@ class TestDifferentiation(unittest.TestCase):
             np_test.assert_array_almost_equal(num_grad, eps * MatFunJac(mat_free)[:, :, ind])
 
         # Test the hessian
-        eps = 1e-2
+        eps = 1e-4
         for ind1 in range(len(mat_free)):
             for ind2 in range(len(mat_free)):
 
