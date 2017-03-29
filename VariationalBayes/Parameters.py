@@ -84,10 +84,12 @@ class ScalarParam(object):
         # if not isinstance(val, numbers.Number):
         #     if len(val) != 1:
         #         raise ValueError('val must be a number or length-one array.')
-        if val <= self.__lb:
-            raise ValueError('val is less than the lower bound.')
-        if val >= self.__ub:
-            raise ValueError('val is less than the lower bound.')
+        if val < self.__lb:
+            error_msg = 'val is less than the lower bound: ' + \
+                str(val) + ' <= ' + str(self.__lb)
+            raise ValueError(error_msg)
+        if val > self.__ub:
+            raise ValueError('val is greater than the upper bound.')
         self.__val = val
     def get(self):
         return self.__val
@@ -132,9 +134,9 @@ class VectorParam(object):
     def set(self, val):
         if val.size != self.size():
             raise ValueError('Wrong size for vector ' + self.name)
-        if any(val <= self.__lb):
+        if any(val < self.__lb):
             raise ValueError('Value beneath lower bound.')
-        if any(val >= self.__ub):
+        if any(val > self.__ub):
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):

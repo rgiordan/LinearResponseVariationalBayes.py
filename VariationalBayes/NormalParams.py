@@ -21,7 +21,8 @@ class MVNParam(object):
     def e_outer(self):
         mean = self.mean.get()
         info = self.info.get()
-        return np.outer(mean, mean) + np.linalg.inv(info)
+        e_outer = np.outer(mean, mean) + np.linalg.inv(info)
+        return 0.5 * (e_outer + e_outer.transpose())
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
