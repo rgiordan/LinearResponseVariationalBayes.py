@@ -70,7 +70,8 @@
 
 \begin_body
 
-\begin_layout Standard
+\begin_layout Section
+LMM Model
 \begin_inset Formula 
 \begin{align*}
 y_{i}\vert u_{g},\beta & \sim\mathcal{N}\left(x_{i}^{T}\beta+u_{g\left[i\right]},\tau_{y}^{-1}\right)\\
@@ -173,6 +174,60 @@ So we additionally want to pre-compute
 n_{g} & =\sum_{i:g\left[i\right]=\gamma}1\\
 \bar{y}_{g} & =\sum_{i:g\left[i\right]=\gamma}y_{i}\\
 \bar{x}_{g} & =\sum_{i:g\left[i\right]=\gamma}x_{i}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+This may be premature optimization, though.
+\end_layout
+
+\begin_layout Section
+Transformation
+\end_layout
+
+\begin_layout Standard
+\begin_inset FormulaMacro
+\newcommand{\mbe}{\mathbb{E}}
+{\mathbb{E}}
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Suppose 
+\begin_inset Formula $p\left(\theta\right)$
+\end_inset
+
+ is a density with respect to a measure 
+\begin_inset Formula $d\theta$
+\end_inset
+
+, and you transform
+\begin_inset Formula 
+\begin{align*}
+\tau & =f\left(\theta\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Then 
+\begin_inset Formula $q\left(\tau\right)$
+\end_inset
+
+ is the same density when
+\begin_inset Formula 
+\begin{align*}
+q\left(\tau\right) & =p\left(\theta\right)d\theta\Rightarrow\\
+q\left(\tau\right) & =p\left(f^{-1}\left(\tau\right)\right)\left|\frac{d\theta}{d\tau}\right|
 \end{align*}
 
 \end_inset
