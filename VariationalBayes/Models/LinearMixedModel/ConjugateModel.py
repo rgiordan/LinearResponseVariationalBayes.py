@@ -276,6 +276,73 @@ def get_entropy(lmm_par):
                         rate=lmm_par['mu_info'].rate.get())
 
 
+# Compare the entropy from moment parameters.  This requires getting gamma
+# natural parameters from moment parameters.
+
+# Get the gamma parameters from coordinate ascent.  This requires inverting
+# the expectation of the log of a gamma random variable.
+#
+# rate = shape / e
+# e_log = sp.special.digamma(shape) - np.log(shape / e)
+#       = sp.special.digamma(shape) - np.log(shape) + np.log(e) =>
+# e_log - np.log(e) = sp.special.digamma(shape) - np.log(shape)
+#
+# Solving for shape directly gives an unstable fixed point algorithm, but the trick below seems to work
+# if you start near the correct answer.
+def get_entropy_from_moments(moment_par, lmm_par_guess):
+    def get_gamma_par_from_moments(e, e_log, shape_guess):
+        def fp_func(shape):
+            return shape * (sp.special.digamma(shape) - np.log(shape)) / (e_log - np.log(e))
+
+        shape_est = sp.optimize.fixed_point(fp_func, shape_guess)
+        rate_est = shape_est / e
+
+        return shape_est, rate_est
+
+    def get_gamma_entropy_from_moments(e, e_log, shape_guess):
+        shape_est, rate_est = get_gamma_par_from_moments(e, e_log, shape_guess)
+        return GammaEntropy(shape_est, rate_est)
+
+    y_info_entropy = get_gamma_entropy_from_moments(
+        e=moment_par['e_y_info'].get(),
+        e_log=moment_par['e_log_y_info'].get(),
+        shape_guess=lmm_par_guess['y_info'].shape.get())
+
+    print y_info_entropy
+    print GammaEntropy(
+        shape=lmm_par_guess['y_info'].shape.get(),
+        rate=lmm_par_guess['y_info'].rate.get())
+
+    mu_info_entropy = get_gamma_entropy_from_moments(
+        e=moment_par['e_mu_info'].get(),
+        e_log=moment_par['e_log_mu_info'].get(),
+        shape_guess=lmm_par_guess['mu_info'].shape.get())
+
+    print mu_info_entropy
+    print GammaEntropy(
+        shape=lmm_par_guess['mu_info'].shape.get(),
+        rate=lmm_par_guess['mu_info'].rate.get())
+
+    e_beta = moment_par['e_beta'].get()
+    beta_info = \
+        np.linalg.inv(moment_par['e_beta_outer'].get() - \
+        np.outer(e_beta, e_beta))
+
+    e_mu = moment_par['e_mu'].get()
+    mu_info = 1 / (moment_par['e_mu2'].get() - e_mu**2)
+
+    e_u = moment_par['e_u'].get()
+    u_info = 1 / (moment_par['e_u2'].get() - e_u**2)
+
+    return \
+        y_info_entropy + \
+        mu_info_entropy + \
+        MultivariateNormalEntropy(beta_info) + \
+        UnivariateNormalEntropy(mu_info) + \
+        UnivariateNormalEntropy(u_info)
+
+
+
 def get_elbo(data_cache, lmm_par, moment_par, prior_par, sufficient=True):
     return get_elbo_model_term(data_cache, moment_par, prior_par, sufficient) + \
            get_entropy(lmm_par)
@@ -406,6 +473,71 @@ class CoordinateAscentUpdater(object):
         self.update_y_info()
         self.update_u()
         return np.sum(np.abs(initial_moment_vec - self.moment_par.get_vector()))
+
+
+
+# Get an VB ASIS updater:
+class ASISCoordinateAscent(object):
+    def __init__(self, moment_par, data_cache, prior_par):
+        moment_par_sufficient = copy.deepcopy(moment_par)
+        moment_par_sufficient.sufficient = True
+
+        moment_par_ancillary = copy.deepcopy(moment_par)
+        moment_par_ancillary.sufficient = False
+
+        self.ca_updater_sufficient = CoordinateAscentUpdater(
+            moment_par_sufficient, data_cache, prior_par, sufficient=True)
+        self.ca_updater_ancillary = CoordinateAscentUpdater(
+            moment_par_ancillary, data_cache, prior_par, sufficient=False)
+
+    def update_from_ancillary(self):
+        # Copy every parameter
+        self.ca_updater_sufficient.moment_par.set_vector(
+            self.ca_updater_ancillary.moment_par.get_vector())
+
+        e_u_anc = self.ca_updater_ancillary.moment_par['e_u'].get()
+        e_u2_anc = self.ca_updater_ancillary.moment_par['e_u2'].get()
+
+        e_mu_anc = self.ca_updater_ancillary.moment_par['e_mu'].get()
+        e_mu2_anc = self.ca_updater_ancillary.moment_par['e_mu2'].get()
+
+        var_u_anc = e_u2_anc - e_u_anc**2
+
+        # ...except set the sufficient u from the ancillary u and mu.
+        e_u_suff = e_u_anc + e_mu_anc
+        self.ca_updater_sufficient.moment_par['e_u'].set(e_u_suff)
+
+        # Keep the variance the same.  Is this the right thing to do?
+        self.ca_updater_sufficient.moment_par['e_u2'].set(var_u_anc + e_u_suff**2)
+
+    def update_from_sufficient(self):
+        # Copy every parameter
+        self.ca_updater_ancillary.moment_par.set_vector(
+            self.ca_updater_sufficient.moment_par.get_vector())
+
+        e_u_suff = self.ca_updater_sufficient.moment_par['e_u'].get()
+        e_u2_suff = self.ca_updater_sufficient.moment_par['e_u2'].get()
+
+        e_mu_suff = self.ca_updater_sufficient.moment_par['e_mu'].get()
+        e_mu2_suff = self.ca_updater_sufficient.moment_par['e_mu2'].get()
+
+        var_u_suff = e_u2_suff - e_u_suff**2
+
+        # ...except set the ancillary u from the sufficient u and mu.
+        e_u_anc = e_u_suff - e_mu_suff
+        self.ca_updater_ancillary.moment_par['e_u'].set(e_u_anc)
+
+        # Keep the variance the same.  Is this the right thing to do?
+        self.ca_updater_ancillary.moment_par['e_u2'].set(var_u_suff + e_u_anc**2)
+
+    def update(self):
+        initial_moment_vec = self.ca_updater_sufficient.moment_par.get_vector()
+        self.ca_updater_sufficient.update()
+        self.update_from_sufficient()
+        self.ca_updater_ancillary.update()
+        self.update_from_ancillary()
+        self.ca_updater_sufficient.update()
+        return np.sum(np.abs(initial_moment_vec - self.ca_updater_sufficient.moment_par.get_vector()))
 
 
 #################################
