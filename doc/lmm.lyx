@@ -71,7 +71,7 @@
 \begin_body
 
 \begin_layout Section
-LMM Model
+LMM sufficient Model
 \end_layout
 
 \begin_layout Standard
@@ -79,31 +79,6 @@ LMM Model
 \begin{align*}
 y_{i}\vert u_{g},\beta & \sim\mathcal{N}\left(x_{i}^{T}\beta+u_{g\left[i\right]},\tau_{y}^{-1}\right)\\
 u_{g} & \sim\mathcal{N}\left(\mu,\tau_{\mu}^{-1}\right)
-\end{align*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-and
-\begin_inset Formula 
-\begin{align*}
-y_{i}\vert v_{g},\beta,\mu & \sim\mathcal{N}\left(x_{i}^{T}\beta+v_{g\left[i\right]}+\mu,\tau_{y}^{-1}\right)\\
-v_{g} & \sim\mathcal{N}\left(0,\tau_{\mu}^{-1}\right)
-\end{align*}
-
-\end_inset
-
-
-\end_layout
-
-\begin_layout Standard
-Certainly
-\begin_inset Formula 
-\begin{align*}
-v_{g}+\mu & =u_{g}
 \end{align*}
 
 \end_inset
@@ -188,8 +163,55 @@ n_{g} & =\sum_{i:g\left[i\right]=\gamma}1\\
 
 \end_layout
 
+\begin_layout Section
+LMM ancillary model
+\end_layout
+
 \begin_layout Standard
-This may be premature optimization, though.
+This is
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+y_{i}\vert v_{g},\beta,\mu & \sim\mathcal{N}\left(x_{i}^{T}\beta+v_{g\left[i\right]}+\mu,\tau_{y}^{-1}\right)\\
+v_{g} & \sim\mathcal{N}\left(0,\tau_{\mu}^{-1}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Certainly
+\begin_inset Formula 
+\begin{align*}
+v_{g}+\mu & =u_{g}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+In matrix form, and using the previous sufficient result,
+\begin_inset Formula 
+\begin{align*}
+Y & =X\beta+V_{g}+\mu+\epsilon\\
+\log p\left(Y\vert X,\beta,V_{g},\mu\right) & =-\frac{1}{2}\tau_{y}\left(Y-X\beta-V_{g}-\mu\right)^{T}\left(Y-X\beta-V_{g}-\mu\right)-\frac{N}{2}\log\tau_{y}\\
+\left(Y-X\beta-V_{g}-\mu\right)^{T}\left(Y-X\beta-V_{g}-\mu\right) & =Y^{T}Y-2Y^{T}X\beta-2Y^{T}\left(V_{g}-\mu\right)+\beta^{T}XX^{T}\beta+\left(V_{g}-\mu\right)^{T}\left(V_{g}-\mu\right)+2\left(V_{g}-\mu\right)^{T}X\beta\\
+\left(V_{g}-\mu\right)^{T}\left(V_{g}-\mu\right) & =V_{g}^{T}V_{g}-2\mu^{T}V_{g}+\mu^{T}\mu
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The pre-computed statistics are the same.
 \end_layout
 
 \begin_layout Section

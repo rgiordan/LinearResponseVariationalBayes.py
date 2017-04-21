@@ -31,13 +31,20 @@ def get_base_prior_parameters(K):
     return prior_par
 
 
-def get_base_sufficient_parameters(K, NG):
+def get_base_parameters(K, NG, sufficient=True):
     lmm_par = ModelParamsDict('LMM Parameters')
 
     lmm_par.push_param(MVNParam('beta', K))
     lmm_par.push_param(UVNParam('mu'))
+
+    # TODO: this should be called u_info, not mu_info.
     lmm_par.push_param(GammaParam('mu_info'))
     lmm_par.push_param(GammaParam('y_info'))
+
+    # Note: in order to keep the code simple, I will use "u" to refer both
+    # to the ancillary and sufficient augmentation, using function and variable
+    # names to disambiguate, as well as the field "sufficient".
+    lmm_par.sufficient = sufficient
     lmm_par.push_param(UVNParamVector('u', NG))
 
     lmm_par['beta'].mean.set(np.full(K, 0.0))
@@ -58,7 +65,7 @@ def get_base_sufficient_parameters(K, NG):
     return lmm_par
 
 
-def get_base_moment_parameters(K, NG):
+def get_base_moment_parameters(K, NG, sufficient=True):
     moment_par = ModelParamsDict('Moment Parameters')
     moment_par.push_param(VectorParam('e_beta', K))
     moment_par.push_param(PosDefMatrixParam('e_beta_outer', K))
@@ -68,6 +75,11 @@ def get_base_moment_parameters(K, NG):
     moment_par.push_param(ScalarParam('e_log_mu_info'))
     moment_par.push_param(ScalarParam('e_y_info'))
     moment_par.push_param(ScalarParam('e_log_y_info'))
+
+    # u represents either the sufficient or ancillary augmentation depending
+    # on moment_par.sufficient.  Hope that doesn't get confusing.
+    # See discussion of u in get_base_parameters.
+    moment_par.sufficient = sufficient
     moment_par.push_param(VectorParam('e_u', NG))
     moment_par.push_param(VectorParam('e_u2', NG))
     return moment_par
@@ -143,8 +155,22 @@ def get_e_log_prior(moment_par, prior_par):
                    e_obs=e_y_info,
                    e_log_obs=e_log_y_info)
 
+# Data model:
+def get_e_ancillary_random_effect_log_lik(moment_par):
+    assert not moment_par.sufficient
 
-def get_e_random_effect_log_lik(moment_par):
+    e_u = moment_par['e_u'].get()
+    e_u2 = moment_par['e_u2'].get()
+
+    e_mu_info = moment_par['e_mu_info'].get()
+    e_log_mu_info = moment_par['e_log_mu_info'].get()
+
+    return -0.5 * e_mu_info * np.sum(e_u2) + 0.5 * len(e_u) * e_log_mu_info
+
+
+def get_e_sufficient_random_effect_log_lik(moment_par):
+    assert moment_par.sufficient
+
     e_mu = moment_par['e_mu'].get()
     e_mu2 = moment_par['e_mu2'].get()
 
@@ -158,7 +184,38 @@ def get_e_random_effect_log_lik(moment_par):
            0.5 * len(e_u) * e_log_mu_info
 
 
-def e_data_log_lik(data_cache, moment_par):
+def e_ancillary_data_log_lik(data_cache, moment_par):
+    assert not moment_par.sufficient
+
+    e_beta = moment_par['e_beta'].get()
+    e_beta_outer = moment_par['e_beta_outer'].get()
+
+    e_mu = moment_par['e_mu'].get()
+    e_mu2 = moment_par['e_mu2'].get()
+
+    e_u = moment_par['e_u'].get()
+    e_u2 = moment_par['e_u2'].get()
+
+    e_y_info = moment_par['e_y_info'].get()
+    e_log_y_info = moment_par['e_log_y_info'].get()
+
+    ll_global_term = \
+        data_cache.y_t_y + \
+        -2 * np.matmul(data_cache.y_t_x, e_beta) + \
+        np.trace(np.matmul(data_cache.x_t_x, e_beta_outer))
+
+    ll_group_term = np.sum(
+        (e_u2 - 2 * e_u * e_mu + e_mu2) * data_cache.n_g + \
+        -2 * (e_u - e_mu) * data_cache.y_sum_g + \
+        2 * (e_u - e_mu) * np.matmul(data_cache.x_sum_g, e_beta))
+
+    return -0.5 * e_y_info * (ll_global_term + ll_group_term) + \
+           0.5 * len(data_cache.y_vec) * e_log_y_info
+
+
+def e_sufficient_data_log_lik(data_cache, moment_par):
+    assert moment_par.sufficient
+
     e_beta = moment_par['e_beta'].get()
     e_beta_outer = moment_par['e_beta_outer'].get()
 
@@ -182,17 +239,25 @@ def e_data_log_lik(data_cache, moment_par):
            0.5 * len(data_cache.y_vec) * e_log_y_info
 
 
-def get_elbo_model_term(data_cache, moment_par, prior_par):
-    ll_data = e_data_log_lik(data_cache, moment_par)
+def get_elbo_model_term(data_cache, moment_par, prior_par, sufficient=True):
+    if sufficient:
+        ll_data = e_sufficient_data_log_lik(data_cache, moment_par)
+    else:
+        ll_data = e_ancillary_data_log_lik(data_cache, moment_par)
     if np.isnan(ll_data):
         print 'bad data log likelihood'
         return -np.inf
 
-    ll_rf = get_e_random_effect_log_lik(moment_par)
+    if sufficient:
+        ll_rf = get_e_sufficient_random_effect_log_lik(moment_par)
+    else:
+        ll_rf = get_e_ancillary_random_effect_log_lik(moment_par)
     if np.isnan(ll_rf):
         print 'bad random effect log likelihood'
         return -np.inf
 
+    # There is no prior on the random effect, so it's the same in both
+    # the ancillary and sufficient models.
     e_log_prior = get_e_log_prior(moment_par, prior_par)
     if np.isnan(e_log_prior):
         print 'bad prior'
@@ -211,8 +276,8 @@ def get_entropy(lmm_par):
                         rate=lmm_par['mu_info'].rate.get())
 
 
-def get_elbo(data_cache, lmm_par, moment_par, prior_par):
-    return get_elbo_model_term(data_cache, moment_par, prior_par) + \
+def get_elbo(data_cache, lmm_par, moment_par, prior_par, sufficient=True):
+    return get_elbo_model_term(data_cache, moment_par, prior_par, sufficient) + \
            get_entropy(lmm_par)
 
 
@@ -220,7 +285,9 @@ def get_elbo(data_cache, lmm_par, moment_par, prior_par):
 # Stuff for optimizing.
 
 class CoordinateAscentUpdater(object):
-    def __init__(self, moment_par, data_cache, prior_par):
+    def __init__(self, moment_par, data_cache, prior_par, sufficient=True):
+        assert sufficient == moment_par.sufficient
+        self.sufficient = sufficient
         self.moment_par = copy.deepcopy(moment_par)
         self.__data_cache = copy.deepcopy(data_cache)
         self.__prior_par = copy.deepcopy(prior_par)
@@ -230,19 +297,20 @@ class CoordinateAscentUpdater(object):
         self.get_e_beta_outer_coeff = grad(self.beta_e_log_data, 1)
         self.get_e_mu_coeff = grad(self.mu_e_log_data, 0)
         self.get_e_mu2_coeff = grad(self.mu_e_log_data, 1)
-        self.get_e_u_coeff = grad(self.u_e_log_data, 0)
-        self.get_e_u2_coeff = grad(self.u_e_log_data, 1)
         self.get_e_mu_info_coeff = grad(self.mu_info_e_log_data, 0)
         self.get_e_log_mu_info_coeff = grad(self.mu_info_e_log_data, 1)
         self.get_e_y_info_coeff = grad(self.y_info_e_log_data, 0)
         self.get_e_log_y_info_coeff = grad(self.y_info_e_log_data, 1)
+        self.get_e_u_coeff = grad(self.u_e_log_data, 0)
+        self.get_e_u2_coeff = grad(self.u_e_log_data, 1)
 
     # beta updates
     def beta_e_log_data(self, e_beta, e_beta_outer):
         self.moment_par['e_beta'].set(e_beta)
         self.moment_par['e_beta_outer'].set(e_beta_outer)
         return get_elbo_model_term(
-            self.__data_cache, self.moment_par, self.__prior_par)
+            self.__data_cache, self.moment_par, self.__prior_par,
+            sufficient=self.sufficient)
 
     def update_beta(self):
         e_beta = self.moment_par['e_beta'].get()
@@ -263,7 +331,8 @@ class CoordinateAscentUpdater(object):
         self.moment_par['e_mu'].set(e_mu)
         self.moment_par['e_mu2'].set(e_mu2)
         return get_elbo_model_term(
-            self.__data_cache, self.moment_par, self.__prior_par)
+            self.__data_cache, self.moment_par, self.__prior_par,
+            sufficient=self.sufficient)
 
     def update_mu(self):
         e_mu = self.moment_par['e_mu'].get()
@@ -275,29 +344,13 @@ class CoordinateAscentUpdater(object):
         self.moment_par['e_mu'].set(new_e_mu)
         self.moment_par['e_mu2'].set(new_var_mu + new_e_mu**2)
 
-    # u
-    def u_e_log_data(self, e_u, e_u2):
-        self.moment_par['e_u'].set(e_u)
-        self.moment_par['e_u2'].set(e_u2)
-        return get_elbo_model_term(
-            self.__data_cache, self.moment_par, self.__prior_par)
-
-    def update_u(self):
-        e_u = self.moment_par['e_u'].get()
-        e_u2 = self.moment_par['e_u2'].get()
-        e_u_coeff = self.get_e_u_coeff(e_u, e_u2)
-        e_u2_coeff = self.get_e_u2_coeff(e_u, e_u2)
-        new_var_u = -0.5 / e_u2_coeff
-        new_e_u = new_var_u * e_u_coeff
-        self.moment_par['e_u'].set(new_e_u)
-        self.moment_par['e_u2'].set(new_var_u + new_e_u**2)
-
     # mu_info
     def mu_info_e_log_data(self, e_mu_info, e_log_mu_info):
         self.moment_par['e_mu_info'].set(e_mu_info)
         self.moment_par['e_log_mu_info'].set(e_log_mu_info)
         return get_elbo_model_term(
-            self.__data_cache, self.moment_par, self.__prior_par)
+            self.__data_cache, self.moment_par, self.__prior_par,
+            sufficient=self.sufficient)
 
     def update_mu_info(self):
         e_mu_info = self.moment_par['e_mu_info'].get()
@@ -313,7 +366,8 @@ class CoordinateAscentUpdater(object):
         self.moment_par['e_y_info'].set(e_y_info)
         self.moment_par['e_log_y_info'].set(e_log_y_info)
         return get_elbo_model_term(
-            self.__data_cache, self.moment_par, self.__prior_par)
+            self.__data_cache, self.moment_par, self.__prior_par,
+            sufficient=self.sufficient)
 
     def update_y_info(self):
         e_y_info = self.moment_par['e_y_info'].get()
@@ -323,6 +377,25 @@ class CoordinateAscentUpdater(object):
         self.moment_par['e_y_info'].set(new_shape / new_rate)
         self.moment_par['e_log_y_info'].set(
             asp.special.digamma(new_shape) - np.log(new_rate))
+
+    # sufficient u
+    def u_e_log_data(self, e_u, e_u2):
+        self.moment_par['e_u'].set(e_u)
+        self.moment_par['e_u2'].set(e_u2)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par,
+            sufficient=self.sufficient)
+
+    def update_u(self):
+        e_u = self.moment_par['e_u'].get()
+        e_u2 = self.moment_par['e_u2'].get()
+        e_u_coeff = self.get_e_u_coeff(e_u, e_u2)
+        e_u2_coeff = self.get_e_u2_coeff(e_u, e_u2)
+        new_var_u = -0.5 / e_u2_coeff
+        new_e_u = new_var_u * e_u_coeff
+        self.moment_par['e_u'].set(new_e_u)
+        self.moment_par['e_u2'].set(new_var_u + new_e_u**2)
+
 
     # Update and return the sum of absolute differences.
     def update(self):
@@ -335,10 +408,17 @@ class CoordinateAscentUpdater(object):
         return np.sum(np.abs(initial_moment_vec - self.moment_par.get_vector()))
 
 
+#################################
+# Wrapper for vanilla second-order optimization.
+
 class KLWrapper(object):
     # Optimize with KL because python optimization seems to prefer minimizing.
     def __init__(self, lmm_par, moment_par, prior_par,
-                 x_mat, y_vec, y_g_vec, num_draws):
+                 x_mat, y_vec, y_g_vec, sufficient=True):
+        assert sufficient == lmm_par.sufficient
+        assert sufficient == moment_par.sufficient
+
+        self.__sufficient = sufficient
         self.__lmm_par_ad = copy.deepcopy(lmm_par)
         self.__prior_par_ad = copy.deepcopy(prior_par)
         self.__moment_par_ad = copy.deepcopy(moment_par)
@@ -355,7 +435,8 @@ class KLWrapper(object):
         kl = -get_elbo(self.__data_cache,
                        self.__lmm_par_ad,
                        self.__moment_par_ad,
-                       self.__prior_par_ad)[0]
+                       self.__prior_par_ad,
+                       sufficient=self.__sufficient)[0]
         if verbose: print kl
 
         return kl
