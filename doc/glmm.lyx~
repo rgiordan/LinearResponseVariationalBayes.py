@@ -115,7 +115,7 @@ In matrix form,
 Y & =X\beta+U_{g}+\epsilon\\
 \log p\left(Y\vert X,\beta,U_{g}\right) & =-\frac{1}{2}\tau_{y}\left(Y-X\beta-U_{g}\right)^{T}\left(Y-X\beta-U_{g}\right)-\frac{N}{2}\log\tau_{y}\\
 \left(Y-X\beta-U_{g}\right)^{T}\left(Y-X\beta-U_{g}\right) & =Y^{T}Y-2\left(X\beta+U_{g}\right)^{T}Y+\left(X\beta+U_{g}\right)^{T}\left(X\beta+U_{g}\right)\\
- & =Y^{T}Y-2Y^{T}X\beta-2Y^{T}U_{g}+\beta^{T}XX^{T}\beta+U_{g}^{T}U_{g}-2U_{g}^{T}X\beta
+ & =Y^{T}Y-2Y^{T}X\beta-2Y^{T}U_{g}+\beta^{T}XX^{T}\beta+U_{g}^{T}U_{g}+2U_{g}^{T}X\beta
 \end{align*}
 
 \end_inset

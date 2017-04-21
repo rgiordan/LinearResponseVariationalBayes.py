@@ -72,6 +72,9 @@
 
 \begin_layout Section
 LMM Model
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
 y_{i}\vert u_{g},\beta & \sim\mathcal{N}\left(x_{i}^{T}\beta+u_{g\left[i\right]},\tau_{y}^{-1}\right)\\
