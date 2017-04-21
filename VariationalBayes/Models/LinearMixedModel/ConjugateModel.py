@@ -1,4 +1,5 @@
-from VariationalBayes import ScalarParam, ModelParamsDict, VectorParam, PosDefMatrixParam
+from VariationalBayes import \
+    ScalarParam, ModelParamsDict, VectorParam, PosDefMatrixParam
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.ExponentialFamilies import \
@@ -240,14 +241,16 @@ class CoordinateAscentUpdater(object):
     def beta_e_log_data(self, e_beta, e_beta_outer):
         self.moment_par['e_beta'].set(e_beta)
         self.moment_par['e_beta_outer'].set(e_beta_outer)
-        return get_elbo_model_term(self.__data_cache, self.moment_par, self.__prior_par)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par)
 
     def update_beta(self):
         e_beta = self.moment_par['e_beta'].get()
         e_beta_outer = self.moment_par['e_beta_outer'].get()
         e_beta_coeff = self.get_e_beta_coeff(e_beta, e_beta_outer)
         e_beta_outer_coeff = self.get_e_beta_outer_coeff(e_beta, e_beta_outer)
-        e_beta_outer_coeff = 0.5 * (e_beta_outer_coeff + e_beta_outer_coeff.transpose())
+        e_beta_outer_coeff = \
+            0.5 * (e_beta_outer_coeff + e_beta_outer_coeff.transpose())
         new_cov_beta = -0.5 * np.linalg.inv(e_beta_outer_coeff)
         new_e_beta = np.matmul(new_cov_beta, e_beta_coeff)
         self.moment_par['e_beta'].set(new_e_beta)
@@ -259,7 +262,8 @@ class CoordinateAscentUpdater(object):
     def mu_e_log_data(self, e_mu, e_mu2):
         self.moment_par['e_mu'].set(e_mu)
         self.moment_par['e_mu2'].set(e_mu2)
-        return get_elbo_model_term(self.__data_cache, self.moment_par, self.__prior_par)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par)
 
     def update_mu(self):
         e_mu = self.moment_par['e_mu'].get()
@@ -275,7 +279,8 @@ class CoordinateAscentUpdater(object):
     def u_e_log_data(self, e_u, e_u2):
         self.moment_par['e_u'].set(e_u)
         self.moment_par['e_u2'].set(e_u2)
-        return get_elbo_model_term(self.__data_cache, self.moment_par, self.__prior_par)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par)
 
     def update_u(self):
         e_u = self.moment_par['e_u'].get()
@@ -291,7 +296,8 @@ class CoordinateAscentUpdater(object):
     def mu_info_e_log_data(self, e_mu_info, e_log_mu_info):
         self.moment_par['e_mu_info'].set(e_mu_info)
         self.moment_par['e_log_mu_info'].set(e_log_mu_info)
-        return get_elbo_model_term(self.__data_cache, self.moment_par, self.__prior_par)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par)
 
     def update_mu_info(self):
         e_mu_info = self.moment_par['e_mu_info'].get()
@@ -299,13 +305,15 @@ class CoordinateAscentUpdater(object):
         new_rate = -1 * self.get_e_mu_info_coeff(e_mu_info, e_log_mu_info)
         new_shape = self.get_e_log_mu_info_coeff(e_mu_info, e_log_mu_info) + 1
         self.moment_par['e_mu_info'].set(new_shape / new_rate)
-        self.moment_par['e_log_mu_info'].set(asp.special.digamma(new_shape) - np.log(new_rate))
+        self.moment_par['e_log_mu_info'].set(
+            asp.special.digamma(new_shape) - np.log(new_rate))
 
     # y_info
     def y_info_e_log_data(self, e_y_info, e_log_y_info):
         self.moment_par['e_y_info'].set(e_y_info)
         self.moment_par['e_log_y_info'].set(e_log_y_info)
-        return get_elbo_model_term(self.__data_cache, self.moment_par, self.__prior_par)
+        return get_elbo_model_term(
+            self.__data_cache, self.moment_par, self.__prior_par)
 
     def update_y_info(self):
         e_y_info = self.moment_par['e_y_info'].get()
@@ -313,7 +321,8 @@ class CoordinateAscentUpdater(object):
         new_rate = -1 * self.get_e_y_info_coeff(e_y_info, e_log_y_info)
         new_shape = self.get_e_log_y_info_coeff(e_y_info, e_log_y_info) + 1
         self.moment_par['e_y_info'].set(new_shape / new_rate)
-        self.moment_par['e_log_y_info'].set(asp.special.digamma(new_shape) - np.log(new_rate))
+        self.moment_par['e_log_y_info'].set(
+            asp.special.digamma(new_shape) - np.log(new_rate))
 
     # Update and return the sum of absolute differences.
     def update(self):
@@ -328,7 +337,8 @@ class CoordinateAscentUpdater(object):
 
 class KLWrapper(object):
     # Optimize with KL because python optimization seems to prefer minimizing.
-    def __init__(self, lmm_par, moment_par, prior_par, x_mat, y_vec, y_g_vec, num_draws):
+    def __init__(self, lmm_par, moment_par, prior_par,
+                 x_mat, y_vec, y_g_vec, num_draws):
         self.__lmm_par_ad = copy.deepcopy(lmm_par)
         self.__prior_par_ad = copy.deepcopy(prior_par)
         self.__moment_par_ad = copy.deepcopy(moment_par)
@@ -361,6 +371,8 @@ class MomentWrapper(object):
         self.moment_jacobian = jacobian(self.get_moments)
 
     # Return a posterior moment of interest as a function of unconstrained parameters.
+    # TODO: this is returning too many unneeded moments, making the Jacobian
+    # calculation slow.
     def get_moments(self, free_par_vec):
         self.__lmm_par_ad.set_free(free_par_vec)
         set_moments(self.__lmm_par_ad, self.__moment_par)
