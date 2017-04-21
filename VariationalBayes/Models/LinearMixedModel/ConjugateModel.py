@@ -467,8 +467,8 @@ class CoordinateAscentUpdater(object):
     # Update and return the sum of absolute differences.
     def update(self):
         initial_moment_vec = self.moment_par.get_vector()
-        self.update_beta()
         self.update_mu()
+        self.update_beta()
         self.update_mu_info()
         self.update_y_info()
         self.update_u()
@@ -508,7 +508,10 @@ class ASISCoordinateAscent(object):
         self.ca_updater_sufficient.moment_par['e_u'].set(e_u_suff)
 
         # Keep the variance the same.  Is this the right thing to do?
-        self.ca_updater_sufficient.moment_par['e_u2'].set(var_u_anc + e_u_suff**2)
+        # self.ca_updater_sufficient.moment_par['e_u2'].set(var_u_anc + e_u_suff**2)
+
+        # Or set the variance to zero.
+        self.ca_updater_sufficient.moment_par['e_u2'].set(e_u_suff**2)
 
     def update_from_sufficient(self):
         # Copy every parameter
@@ -528,16 +531,22 @@ class ASISCoordinateAscent(object):
         self.ca_updater_ancillary.moment_par['e_u'].set(e_u_anc)
 
         # Keep the variance the same.  Is this the right thing to do?
-        self.ca_updater_ancillary.moment_par['e_u2'].set(var_u_suff + e_u_anc**2)
+        # self.ca_updater_ancillary.moment_par['e_u2'].set(var_u_suff + e_u_anc**2)
+
+        # Or set the variance to zero.
+        self.ca_updater_ancillary.moment_par['e_u2'].set(e_u_anc**2)
 
     def update(self):
         initial_moment_vec = self.ca_updater_sufficient.moment_par.get_vector()
         self.ca_updater_sufficient.update()
         self.update_from_sufficient()
+        self.ca_updater_ancillary.update_mu() # Update mu first after tranforming.
         self.ca_updater_ancillary.update()
         self.update_from_ancillary()
+        self.ca_updater_sufficient.update_mu()
         self.ca_updater_sufficient.update()
-        return np.sum(np.abs(initial_moment_vec - self.ca_updater_sufficient.moment_par.get_vector()))
+        return np.sum(np.abs(initial_moment_vec -
+                             self.ca_updater_sufficient.moment_par.get_vector()))
 
 
 #################################
