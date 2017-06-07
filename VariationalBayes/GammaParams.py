@@ -4,7 +4,7 @@ import autograd.numpy as np
 import autograd.scipy as asp
 
 class GammaParam(object):
-    def __init__(self, name, min_shape=0.0, min_rate=0.0):
+    def __init__(self, name='', min_shape=0.0, min_rate=0.0):
         self.name = name
         self.shape = ScalarParam(name + '_shape', lb=min_shape)
         self.rate = ScalarParam(name + '_rate', lb=min_rate)

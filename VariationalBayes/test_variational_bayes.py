@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
@@ -18,6 +19,38 @@ import scipy as sp
 # Lower and upper bounds for unit tests.
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
+
+
+def execute_required_methods(ParamType):
+    # Execute all the methods requied for a parameter type.
+
+    # Every parameter type must provide a valid default value.
+    param = ParamType()
+
+    param.names()
+    param.free_size()
+    param.vector_size()
+
+    free_param = param.get_free()
+    param.set_free(free_param)
+
+    vec_param = param.get_vector()
+    param.set_vector(vec_param)
+
+
+class TestParameterMethods(unittest.TestCase):
+    def test_methods_work(self):
+        # For every parameter type, execute all the required methods.
+        execute_required_methods(ScalarParam)
+        execute_required_methods(VectorParam)
+        execute_required_methods(PosDefMatrixParam)
+
+        execute_required_methods(MVNParam)
+        execute_required_methods(UVNParam)
+        execute_required_methods(UVNParamVector)
+
+        execute_required_methods(GammaParam)
+
 
 class TestParameters(unittest.TestCase):
     def test_scalar(self):

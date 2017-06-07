@@ -1,2 +1,2 @@
 from Parameters import \
-    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict, ParamVector
+    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict

@@ -3,7 +3,7 @@ from Parameters import set_free_offset, set_vector_offset
 import autograd.numpy as np
 
 class MVNParam(object):
-    def __init__(self, name, dim, min_info=0.0):
+    def __init__(self, name='', dim=2, min_info=0.0):
         self.name = name
         self.__dim = dim
         self.mean = VectorParam(name + '_mean', dim)
@@ -50,7 +50,7 @@ class MVNParam(object):
 
 
 class UVNParam(object):
-    def __init__(self, name, min_info=0.0):
+    def __init__(self, name='', min_info=0.0):
         self.name = name
         self.mean = ScalarParam(name + '_mean')
         self.info = ScalarParam(name + '_info', lb=min_info)
@@ -91,7 +91,7 @@ class UVNParam(object):
 
 
 class UVNParamVector(object):
-    def __init__(self, name, length, min_info=0.0):
+    def __init__(self, name='', length=2, min_info=0.0):
         self.name = name
         self.mean = VectorParam(name + '_mean', length)
         self.info = VectorParam(name + '_info', length, lb=min_info)

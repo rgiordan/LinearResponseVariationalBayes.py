@@ -57,16 +57,27 @@ def constrain(free_vec, lb, ub):
 
 
 class ScalarParam(object):
-    def __init__(self, name, lb=-float("inf"), ub=float("inf"), val=None):
+    def __init__(self, name='', lb=-float('inf'), ub=float('inf'), val=None):
         self.name = name
         if lb >= ub:
             raise ValueError('Upper bound must strictly exceed lower bound')
         self.__lb = lb
         self.__ub = ub
-        if val is None:
-            self.__val = 0.5 * (ub + lb)
-        else:
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
+        if val is not None:
             self.set(val)
+        else:
+            if lb > -float('inf') and ub < float('inf'):
+                self.set(0.5 * (ub - lb))
+            else:
+                if lb > -float('inf'):
+                    # The upper bound is infinite.
+                    self.set(lb + 1.0)
+                else:
+                    # The lower bound is infinite.
+                    self.set(ub - 1.0)
+
     def __str__(self):
         return self.name + ': ' + str(self.__val)
     def names(self):
@@ -113,17 +124,29 @@ class ScalarParam(object):
 
 
 class VectorParam(object):
-    def __init__(self, name, size, lb=-float("inf"), ub=float("inf"), val=None):
+    def __init__(self, name='', size=1, lb=-float("inf"), ub=float("inf"),
+                 val=None):
         self.name = name
         self.__size = int(size)
         self.__lb = lb
         self.__ub = ub
-        if val is None:
-            self.__val = np.empty(size)
-        else:
-            self.set(val)
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
         if lb >= ub:
             raise ValueError('Upper bound must strictly exceed lower bound')
+        if val is not None:
+            self.set(val)
+        else:
+            if lb > -float('inf') and ub < float('inf'):
+                self.set(np.full(self.__size, 0.5 * (ub - lb)))
+            else:
+                if lb > -float('inf'):
+                    # The upper bound is infinite.
+                    self.set(np.full(self.__size, lb + 1.0))
+                else:
+                    # The lower bound is infinite.
+                    self.set(np.full(self.__size, ub - 1.0))
+
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
     def names(self):
@@ -229,13 +252,14 @@ def unpack_posdef_matrix(free_vec, diag_lb=0.0):
 
 
 class PosDefMatrixParam(object):
-    def __init__(self, name, size, diag_lb=0.0, val=None):
+    def __init__(self, name='', size=2, diag_lb=0.0, val=None):
         self.name = name
         self.__size = int(size)
         self.__vec_size = int(size * (size + 1) / 2)
         self.__diag_lb = diag_lb
+        assert diag_lb >= 0
         if val is None:
-            self.__val = np.matrix(np.zeros([size, size]))
+            self.__val = np.diag(np.full(self.__size, diag_lb + 1.0))
         else:
             self.set(val)
     def __str__(self):
@@ -362,39 +386,3 @@ class ModelParamsDict(object):
         return self.__free_size
     def vector_size(self):
         return self.__vector_size
-
-
-# Not to be confused with a VectorParam -- this is a vector of abstract
-# parameter types.  Note that for the purposes of vectorization it might
-# be better to use an object with arrays of attributes rather than an array
-# of parameters with singelton attributes.
-# This is not currently tested.
-class ParamVector(object):
-    def __init__(self, name, param_vec):
-        self.name = name
-        self.params = param_vec
-        self.__free_size = np.sum([ par.free_size() for par in self.params ])
-    def __str__(self):
-        return '\n'.join([ str(par) for par in self.params ])
-    def __len__(self):
-        return len(self.params)
-    def names(self):
-        return '\n'.join([ names(par) for par in self.params ])
-    def set_free(self, free_val):
-        if free_val.size != self.__free_size:
-            raise ValueError('Wrong size for ParamVector ' + self.name)
-        offset = 0
-        for par in self.params:
-            offset = set_free_offset(par, free_val, offset)
-    def get_free(self):
-        vec = np.empty(self.__free_size)
-        offset = 0
-        for par in self.params:
-            offset = get_free_offset(par, vec, offset)
-        return vec
-    def free_size(self):
-        return self.__free_size
-    def __getitem__(self, key):
-        return self.params[key]
-    def __setitem__(self, key, value):
-        self.params[key] = value
