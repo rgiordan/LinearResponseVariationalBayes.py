@@ -115,7 +115,7 @@ class ScalarParam(object):
 class VectorParam(object):
     def __init__(self, name, size, lb=-float("inf"), ub=float("inf"), val=None):
         self.name = name
-        self.__size = size
+        self.__size = int(size)
         self.__lb = lb
         self.__ub = ub
         if val is None:
@@ -165,7 +165,7 @@ class VectorParam(object):
 # Uses 0-indexing. (row, col) = (k1, k2)
 def SymIndex(k1, k2):
     def LDInd(k1, k2):
-        return k2 + k1 * (k1 + 1) / 2
+        return int(k2 + k1 * (k1 + 1) / 2)
 
     if k2 <= k1:
         return LDInd(k1, k2)
@@ -231,8 +231,8 @@ def unpack_posdef_matrix(free_vec, diag_lb=0.0):
 class PosDefMatrixParam(object):
     def __init__(self, name, size, diag_lb=0.0, val=None):
         self.name = name
-        self.__size = size
-        self.__vec_size = size * (size + 1) / 2
+        self.__size = int(size)
+        self.__vec_size = int(size * (size + 1) / 2)
         self.__diag_lb = diag_lb
         if val is None:
             self.__val = np.matrix(np.zeros([size, size]))

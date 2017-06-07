@@ -5,12 +5,12 @@ from autograd.util import quick_grad_check
 import copy
 from itertools import product
 import numpy.testing as np_test
-import Parameters
+from VariationalBayes import Parameters
 from Parameters import \
     VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
-from NormalParams import MVNParam, UVNParam, UVNParamVector
-from GammaParams import GammaParam
-from ExponentialFamilies import \
+from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
+from VariationalBayes.GammaParams import GammaParam
+from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy
 import unittest
 import scipy as sp
