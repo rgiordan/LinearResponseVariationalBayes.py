@@ -11,6 +11,7 @@ from Parameters import \
     ScalarParam, VectorParam, ArrayParam, PosDefMatrixParam, ModelParamsDict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
+from VariationalBayes.MultinomialParams import SimplexParam
 from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy
 import unittest
@@ -85,6 +86,7 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(VectorParam, test_autograd=True)
         execute_required_methods(ArrayParam, test_autograd=True)
         execute_required_methods(PosDefMatrixParam, test_autograd=True)
+        execute_required_methods(SimplexParam, test_autograd=True)
 
         execute_required_methods(MVNParam)
         execute_required_methods(UVNParam)
@@ -94,7 +96,7 @@ class TestParameterMethods(unittest.TestCase):
 
 
 class TestParameters(unittest.TestCase):
-    def test_VectorParam(self):
+    def test_vector_param(self):
         lb = -0.1
         ub = 5.2
         k = 4
@@ -164,7 +166,7 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(val, ap.get())
 
 
-    def test_ScalarParam(self):
+    def test_scalar_param(self):
         lb = -0.1
         ub = 5.2
         val = 0.5 * (ub - lb) + lb
@@ -196,6 +198,43 @@ class TestParameters(unittest.TestCase):
         vp.set(0.)
         vp.set_vector(val_vec)
         self.assertAlmostEqual(val, vp.get())
+
+
+    def test_simplex_param(self):
+        shape = (5, 3)
+
+        def random_simplex(shape):
+            val = np.random.random(shape)
+            val = val / np.expand_dims(np.sum(val, 1), axis=1)
+            return val
+
+        val = random_simplex(shape)
+        bad_val = random_simplex((shape[0], shape[1] + 1))
+        sp = SimplexParam(name='test', shape=shape, val=val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        self.assertRaises(ValueError, sp.set, bad_val)
+        free_val = sp.get_free()
+        vec_val = sp.get_vector()
+
+        # Check size.
+        self.assertEqual(len(vec_val), sp.vector_size())
+        self.assertEqual(len(free_val), sp.free_size())
+
+        # # Check getting and free parameters.
+        unif_simplex = np.full(shape, 1. / shape[1])
+        sp.set(unif_simplex)
+
+        sp.set(val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        sp.set(unif_simplex)
+        sp.set_free(free_val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        sp.set(unif_simplex)
+        sp.set_vector(vec_val)
+        np_test.assert_array_almost_equal(val, sp.get())
 
 
     def test_LDMatrix_helpers(self):
