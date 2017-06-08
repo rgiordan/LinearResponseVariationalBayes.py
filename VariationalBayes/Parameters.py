@@ -7,7 +7,7 @@ from autograd.core import primitive
 
 from collections import OrderedDict
 
-def unconstrain_vector(vec, lb, ub):
+def unconstrain_array(vec, lb, ub):
     if not all(vec <= ub):
         raise ValueError('Elements larger than the upper bound')
     if not all(vec >= lb):
@@ -170,7 +170,7 @@ class VectorParam(object):
             raise ValueError('Wrong size for vector ' + self.name)
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
-        return unconstrain_vector(self.__val, self.__lb, self.__ub)
+        return unconstrain_array(self.__val, self.__lb, self.__ub)
 
     def set_vector(self, val):
         self.set(val)
@@ -183,6 +183,70 @@ class VectorParam(object):
         return self.__size
     def vector_size(self):
         return self.__size
+
+
+class ArrayParam(object):
+    def __init__(self, name='', shape=(1, 1),
+                 lb=-float("inf"), ub=float("inf"), val=None):
+        self.name = name
+        self.__shape = shape
+        self.__lb = lb
+        self.__ub = ub
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
+        if lb >= ub:
+            raise ValueError('Upper bound must strictly exceed lower bound')
+        if val is not None:
+            self.set(val)
+        else:
+            if lb > -float('inf') and ub < float('inf'):
+                self.set(np.full(self.__shape, 0.5 * (ub - lb)))
+            else:
+                if lb > -float('inf'):
+                    # The upper bound is infinite.
+                    self.set(np.full(self.__shape, lb + 1.0))
+                else:
+                    # The lower bound is infinite.
+                    self.set(np.full(self.__shape, ub - 1.0))
+
+    def __str__(self):
+        return self.name + ':\n' + str(self.__val)
+    def names(self):
+        return self.name
+    def dictval(self):
+        return self.__val.tolist()
+
+    def set(self, val):
+        if val.shape != self.shape():
+            raise ValueError('Wrong size for array ' + self.name)
+        if any(val < self.__lb):
+            raise ValueError('Value beneath lower bound.')
+        if any(val > self.__ub):
+            raise ValueError('Value above upper bound.')
+        self.__val = val
+    def get(self):
+        return self.__val
+
+    def set_free(self, free_val):
+        if free_val.size != self.free_size():
+            raise ValueError('Wrong length for array ' + self.name)
+        self.set(constrain(free_val, self.__lb, self.__ub))
+    def get_free(self):
+        return unconstrain_array(self.__val, self.__lb, self.__ub)
+
+    def set_vector(self, val):
+        if val.size != self.vector_size():
+            raise ValueError('Wrong length for array ' + self.name)
+        self.set(val)
+    def get_vector(self):
+        return self.__val
+
+    def shape(self):
+        return self.__shape
+    def free_size(self):
+        return int(np.product(self.__shape))
+    def vector_size(self):
+        return int(np.product(self.__shape))
 
 
 # Uses 0-indexing. (row, col) = (k1, k2)

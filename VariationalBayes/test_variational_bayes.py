@@ -8,7 +8,7 @@ from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
 from Parameters import \
-    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
+    ScalarParam, VectorParam, ArrayParam, PosDefMatrixParam, ModelParamsDict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.ExponentialFamilies import \
@@ -43,6 +43,7 @@ class TestParameterMethods(unittest.TestCase):
         # For every parameter type, execute all the required methods.
         execute_required_methods(ScalarParam)
         execute_required_methods(VectorParam)
+        execute_required_methods(ArrayParam)
         execute_required_methods(PosDefMatrixParam)
 
         execute_required_methods(MVNParam)
