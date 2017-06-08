@@ -8,9 +8,9 @@ from autograd.core import primitive
 from collections import OrderedDict
 
 def unconstrain_array(vec, lb, ub):
-    if not all(vec <= ub):
+    if not (vec <= ub).all():
         raise ValueError('Elements larger than the upper bound')
-    if not all(vec >= lb):
+    if not (vec >= lb).all():
         raise ValueError('Elements smaller than the lower bound')
     return unconstrain(vec, lb, ub)
 
@@ -219,9 +219,9 @@ class ArrayParam(object):
     def set(self, val):
         if val.shape != self.shape():
             raise ValueError('Wrong size for array ' + self.name)
-        if any(val < self.__lb):
+        if (val < self.__lb).any():
             raise ValueError('Value beneath lower bound.')
-        if any(val > self.__ub):
+        if (val > self.__ub).any():
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):

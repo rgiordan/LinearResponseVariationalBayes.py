@@ -30,12 +30,14 @@ def execute_required_methods(ParamType):
     param.names()
     param.free_size()
     param.vector_size()
+    param.dictval()
 
     free_param = param.get_free()
     param.set_free(free_param)
 
     vec_param = param.get_vector()
     param.set_vector(vec_param)
+    str(param)
 
 
 class TestParameterMethods(unittest.TestCase):
@@ -104,17 +106,47 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(val_vec)
         np_test.assert_array_almost_equal(val, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
+
+    def test_array_param(self):
+        lb = -0.1
+        ub = 5.2
+        shape = (3, 2)
+        val = np.random.random(shape) * (ub - lb) + lb
+        bad_val_ub = np.abs(val) + ub
+        bad_val_lb = lb - np.abs(val)
+        ap = ArrayParam('test', shape, lb=lb - 0.001, ub=ub + 0.001)
+
+        # Check setting.
+        ap_init = ArrayParam('test', shape, lb=lb - 0.001, ub=ub + 0.001, val=val)
+        np_test.assert_array_almost_equal(val, ap_init.get())
+
+        self.assertRaises(ValueError, ap.set, val[-1, :])
+        self.assertRaises(ValueError, ap.set, bad_val_ub)
+        self.assertRaises(ValueError, ap.set, bad_val_lb)
+        ap.set(val)
+
+        # Check size.
+        self.assertEqual(np.product(shape), ap.vector_size())
+        self.assertEqual(np.product(shape), ap.free_size())
+
+        # Check getting and free parameters.
+        np_test.assert_array_almost_equal(val, ap.get())
+        val_free = ap.get_free()
+        ap.set(np.full(shape, 0.))
+        ap.set_free(val_free)
+        np_test.assert_array_almost_equal(val, ap.get())
+
+        val_vec = ap.get_vector()
+        ap.set(np.full(shape, 0.))
+        ap.set_vector(val_vec)
+        np_test.assert_array_almost_equal(val, ap.get())
+
 
     def test_ScalarParam(self):
         lb = -0.1
         ub = 5.2
         val = 0.5 * (ub - lb) + lb
         vp = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1)
-
 
         # Check setting.
         vp_init = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1, val=4.0)
@@ -143,10 +175,6 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(val_vec)
         self.assertAlmostEqual(val, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
