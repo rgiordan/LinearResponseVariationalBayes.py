@@ -1,2 +1,2 @@
-from Parameters import \
-    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
+from VariationalBayes import Parameters
+    # VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict

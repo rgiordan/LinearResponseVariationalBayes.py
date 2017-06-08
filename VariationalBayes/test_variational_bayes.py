@@ -7,7 +7,7 @@ import copy
 from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
-from Parameters import \
+from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam, PosDefMatrixParam, ModelParamsDict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam

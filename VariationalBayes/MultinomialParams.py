@@ -1,5 +1,4 @@
-import Parameters
-from Parameters import ArrayParam
+from VariationalBayes import Parameters as par
 import autograd.numpy as np
 import autograd.scipy as asp
 
@@ -32,9 +31,9 @@ class SimplexParam(object):
         if len(free_val) != self.free_size():
             raise ValueError('Wrong free size for SimplexParam ' + self.name)
         free_mat = np.reshape(free_val, self.__free_shape)
-        self.set(Parameters.constrain_simplex_matrix(free_mat))
+        self.set(par.constrain_simplex_matrix(free_mat))
     def get_free(self):
-        return Parameters.unconstrain_simplex_matrix(self.__val).flatten()
+        return par.unconstrain_simplex_matrix(self.__val).flatten()
 
     def set_vector(self, vec_val):
         if len(vec_val) != self.vector_size():
