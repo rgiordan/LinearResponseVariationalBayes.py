@@ -21,7 +21,7 @@ lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
 
-def execute_required_methods(ParamType):
+def execute_required_methods(ParamType, test_autograd=False):
     # Execute all the methods requied for a parameter type.
 
     # Every parameter type must provide a valid default value.
@@ -39,14 +39,52 @@ def execute_required_methods(ParamType):
     param.set_vector(vec_param)
     str(param)
 
+    if test_autograd:
+        def set_free_and_get(free_param):
+            param.set_free(free_param)
+            return param.get()
+
+        param_value_jacobian = jacobian(set_free_and_get)
+        jac = param_value_jacobian(free_param)
+
+
+class TestConstrainingFunctions(unittest.TestCase):
+    def test_scalar(self):
+        for lb, ub in product(lbs, ubs):
+            if ub > lb:
+                val = lb + 0.2
+                free_val = Parameters.unconstrain_scalar(val, lb, ub)
+                new_val = Parameters.constrain(free_val, lb, ub)
+                self.assertAlmostEqual(new_val, val)
+
+    def test_array(self):
+        for lb, ub in product(lbs, ubs):
+            if ub > lb:
+                val = np.array([ lb + 0.1, lb + 0.2 ])
+                free_val = Parameters.unconstrain_array(val, lb, ub)
+                new_val = Parameters.constrain(free_val, lb, ub)
+                np_test.assert_array_almost_equal(new_val, val)
+
+    def test_simplex_mat(self):
+        nrow = 5
+        ncol = 4
+        free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
+        simplex_mat = Parameters.constrain_simplex_matrix(free_mat)
+        self.assertEqual(simplex_mat.shape, (nrow, ncol))
+        np_test.assert_array_almost_equal(
+            np.full(nrow, 1.0), np.sum(simplex_mat, 1))
+        free_mat2 = Parameters.unconstrain_simplex_matrix(simplex_mat)
+        self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
+        np_test.assert_array_almost_equal(free_mat, free_mat2)
+
 
 class TestParameterMethods(unittest.TestCase):
     def test_methods_work(self):
         # For every parameter type, execute all the required methods.
-        execute_required_methods(ScalarParam)
-        execute_required_methods(VectorParam)
-        execute_required_methods(ArrayParam)
-        execute_required_methods(PosDefMatrixParam)
+        execute_required_methods(ScalarParam, test_autograd=True)
+        execute_required_methods(VectorParam, test_autograd=True)
+        execute_required_methods(ArrayParam, test_autograd=True)
+        execute_required_methods(PosDefMatrixParam, test_autograd=True)
 
         execute_required_methods(MVNParam)
         execute_required_methods(UVNParam)
@@ -56,22 +94,6 @@ class TestParameterMethods(unittest.TestCase):
 
 
 class TestParameters(unittest.TestCase):
-    def test_scalar(self):
-        for lb, ub in product(lbs, ubs):
-            if ub > lb:
-                val = lb + 0.2
-                free_val = Parameters.unconstrain(val, lb, ub)
-                new_val = Parameters.constrain(free_val, lb, ub)
-                self.assertAlmostEqual(new_val, val)
-
-    def test_vector(self):
-        for lb, ub in product(lbs, ubs):
-            if ub > lb:
-                val = np.array([ lb + 0.1, lb + 0.2 ])
-                free_val = Parameters.unconstrain(val, lb, ub)
-                new_val = Parameters.constrain(free_val, lb, ub)
-                np_test.assert_array_almost_equal(new_val, val)
-
     def test_VectorParam(self):
         lb = -0.1
         ub = 5.2

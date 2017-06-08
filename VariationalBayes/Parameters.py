@@ -3,6 +3,7 @@ import copy
 import numbers
 
 import autograd.numpy as np
+import autograd.scipy as sp
 from autograd.core import primitive
 
 from collections import OrderedDict
@@ -54,6 +55,19 @@ def constrain(free_vec, lb, ub):
         else:
             exp_vec = np.exp(free_vec)
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
+
+
+# The first index is assumed to index simplicial observations.
+def constrain_simplex_matrix(free_mat):
+    # The first column is the reference value.
+    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
+    log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
+    return np.exp(free_mat_aug - log_norm)
+
+
+def unconstrain_simplex_matrix(simplex_mat):
+    return np.log(simplex_mat[:, 1:]) - \
+           np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
 
 
 class ScalarParam(object):
@@ -123,6 +137,7 @@ class ScalarParam(object):
         return 1
 
 
+# TODO: perhaps this could just be replaced by ArrayParam.
 class VectorParam(object):
     def __init__(self, name='', size=1, lb=-float("inf"), ub=float("inf"),
                  val=None):
