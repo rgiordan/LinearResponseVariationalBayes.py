@@ -8,7 +8,8 @@ from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
 from VariationalBayes.Parameters import \
-    ScalarParam, VectorParam, ArrayParam, PosDefMatrixParam, ModelParamsDict
+    ScalarParam, VectorParam, ArrayParam, \
+    PosDefMatrixParam, PosDefMatrixParamVector, ModelParamsDict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
@@ -86,6 +87,7 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(VectorParam, test_autograd=True)
         execute_required_methods(ArrayParam, test_autograd=True)
         execute_required_methods(PosDefMatrixParam, test_autograd=True)
+        execute_required_methods(PosDefMatrixParamVector, test_autograd=True)
         execute_required_methods(SimplexParam, test_autograd=True)
 
         execute_required_methods(MVNParam)

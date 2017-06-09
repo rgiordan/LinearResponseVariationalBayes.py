@@ -387,6 +387,84 @@ class PosDefMatrixParam(object):
         return self.__vec_size
 
 
+class PosDefMatrixParamVector(object):
+    def __init__(self, name='', length=1, matrix_size=2, diag_lb=0.0, val=None):
+        self.name = name
+        self.__matrix_size = int(matrix_size)
+        self.__matrix_shape = np.array([ int(matrix_size), int(matrix_size) ])
+        self.__length = int(length)
+        self.__shape = np.append(self.__length, self.__matrix_shape)
+        self.__vec_size = int(matrix_size * (matrix_size + 1) / 2)
+        self.__diag_lb = diag_lb
+        assert diag_lb >= 0
+        if val is None:
+            default_val = np.diag(np.full(self.__matrix_size, diag_lb + 1.0))
+            self.__val = np.broadcast_to(default_val, self.__shape)
+        else:
+            self.set(val)
+    def __str__(self):
+        return self.name + ':\n' + str(self.__val)
+    def names(self):
+        return [ self.name ]
+    def dictval(self):
+        return self.__val.tolist()
+
+    def set(self, val):
+        if (val.shape != self.__shape).all():
+            raise ValueError('Array is the wrong size')
+        self.__val = val
+    def get(self):
+        return self.__val
+
+    def free_obs_slice(self, obs):
+        assert obs < self.__length
+        return slice(self.__vec_size * obs, self.__vec_size * (obs + 1))
+
+    def set_free(self, free_val):
+        if free_val.size != self.free_size():
+            raise ValueError('Free value is the wrong length')
+        self.__val = \
+            np.array([ unpack_posdef_matrix(free_val[self.free_obs_slice(obs)], diag_lb=self.__diag_lb) \
+              for obs in range(self.__length) ])
+    def get_free(self):
+        return np.hstack([ \
+            pack_posdef_matrix(self.__val[obs, :, :], diag_lb=self.__diag_lb) \
+                          for obs in range(self.__length)])
+
+    def unpack_vector_obs(self, vec_val):
+        # TODO: this code is duplicated in the PosDefMatrixParam class.
+        if len(vec_val) != self.__vec_size:
+            raise ValueError('Vector value is the wrong length')
+        ld_mat = UnvectorizeLDMatrix(vec_val)
+        mat_val = ld_mat + ld_mat.transpose()
+        # We have double counted the diagonal.  For some reason the autograd
+        # diagonal functions require axis1=-1 and axis2=-2
+        mat_val = mat_val - \
+            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
+                             axis1=-1, axis2=-2)
+        return mat_val
+
+    def set_vector(self, vec_val):
+        if len(vec_val) != self.vector_size():
+            raise ValueError('Vector value is the wrong length')
+        self.__val = \
+            np.array([ self.unpack_vector_obs(vec_val[self.free_obs_slice(obs)]) \
+              for obs in range(self.__length) ])
+
+    def get_vector(self):
+        return np.hstack([ VectorizeLDMatrix(self.__val[obs, :, :]) \
+                           for obs in range(self.__length) ])
+
+    def length(self):
+        return self.__length
+    def matrix_size(self):
+        return self.__matrix_size
+    def free_size(self):
+        return self.__vec_size * self.__length
+    def vector_size(self):
+        return self.__vec_size * self.__length
+
+
 # Sets the param using the slice in free_vec starting at offset.
 # Returns the next offset.
 def set_free_offset(param, free_vec, offset):
