@@ -252,9 +252,9 @@ class ArrayParam(object):
     def set_vector(self, val):
         if val.size != self.vector_size():
             raise ValueError('Wrong length for array ' + self.name)
-        self.set(val)
+        self.set(val.reshape(self.__shape))
     def get_vector(self):
-        return self.__val
+        return self.__val.flatten()
 
     def shape(self):
         return self.__shape

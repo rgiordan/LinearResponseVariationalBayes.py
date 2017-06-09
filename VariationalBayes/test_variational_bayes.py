@@ -22,24 +22,26 @@ import scipy as sp
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
-
-def execute_required_methods(ParamType, test_autograd=False):
+def execute_required_methods(testcase, ParamType, test_autograd=False):
     # Execute all the methods requied for a parameter type.
 
     # Every parameter type must provide a valid default value.
     param = ParamType()
 
     param.names()
-    param.free_size()
-    param.vector_size()
     param.dictval()
 
     free_param = param.get_free()
     param.set_free(free_param)
+    testcase.assertEqual(1, free_param.ndim)
 
     vec_param = param.get_vector()
     param.set_vector(vec_param)
+    testcase.assertEqual(1, vec_param.ndim)
     str(param)
+
+    testcase.assertEqual(param.free_size(), len(free_param))
+    testcase.assertEqual(param.vector_size(), len(vec_param))
 
     if test_autograd:
         def set_free_and_get(free_param):
@@ -51,6 +53,26 @@ def execute_required_methods(ParamType, test_autograd=False):
 
 
 class TestConstrainingFunctions(unittest.TestCase):
+
+    class TestParameterMethods(unittest.TestCase):
+        def test_methods_work(self):
+            # For every parameter type, execute all the required methods.
+            execute_required_methods(self, ScalarParam, test_autograd=True)
+            execute_required_methods(self, VectorParam, test_autograd=True)
+            execute_required_methods(self, ArrayParam, test_autograd=True)
+            execute_required_methods(
+                self, PosDefMatrixParam, test_autograd=True)
+            execute_required_methods(
+                self, PosDefMatrixParamVector, test_autograd=True)
+            execute_required_methods(self, SimplexParam, test_autograd=True)
+
+            execute_required_methods(self, MVNParam)
+            execute_required_methods(self, UVNParam)
+            execute_required_methods(self, UVNParamVector)
+
+            execute_required_methods(self, GammaParam)
+
+
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
             if ub > lb:
@@ -78,23 +100,6 @@ class TestConstrainingFunctions(unittest.TestCase):
         free_mat2 = Parameters.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
-
-
-class TestParameterMethods(unittest.TestCase):
-    def test_methods_work(self):
-        # For every parameter type, execute all the required methods.
-        execute_required_methods(ScalarParam, test_autograd=True)
-        execute_required_methods(VectorParam, test_autograd=True)
-        execute_required_methods(ArrayParam, test_autograd=True)
-        execute_required_methods(PosDefMatrixParam, test_autograd=True)
-        execute_required_methods(PosDefMatrixParamVector, test_autograd=True)
-        execute_required_methods(SimplexParam, test_autograd=True)
-
-        execute_required_methods(MVNParam)
-        execute_required_methods(UVNParam)
-        execute_required_methods(UVNParamVector)
-
-        execute_required_methods(GammaParam)
 
 
 class TestParameters(unittest.TestCase):
