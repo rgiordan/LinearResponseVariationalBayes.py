@@ -123,11 +123,13 @@ class TestParameters(unittest.TestCase):
         # Check getting and free parameters.
         np_test.assert_array_almost_equal(val, vp.get())
         val_free = vp.get_free()
+        self.assertEqual(1, len(val_free.shape))
         vp.set(np.full(k, 0.))
         vp.set_free(val_free)
         np_test.assert_array_almost_equal(val, vp.get())
 
         val_vec = vp.get_vector()
+        self.assertEqual(1, len(val_vec.shape))
         vp.set(np.full(k, 0.))
         vp.set_vector(val_vec)
         np_test.assert_array_almost_equal(val, vp.get())

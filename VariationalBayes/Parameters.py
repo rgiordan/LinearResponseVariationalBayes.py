@@ -13,7 +13,7 @@ def unconstrain_array(vec, lb, ub):
         raise ValueError('Elements larger than the upper bound')
     if not (vec >= lb).all():
         raise ValueError('Elements smaller than the lower bound')
-    return unconstrain(vec, lb, ub)
+    return unconstrain(vec, lb, ub).flatten()
 
 
 def unconstrain_scalar(val, lb, ub):
@@ -245,7 +245,7 @@ class ArrayParam(object):
     def set_free(self, free_val):
         if free_val.size != self.free_size():
             raise ValueError('Wrong length for array ' + self.name)
-        self.set(constrain(free_val, self.__lb, self.__ub))
+        self.set(constrain(free_val, self.__lb, self.__ub).reshape(self.__shape))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
 
