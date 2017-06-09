@@ -522,11 +522,6 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             offset = set_free_offset(param, vec, offset)
     def get_free(self):
-        # vec = np.empty(self.free_size())
-        # offset = 0
-        # for param in self.param_dict.values():
-        #     offset = get_free_offset(param, vec, offset)
-        # return vec
         return np.hstack([ par.get_free() for par in self.param_dict.values() ])
 
     def set_vector(self, vec):
