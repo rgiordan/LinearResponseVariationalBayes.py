@@ -141,6 +141,11 @@ class TestParameters(unittest.TestCase):
 
 
     def test_array_param(self):
+
+        # Check that the default initialization is finite.
+        default_init = ArrayParam()
+        self.assertTrue(np.isfinite(default_init.get()).all())
+
         lb = -0.1
         ub = 5.2
         shape = (3, 2)
@@ -257,7 +262,7 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(
             mat, Parameters.unpack_posdef_matrix(mat_vec))
 
-    def test_PosDefMatrixParam(self):
+    def test_pos_def_matrix_param(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
@@ -296,7 +301,7 @@ class TestParameters(unittest.TestCase):
         str(vp)
         vp.dictval()
 
-    def test_ModelParamsDict(self):
+    def test_model_params_dict(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 

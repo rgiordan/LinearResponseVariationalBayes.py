@@ -69,6 +69,21 @@ def unconstrain_simplex_matrix(simplex_mat):
     return np.log(simplex_mat[:, 1:]) - \
            np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
 
+def get_inbounds_value(lb, ub):
+    assert lb < ub
+    if lb > -float('inf') and ub < float('inf'):
+        return 0.5 * (ub - lb)
+    else:
+        if lb > -float('inf'):
+            # The upper bound is infinite.
+            return lb + 1.0
+        elif ub < float('inf'):
+            # The lower bound is infinite.
+            return ub - 1.0
+        else:
+            # Both are infinie.
+            return 0.0
+
 
 class ScalarParam(object):
     def __init__(self, name='', lb=-float('inf'), ub=float('inf'), val=None):
@@ -82,15 +97,7 @@ class ScalarParam(object):
         if val is not None:
             self.set(val)
         else:
-            if lb > -float('inf') and ub < float('inf'):
-                self.set(0.5 * (ub - lb))
-            else:
-                if lb > -float('inf'):
-                    # The upper bound is infinite.
-                    self.set(lb + 1.0)
-                else:
-                    # The lower bound is infinite.
-                    self.set(ub - 1.0)
+            self.set(get_inbounds_value(lb, ub))
 
     def __str__(self):
         return self.name + ': ' + str(self.__val)
@@ -152,15 +159,8 @@ class VectorParam(object):
         if val is not None:
             self.set(val)
         else:
-            if lb > -float('inf') and ub < float('inf'):
-                self.set(np.full(self.__size, 0.5 * (ub - lb)))
-            else:
-                if lb > -float('inf'):
-                    # The upper bound is infinite.
-                    self.set(np.full(self.__size, lb + 1.0))
-                else:
-                    # The lower bound is infinite.
-                    self.set(np.full(self.__size, ub - 1.0))
+            inbounds_value = get_inbounds_value(lb, ub)
+            self.set(np.full(self.__size, inbounds_value))
 
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
@@ -214,15 +214,8 @@ class ArrayParam(object):
         if val is not None:
             self.set(val)
         else:
-            if lb > -float('inf') and ub < float('inf'):
-                self.set(np.full(self.__shape, 0.5 * (ub - lb)))
-            else:
-                if lb > -float('inf'):
-                    # The upper bound is infinite.
-                    self.set(np.full(self.__shape, lb + 1.0))
-                else:
-                    # The lower bound is infinite.
-                    self.set(np.full(self.__shape, ub - 1.0))
+            inbounds_value = get_inbounds_value(lb, ub)
+            self.set(np.full(self.__shape, inbounds_value))
 
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
