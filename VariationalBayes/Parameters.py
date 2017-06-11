@@ -3,16 +3,17 @@ import copy
 import numbers
 
 import autograd.numpy as np
+import autograd.scipy as sp
 from autograd.core import primitive
 
 from collections import OrderedDict
 
-def unconstrain_vector(vec, lb, ub):
-    if not all(vec <= ub):
+def unconstrain_array(vec, lb, ub):
+    if not (vec <= ub).all():
         raise ValueError('Elements larger than the upper bound')
-    if not all(vec >= lb):
+    if not (vec >= lb).all():
         raise ValueError('Elements smaller than the lower bound')
-    return unconstrain(vec, lb, ub)
+    return unconstrain(vec, lb, ub).flatten()
 
 
 def unconstrain_scalar(val, lb, ub):
@@ -56,17 +57,48 @@ def constrain(free_vec, lb, ub):
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
 
+# The first index is assumed to index simplicial observations.
+def constrain_simplex_matrix(free_mat):
+    # The first column is the reference value.
+    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
+    log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
+    return np.exp(free_mat_aug - log_norm)
+
+
+def unconstrain_simplex_matrix(simplex_mat):
+    return np.log(simplex_mat[:, 1:]) - \
+           np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
+
+def get_inbounds_value(lb, ub):
+    assert lb < ub
+    if lb > -float('inf') and ub < float('inf'):
+        return 0.5 * (ub - lb)
+    else:
+        if lb > -float('inf'):
+            # The upper bound is infinite.
+            return lb + 1.0
+        elif ub < float('inf'):
+            # The lower bound is infinite.
+            return ub - 1.0
+        else:
+            # Both are infinie.
+            return 0.0
+
+
 class ScalarParam(object):
-    def __init__(self, name, lb=-float("inf"), ub=float("inf"), val=None):
+    def __init__(self, name='', lb=-float('inf'), ub=float('inf'), val=None):
         self.name = name
         if lb >= ub:
             raise ValueError('Upper bound must strictly exceed lower bound')
         self.__lb = lb
         self.__ub = ub
-        if val is None:
-            self.__val = 0.5 * (ub + lb)
-        else:
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
+        if val is not None:
             self.set(val)
+        else:
+            self.set(get_inbounds_value(lb, ub))
+
     def __str__(self):
         return self.name + ': ' + str(self.__val)
     def names(self):
@@ -112,18 +144,24 @@ class ScalarParam(object):
         return 1
 
 
+# TODO: perhaps this could just be replaced by ArrayParam.
 class VectorParam(object):
-    def __init__(self, name, size, lb=-float("inf"), ub=float("inf"), val=None):
+    def __init__(self, name='', size=1, lb=-float("inf"), ub=float("inf"),
+                 val=None):
         self.name = name
-        self.__size = size
+        self.__size = int(size)
         self.__lb = lb
         self.__ub = ub
-        if val is None:
-            self.__val = np.empty(size)
-        else:
-            self.set(val)
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
         if lb >= ub:
             raise ValueError('Upper bound must strictly exceed lower bound')
+        if val is not None:
+            self.set(val)
+        else:
+            inbounds_value = get_inbounds_value(lb, ub)
+            self.set(np.full(self.__size, inbounds_value))
+
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
     def names(self):
@@ -147,7 +185,7 @@ class VectorParam(object):
             raise ValueError('Wrong size for vector ' + self.name)
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
-        return unconstrain_vector(self.__val, self.__lb, self.__ub)
+        return unconstrain_array(self.__val, self.__lb, self.__ub)
 
     def set_vector(self, val):
         self.set(val)
@@ -162,10 +200,67 @@ class VectorParam(object):
         return self.__size
 
 
+class ArrayParam(object):
+    def __init__(self, name='', shape=(1, 1),
+                 lb=-float("inf"), ub=float("inf"), val=None):
+        self.name = name
+        self.__shape = shape
+        self.__lb = lb
+        self.__ub = ub
+        assert lb >= -float('inf')
+        assert ub <= float('inf')
+        if lb >= ub:
+            raise ValueError('Upper bound must strictly exceed lower bound')
+        if val is not None:
+            self.set(val)
+        else:
+            inbounds_value = get_inbounds_value(lb, ub)
+            self.set(np.full(self.__shape, inbounds_value))
+
+    def __str__(self):
+        return self.name + ':\n' + str(self.__val)
+    def names(self):
+        return self.name
+    def dictval(self):
+        return self.__val.tolist()
+
+    def set(self, val):
+        if val.shape != self.shape():
+            raise ValueError('Wrong size for array ' + self.name)
+        if (val < self.__lb).any():
+            raise ValueError('Value beneath lower bound.')
+        if (val > self.__ub).any():
+            raise ValueError('Value above upper bound.')
+        self.__val = val
+    def get(self):
+        return self.__val
+
+    def set_free(self, free_val):
+        if free_val.size != self.free_size():
+            raise ValueError('Wrong length for array ' + self.name)
+        self.set(constrain(free_val, self.__lb, self.__ub).reshape(self.__shape))
+    def get_free(self):
+        return unconstrain_array(self.__val, self.__lb, self.__ub)
+
+    def set_vector(self, val):
+        if val.size != self.vector_size():
+            raise ValueError('Wrong length for array ' + self.name)
+        self.set(val.reshape(self.__shape))
+    def get_vector(self):
+        return self.__val.flatten()
+
+    def shape(self):
+        return self.__shape
+    def free_size(self):
+        return int(np.product(self.__shape))
+    def vector_size(self):
+        return int(np.product(self.__shape))
+
+
 # Uses 0-indexing. (row, col) = (k1, k2)
 def SymIndex(k1, k2):
     def LDInd(k1, k2):
-        return k2 + k1 * (k1 + 1) / 2
+        return int(k2 + k1 * (k1 + 1) / 2)
 
     if k2 <= k1:
         return LDInd(k1, k2)
@@ -229,13 +324,14 @@ def unpack_posdef_matrix(free_vec, diag_lb=0.0):
 
 
 class PosDefMatrixParam(object):
-    def __init__(self, name, size, diag_lb=0.0, val=None):
+    def __init__(self, name='', size=2, diag_lb=0.0, val=None):
         self.name = name
-        self.__size = size
-        self.__vec_size = size * (size + 1) / 2
+        self.__size = int(size)
+        self.__vec_size = int(size * (size + 1) / 2)
         self.__diag_lb = diag_lb
+        assert diag_lb >= 0
         if val is None:
-            self.__val = np.matrix(np.zeros([size, size]))
+            self.__val = np.diag(np.full(self.__size, diag_lb + 1.0))
         else:
             self.set(val)
     def __str__(self):
@@ -282,6 +378,84 @@ class PosDefMatrixParam(object):
         return self.__vec_size
     def vector_size(self):
         return self.__vec_size
+
+
+class PosDefMatrixParamVector(object):
+    def __init__(self, name='', length=1, matrix_size=2, diag_lb=0.0, val=None):
+        self.name = name
+        self.__matrix_size = int(matrix_size)
+        self.__matrix_shape = np.array([ int(matrix_size), int(matrix_size) ])
+        self.__length = int(length)
+        self.__shape = np.append(self.__length, self.__matrix_shape)
+        self.__vec_size = int(matrix_size * (matrix_size + 1) / 2)
+        self.__diag_lb = diag_lb
+        assert diag_lb >= 0
+        if val is None:
+            default_val = np.diag(np.full(self.__matrix_size, diag_lb + 1.0))
+            self.__val = np.broadcast_to(default_val, self.__shape)
+        else:
+            self.set(val)
+    def __str__(self):
+        return self.name + ':\n' + str(self.__val)
+    def names(self):
+        return [ self.name ]
+    def dictval(self):
+        return self.__val.tolist()
+
+    def set(self, val):
+        if (val.shape != self.__shape).all():
+            raise ValueError('Array is the wrong size')
+        self.__val = val
+    def get(self):
+        return self.__val
+
+    def free_obs_slice(self, obs):
+        assert obs < self.__length
+        return slice(self.__vec_size * obs, self.__vec_size * (obs + 1))
+
+    def set_free(self, free_val):
+        if free_val.size != self.free_size():
+            raise ValueError('Free value is the wrong length')
+        self.__val = \
+            np.array([ unpack_posdef_matrix(free_val[self.free_obs_slice(obs)], diag_lb=self.__diag_lb) \
+              for obs in range(self.__length) ])
+    def get_free(self):
+        return np.hstack([ \
+            pack_posdef_matrix(self.__val[obs, :, :], diag_lb=self.__diag_lb) \
+                          for obs in range(self.__length)])
+
+    def unpack_vector_obs(self, vec_val):
+        # TODO: this code is duplicated in the PosDefMatrixParam class.
+        if len(vec_val) != self.__vec_size:
+            raise ValueError('Vector value is the wrong length')
+        ld_mat = UnvectorizeLDMatrix(vec_val)
+        mat_val = ld_mat + ld_mat.transpose()
+        # We have double counted the diagonal.  For some reason the autograd
+        # diagonal functions require axis1=-1 and axis2=-2
+        mat_val = mat_val - \
+            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
+                             axis1=-1, axis2=-2)
+        return mat_val
+
+    def set_vector(self, vec_val):
+        if len(vec_val) != self.vector_size():
+            raise ValueError('Vector value is the wrong length')
+        self.__val = \
+            np.array([ self.unpack_vector_obs(vec_val[self.free_obs_slice(obs)]) \
+              for obs in range(self.__length) ])
+
+    def get_vector(self):
+        return np.hstack([ VectorizeLDMatrix(self.__val[obs, :, :]) \
+                           for obs in range(self.__length) ])
+
+    def length(self):
+        return self.__length
+    def matrix_size(self):
+        return self.__matrix_size
+    def free_size(self):
+        return self.__vec_size * self.__length
+    def vector_size(self):
+        return self.__vec_size * self.__length
 
 
 # Sets the param using the slice in free_vec starting at offset.
@@ -341,11 +515,6 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             offset = set_free_offset(param, vec, offset)
     def get_free(self):
-        # vec = np.empty(self.free_size())
-        # offset = 0
-        # for param in self.param_dict.values():
-        #     offset = get_free_offset(param, vec, offset)
-        # return vec
         return np.hstack([ par.get_free() for par in self.param_dict.values() ])
 
     def set_vector(self, vec):
@@ -362,39 +531,3 @@ class ModelParamsDict(object):
         return self.__free_size
     def vector_size(self):
         return self.__vector_size
-
-
-# Not to be confused with a VectorParam -- this is a vector of abstract
-# parameter types.  Note that for the purposes of vectorization it might
-# be better to use an object with arrays of attributes rather than an array
-# of parameters with singelton attributes.
-# This is not currently tested.
-class ParamVector(object):
-    def __init__(self, name, param_vec):
-        self.name = name
-        self.params = param_vec
-        self.__free_size = np.sum([ par.free_size() for par in self.params ])
-    def __str__(self):
-        return '\n'.join([ str(par) for par in self.params ])
-    def __len__(self):
-        return len(self.params)
-    def names(self):
-        return '\n'.join([ names(par) for par in self.params ])
-    def set_free(self, free_val):
-        if free_val.size != self.__free_size:
-            raise ValueError('Wrong size for ParamVector ' + self.name)
-        offset = 0
-        for par in self.params:
-            offset = set_free_offset(par, free_val, offset)
-    def get_free(self):
-        vec = np.empty(self.__free_size)
-        offset = 0
-        for par in self.params:
-            offset = get_free_offset(par, vec, offset)
-        return vec
-    def free_size(self):
-        return self.__free_size
-    def __getitem__(self, key):
-        return self.params[key]
-    def __setitem__(self, key, value):
-        self.params[key] = value

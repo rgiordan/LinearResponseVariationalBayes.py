@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
@@ -5,12 +6,14 @@ from autograd.util import quick_grad_check
 import copy
 from itertools import product
 import numpy.testing as np_test
-import Parameters
-from Parameters import \
-    VectorParam, ScalarParam, PosDefMatrixParam, ModelParamsDict
-from NormalParams import MVNParam, UVNParam, UVNParamVector
-from GammaParams import GammaParam
-from ExponentialFamilies import \
+from VariationalBayes import Parameters
+from VariationalBayes.Parameters import \
+    ScalarParam, VectorParam, ArrayParam, \
+    PosDefMatrixParam, PosDefMatrixParamVector, ModelParamsDict
+from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
+from VariationalBayes.GammaParams import GammaParam
+from VariationalBayes.MultinomialParams import SimplexParam
+from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy
 import unittest
 import scipy as sp
@@ -19,24 +22,88 @@ import scipy as sp
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
-class TestParameters(unittest.TestCase):
+def execute_required_methods(testcase, ParamType, test_autograd=False):
+    # Execute all the methods requied for a parameter type.
+
+    # Every parameter type must provide a valid default value.
+    param = ParamType()
+
+    param.names()
+    param.dictval()
+
+    free_param = param.get_free()
+    param.set_free(free_param)
+    testcase.assertEqual(1, free_param.ndim)
+
+    vec_param = param.get_vector()
+    param.set_vector(vec_param)
+    testcase.assertEqual(1, vec_param.ndim)
+    str(param)
+
+    testcase.assertEqual(param.free_size(), len(free_param))
+    testcase.assertEqual(param.vector_size(), len(vec_param))
+
+    if test_autograd:
+        def set_free_and_get(free_param):
+            param.set_free(free_param)
+            return param.get()
+
+        param_value_jacobian = jacobian(set_free_and_get)
+        jac = param_value_jacobian(free_param)
+
+
+class TestConstrainingFunctions(unittest.TestCase):
+
+    class TestParameterMethods(unittest.TestCase):
+        def test_methods_work(self):
+            # For every parameter type, execute all the required methods.
+            execute_required_methods(self, ScalarParam, test_autograd=True)
+            execute_required_methods(self, VectorParam, test_autograd=True)
+            execute_required_methods(self, ArrayParam, test_autograd=True)
+            execute_required_methods(
+                self, PosDefMatrixParam, test_autograd=True)
+            execute_required_methods(
+                self, PosDefMatrixParamVector, test_autograd=True)
+            execute_required_methods(self, SimplexParam, test_autograd=True)
+
+            execute_required_methods(self, MVNParam)
+            execute_required_methods(self, UVNParam)
+            execute_required_methods(self, UVNParamVector)
+
+            execute_required_methods(self, GammaParam)
+
+
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
             if ub > lb:
                 val = lb + 0.2
-                free_val = Parameters.unconstrain(val, lb, ub)
+                free_val = Parameters.unconstrain_scalar(val, lb, ub)
                 new_val = Parameters.constrain(free_val, lb, ub)
                 self.assertAlmostEqual(new_val, val)
 
-    def test_vector(self):
+    def test_array(self):
         for lb, ub in product(lbs, ubs):
             if ub > lb:
                 val = np.array([ lb + 0.1, lb + 0.2 ])
-                free_val = Parameters.unconstrain(val, lb, ub)
+                free_val = Parameters.unconstrain_array(val, lb, ub)
                 new_val = Parameters.constrain(free_val, lb, ub)
                 np_test.assert_array_almost_equal(new_val, val)
 
-    def test_VectorParam(self):
+    def test_simplex_mat(self):
+        nrow = 5
+        ncol = 4
+        free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
+        simplex_mat = Parameters.constrain_simplex_matrix(free_mat)
+        self.assertEqual(simplex_mat.shape, (nrow, ncol))
+        np_test.assert_array_almost_equal(
+            np.full(nrow, 1.0), np.sum(simplex_mat, 1))
+        free_mat2 = Parameters.unconstrain_simplex_matrix(simplex_mat)
+        self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
+        np_test.assert_array_almost_equal(free_mat, free_mat2)
+
+
+class TestParameters(unittest.TestCase):
+    def test_vector_param(self):
         lb = -0.1
         ub = 5.2
         k = 4
@@ -61,26 +128,63 @@ class TestParameters(unittest.TestCase):
         # Check getting and free parameters.
         np_test.assert_array_almost_equal(val, vp.get())
         val_free = vp.get_free()
+        self.assertEqual(1, len(val_free.shape))
         vp.set(np.full(k, 0.))
         vp.set_free(val_free)
         np_test.assert_array_almost_equal(val, vp.get())
 
         val_vec = vp.get_vector()
+        self.assertEqual(1, len(val_vec.shape))
         vp.set(np.full(k, 0.))
         vp.set_vector(val_vec)
         np_test.assert_array_almost_equal(val, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
-    def test_ScalarParam(self):
+    def test_array_param(self):
+
+        # Check that the default initialization is finite.
+        default_init = ArrayParam()
+        self.assertTrue(np.isfinite(default_init.get()).all())
+
+        lb = -0.1
+        ub = 5.2
+        shape = (3, 2)
+        val = np.random.random(shape) * (ub - lb) + lb
+        bad_val_ub = np.abs(val) + ub
+        bad_val_lb = lb - np.abs(val)
+        ap = ArrayParam('test', shape, lb=lb - 0.001, ub=ub + 0.001)
+
+        # Check setting.
+        ap_init = ArrayParam('test', shape, lb=lb - 0.001, ub=ub + 0.001, val=val)
+        np_test.assert_array_almost_equal(val, ap_init.get())
+
+        self.assertRaises(ValueError, ap.set, val[-1, :])
+        self.assertRaises(ValueError, ap.set, bad_val_ub)
+        self.assertRaises(ValueError, ap.set, bad_val_lb)
+        ap.set(val)
+
+        # Check size.
+        self.assertEqual(np.product(shape), ap.vector_size())
+        self.assertEqual(np.product(shape), ap.free_size())
+
+        # Check getting and free parameters.
+        np_test.assert_array_almost_equal(val, ap.get())
+        val_free = ap.get_free()
+        ap.set(np.full(shape, 0.))
+        ap.set_free(val_free)
+        np_test.assert_array_almost_equal(val, ap.get())
+
+        val_vec = ap.get_vector()
+        ap.set(np.full(shape, 0.))
+        ap.set_vector(val_vec)
+        np_test.assert_array_almost_equal(val, ap.get())
+
+
+    def test_scalar_param(self):
         lb = -0.1
         ub = 5.2
         val = 0.5 * (ub - lb) + lb
         vp = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1)
-
 
         # Check setting.
         vp_init = ScalarParam('test', lb=lb - 0.1, ub=ub + 0.1, val=4.0)
@@ -109,10 +213,43 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(val_vec)
         self.assertAlmostEqual(val, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
+
+    def test_simplex_param(self):
+        shape = (5, 3)
+
+        def random_simplex(shape):
+            val = np.random.random(shape)
+            val = val / np.expand_dims(np.sum(val, 1), axis=1)
+            return val
+
+        val = random_simplex(shape)
+        bad_val = random_simplex((shape[0], shape[1] + 1))
+        sp = SimplexParam(name='test', shape=shape, val=val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        self.assertRaises(ValueError, sp.set, bad_val)
+        free_val = sp.get_free()
+        vec_val = sp.get_vector()
+
+        # Check size.
+        self.assertEqual(len(vec_val), sp.vector_size())
+        self.assertEqual(len(free_val), sp.free_size())
+
+        # # Check getting and free parameters.
+        unif_simplex = np.full(shape, 1. / shape[1])
+        sp.set(unif_simplex)
+
+        sp.set(val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        sp.set(unif_simplex)
+        sp.set_free(free_val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
+        sp.set(unif_simplex)
+        sp.set_vector(vec_val)
+        np_test.assert_array_almost_equal(val, sp.get())
+
 
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
@@ -125,7 +262,7 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(
             mat, Parameters.unpack_posdef_matrix(mat_vec))
 
-    def test_PosDefMatrixParam(self):
+    def test_pos_def_matrix_param(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
@@ -164,7 +301,7 @@ class TestParameters(unittest.TestCase):
         str(vp)
         vp.dictval()
 
-    def test_ModelParamsDict(self):
+    def test_model_params_dict(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
