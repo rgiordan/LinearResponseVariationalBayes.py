@@ -13,8 +13,10 @@ from VariationalBayes.Parameters import \
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
+from VariationalBayes.DirichletParams import DirichletParamVector
 from VariationalBayes.ExponentialFamilies import \
-    UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy
+    UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
+    DirichletEntropy
 import unittest
 import scipy as sp
 
@@ -470,6 +472,29 @@ class TestParameters(unittest.TestCase):
         str(vp)
         vp.dictval()
 
+    def test_DirichletParamVector(self):
+        d = 4
+        alpha = np.array([ 0.2, 1, 3, 0.7 ])
+
+        vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
+
+        # Check setting.
+        vp.alpha.set(alpha)
+
+        # Check size.
+        free_par = vp.get_free()
+        self.assertEqual(len(free_par), vp.free_size())
+
+        # Check getting and free parameters.
+        vp.alpha.set(np.full(d, 1.))
+        vp.set_free(free_par)
+        np_test.assert_array_almost_equal(alpha, vp.alpha.get())
+
+        # Just make sure these run without error.
+        vp.names()
+        str(vp)
+        vp.dictval()
+
 
 class TestDifferentiation(unittest.TestCase):
     def test_free_grads(self):
@@ -642,6 +667,12 @@ class TestEntropy(unittest.TestCase):
         rate = 2.4
         gamma_dist = sp.stats.gamma(a=shape, scale=1 / rate)
         self.assertAlmostEqual(gamma_dist.entropy(), GammaEntropy(shape, rate))
+
+    def test_dirichlet_entropy(self):
+        alpha = np.array([23, 4, 5, 6, 7])
+        dirichlet_dist = sp.stats.dirichlet(alpha)
+        self.assertAlmostEqual\
+                (dirichlet_dist.entropy(), DirichletEntropy(alpha))
 
 
 if __name__ == '__main__':
