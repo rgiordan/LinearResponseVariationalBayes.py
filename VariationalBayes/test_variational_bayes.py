@@ -73,7 +73,7 @@ class TestConstrainingFunctions(unittest.TestCase):
             execute_required_methods(self, UVNParamVector)
 
             execute_required_methods(self, GammaParam)
-
+            execute_required_methods(self, DirichletParamVector)
 
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):

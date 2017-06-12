@@ -22,7 +22,7 @@ def DirichletEntropy(alpha):
     sum_alpha = np.sum(alpha)
     log_beta = np.sum(asp.special.gammaln(alpha)) \
                 - asp.special.gammaln(sum_alpha)
-    return log_beta - (np.shape(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
+    return log_beta - (len(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
             - np.dot((alpha - 1), asp.special.digamma(alpha))
 
 
