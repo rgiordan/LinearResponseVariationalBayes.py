@@ -7,7 +7,8 @@ class DirichletParamVector(object):
     def __init__(self, name='', dim=2, min_alpha = 0.0):
         self.name = name
         self.__dim = dim
-        self.alpha = par.VectorParam(name + '_alpha', size=dim, lb=0.0)
+        assert min_alpha >= 0, 'alpha parameter must be non-negative'
+        self.alpha = par.VectorParam(name + '_alpha', size=dim, lb=min_alpha)
         self.__free_size = self.alpha.free_size()
         self.__vector_size = self.alpha.vector_size()
 
@@ -19,27 +20,22 @@ class DirichletParamVector(object):
         return { 'alpha': self.alpha.dictval() }
 
     def e(self):
-        denom = np.sum(self.alpha.get())
-        return np.array([self.alpha.get()[i] / denom \
-                            for i in range(self.__dim)])
+        return self.alpha.get() / np.sum(self.alpha.get())
+
     def e_log(self):
         digamma_sum = asp.special.digamma(np.sum(self.alpha.get()))
-        return np.array([np.log(self.alpha.get()[i]) / digamma_sum \
-                            for i in range(self.__dim)])
+        return np.log(self.alpha.get()) / digamma_sum
 
     def set_free(self, free_val):
-        if free_val.size != self.__free_size: \
-            raise ValueError('Wrong size for DirichletParamVector ' + self.name)
-        offset = 0
-        offset = par.set_free_offset(self.alpha, free_val, offset)
+        self.alpha.set_free(free_val)
 
     def get_free(self):
         return self.alpha.get_free()
 
     def set_vector(self, vec):
-        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
-        offset = 0
-        offset = par.set_vector_offset(self.alpha, vec, offset)
+        if vec.size != self.__vector_size:
+            raise ValueError("Wrong size.")
+        self.alpha.set(vec)
 
     def get_vector(self):
         return self.alpha.get_vector()
