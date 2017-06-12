@@ -18,6 +18,14 @@ def GammaEntropy(shape, rate):
     return np.sum(shape - np.log(rate) + asp.special.gammaln(shape) + \
                   (1 - shape) * asp.special.digamma(shape))
 
+def DirichletEntropy(alpha):
+    sum_alpha = np.sum(alpha)
+    log_beta = np.sum(asp.special.gammaln(alpha)) \
+                - asp.special.gammaln(sum_alpha)
+    return log_beta - (len(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
+            - np.dot((alpha - 1), asp.special.digamma(alpha))
+
+
 # Priors
 
 def MVNPrior(prior_mean, prior_info, e_obs, cov_obs):
@@ -30,3 +38,8 @@ def UVNPrior(prior_mean, prior_info, e_obs, var_obs):
 
 def GammaPrior(prior_shape, prior_rate, e_obs, e_log_obs):
     return (prior_shape - 1) * e_log_obs - prior_rate * e_obs
+
+def DirichletPrior(alpha, log_e_obs):
+    assert np.shape(alpha) == np.shape(log_e_obs), \
+            'shape of alpha and log_e_obs do not match'
+    return np.dot(alpha - 1, log_e_obs)
