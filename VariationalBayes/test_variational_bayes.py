@@ -296,54 +296,6 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(mat_vectorized)
         np_test.assert_array_almost_equal(mat, vp.get())
 
-    def test_model_params_dict(self):
-        k = 2
-        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-
-        lb = -0.1
-        ub = 5.2
-        val = 0.5 * (ub - lb) + lb
-        vec = np.linspace(lb, ub, k)
-
-        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
-        vp_mat = PosDefMatrixParam('matrix', k)
-        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
-
-        mp = par_dict.ModelParamsDict()
-        mp.push_param(vp_scalar)
-        mp.push_param(vp_vec)
-        mp.push_param(vp_mat)
-
-        execute_required_methods(self, mp, test_autograd=False)
-
-        mp['scalar'].set(val)
-        mp['vector'].set(vec)
-        mp['matrix'].set(mat)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-
-        free_vec = mp.get_free()
-        mp['scalar'].set(0.)
-        mp['vector'].set(np.full(k, 0.))
-        mp['matrix'].set(np.full((k, k), 0.))
-        mp.set_free(free_vec)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-        self.assertEqual(len(free_vec), mp.free_size())
-
-        param_vec = mp.get_vector()
-        mp['scalar'].set(0.)
-        mp['vector'].set(np.full(k, 0.))
-        mp['matrix'].set(np.full((k, k), 0.))
-        mp.set_vector(param_vec)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-        self.assertEqual(len(param_vec), mp.vector_size())
-
-
     def test_MVNParam(self):
         k = 2
         vec = np.full(2, 0.2)
@@ -381,6 +333,97 @@ class TestParameters(unittest.TestCase):
         alpha = np.array([ 0.2, 1, 3, 0.7 ])
         vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
         vp.alpha.set(alpha)
+
+
+class TestParameterDictionary(unittest.TestCase):
+    def test_model_params_dict(self):
+
+        def clear_model_params(mp):
+            mp['scalar'].set(0.)
+            mp['vector'].set(np.full(k, 0.))
+            mp['matrix'].set(np.full((k, k), 0.))
+            mp['simplex'].set(np.full(simp.shape, 1. / np.prod(simp.shape)))
+
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vec = np.linspace(lb, ub, k)
+        simp = np.linspace(2., 10., k * 2).reshape(k, 2)
+        simp = simp / np.expand_dims(np.sum(simp, 1), axis=1)
+        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
+        vp_mat = PosDefMatrixParam('matrix', k)
+        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
+        vp_simp = SimplexParam('simplex', shape=simp.shape)
+
+        mp = par_dict.ModelParamsDict()
+        mp.push_param(vp_scalar)
+        mp.push_param(vp_vec)
+        mp.push_param(vp_mat)
+        mp.push_param(vp_simp)
+
+        execute_required_methods(self, mp, test_autograd=False)
+
+        param_names = ['scalar', 'vector', 'matrix', 'simplex']
+        param_vals = \
+            { 'scalar': val, 'vector': vec, 'matrix': mat, 'simplex': simp }
+
+        for param in param_names:
+            mp[param].set(param_vals[param])
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+
+        free_vec = mp.get_free()
+        clear_model_params(mp)
+        mp.set_free(free_vec)
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+        self.assertEqual(len(free_vec), mp.free_size())
+
+        param_vec = mp.get_vector()
+        clear_model_params(mp)
+        mp.set_vector(param_vec)
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+        self.assertEqual(len(param_vec), mp.vector_size())
+
+        # Check the index dictionaries.
+        free_vec = mp.get_free()
+        mp.set_free(free_vec)
+        for param_id in range(len(param_names)):
+            param = param_names[param_id]
+            free_vec_peturb = mp.get_free()
+            free_vec_peturb[mp.free_indices_dict[param]] += 1.0
+            mp.set_free(free_vec_peturb)
+
+            # Check that only the parameter we're looking at has changed.
+            self.assertTrue(
+                np.max(np.abs(mp[param].get() - param_vals[param]) > 1e-6))
+            for unchanged_param in set(param_names) - set([param]):
+                np_test.assert_array_almost_equal(
+                    param_vals[unchanged_param], mp[unchanged_param].get())
+            mp.set_free(free_vec)
+
+        param_vec = mp.get_vector()
+        mp.set_vector(param_vec)
+        for param_id in range(len(param_names)):
+            param = param_names[param_id]
+            param_vec_peturb = mp.get_vector()
+            param_vec_peturb[mp.vector_indices_dict[param]] += 0.1
+            mp.set_vector(param_vec_peturb)
+
+            # Check that only the parameter we're looking at has changed.
+            self.assertTrue(
+                np.max(np.abs(mp[param].get() - param_vals[param]) > 1e-6))
+            for unchanged_param in set(param_names) - set([param]):
+                np_test.assert_array_almost_equal(
+                    param_vals[unchanged_param], mp[unchanged_param].get())
+            mp.set_vector(param_vec)
 
 
 class TestDifferentiation(unittest.TestCase):
