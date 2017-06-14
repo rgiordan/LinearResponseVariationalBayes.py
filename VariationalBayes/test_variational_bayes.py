@@ -9,7 +9,8 @@ import numpy.testing as np_test
 from VariationalBayes import Parameters
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam, \
-    PosDefMatrixParam, PosDefMatrixParamVector, ModelParamsDict
+    PosDefMatrixParam, PosDefMatrixParamVector
+from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
@@ -316,7 +317,7 @@ class TestParameters(unittest.TestCase):
         vp_mat = PosDefMatrixParam('matrix', k)
         vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
 
-        mp = ModelParamsDict()
+        mp = par_dict.ModelParamsDict()
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
@@ -514,7 +515,7 @@ class TestDifferentiation(unittest.TestCase):
         vp_vec.set(vec)
         vp_mat.set(mat)
 
-        mp = ModelParamsDict()
+        mp = par_dict.ModelParamsDict()
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
@@ -567,7 +568,7 @@ class TestDifferentiation(unittest.TestCase):
         vp_vec.set(vec)
         vp_mat.set(mat)
 
-        mp = ModelParamsDict()
+        mp = par_dict.ModelParamsDict()
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
