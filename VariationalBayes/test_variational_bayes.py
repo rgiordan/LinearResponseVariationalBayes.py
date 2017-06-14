@@ -25,11 +25,8 @@ import scipy as sp
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
-def execute_required_methods(testcase, ParamType, test_autograd=False):
+def execute_required_methods(testcase, param, test_autograd=False):
     # Execute all the methods requied for a parameter type.
-
-    # Every parameter type must provide a valid default value.
-    param = ParamType()
 
     param.names()
     param.dictval()
@@ -60,21 +57,21 @@ class TestConstrainingFunctions(unittest.TestCase):
     class TestParameterMethods(unittest.TestCase):
         def test_methods_work(self):
             # For every parameter type, execute all the required methods.
-            execute_required_methods(self, ScalarParam, test_autograd=True)
-            execute_required_methods(self, VectorParam, test_autograd=True)
-            execute_required_methods(self, ArrayParam, test_autograd=True)
+            execute_required_methods(self, ScalarParam(), test_autograd=True)
+            execute_required_methods(self, VectorParam(), test_autograd=True)
+            execute_required_methods(self, ArrayParam(), test_autograd=True)
             execute_required_methods(
                 self, PosDefMatrixParam, test_autograd=True)
             execute_required_methods(
-                self, PosDefMatrixParamVector, test_autograd=True)
-            execute_required_methods(self, SimplexParam, test_autograd=True)
+                self, PosDefMatrixParamVector(), test_autograd=True)
+            execute_required_methods(self, SimplexParam(), test_autograd=True)
 
-            execute_required_methods(self, MVNParam)
-            execute_required_methods(self, UVNParam)
-            execute_required_methods(self, UVNParamVector)
+            execute_required_methods(self, MVNParam())
+            execute_required_methods(self, UVNParam())
+            execute_required_methods(self, UVNParamVector())
 
-            execute_required_methods(self, GammaParam)
-            execute_required_methods(self, DirichletParamVector)
+            execute_required_methods(self, GammaParam())
+            execute_required_methods(self, DirichletParamVector())
 
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
@@ -299,11 +296,6 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(mat_vectorized)
         np_test.assert_array_almost_equal(mat, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
-
     def test_model_params_dict(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
@@ -321,6 +313,8 @@ class TestParameters(unittest.TestCase):
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
+
+        execute_required_methods(self, mp, test_autograd=False)
 
         mp['scalar'].set(val)
         mp['vector'].set(vec)
@@ -349,152 +343,44 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(mat, mp['matrix'].get())
         self.assertEqual(len(param_vec), mp.vector_size())
 
-        # Just check that these run.
-        mp.names()
-        str(mp)
-        mp.dictval()
-
 
     def test_MVNParam(self):
         k = 2
         vec = np.full(2, 0.2)
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-
         vp = MVNParam('test', k)
-
-        # Check setting.
-        self.assertRaises(ValueError, vp.mean.set, vec[-1])
-        self.assertRaises(ValueError, vp.info.set, np.eye(k + 1))
         vp.mean.set(vec)
         vp.info.set(mat)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-        self.assertEqual(k, vp.dim())
-
-        # Check getting and free parameters.
-        vp.mean.set(np.full(k, 0.))
-        vp.info.set(np.full((k, k), 0.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(mat, vp.info.get())
-        np_test.assert_array_almost_equal(vec, vp.mean.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_UVNParam(self):
-        vp_mean = 0.2
-        vp_info = 1.2
-
         vp = UVNParam('test', min_info=0.1)
+        vp.mean.set(0.2)
+        vp.info.set(1.2)
 
-        # Check setting.
-        vp.mean.set(vp_mean)
-        vp.info.set(vp_info)
-
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-        vec_par = vp.get_vector()
-        self.assertEqual(len(vec_par), vp.vector_size())
-
-        # Check getting and free parameters.
-        vp.mean.set(0.)
-        vp.info.set(1.0)
-        vp.set_free(free_par)
-        self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_info, vp.info.get())
-
-        # Check getting and free parameters.
-        vp.mean.set(0.)
-        vp.info.set(1.0)
-        vp.set_vector(vec_par)
-        self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_info, vp.info.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_UVNParamVector(self):
         k = 2
         vp_mean = np.array([ 0.2, 0.5 ])
         vp_info = np.array([ 1.2, 2.1 ])
-
         vp = UVNParamVector('test', k, min_info=0.1)
-
-        # Check setting.
         vp.mean.set(vp_mean)
         vp.info.set(vp_info)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-
-        # Check getting and free parameters.
-        vp.mean.set(np.full(k, 0.))
-        vp.info.set(np.full(k, 1.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(vp_mean, vp.mean.get())
-        np_test.assert_array_almost_equal(vp_info, vp.info.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_GammaParam(self):
         shape = 0.2
         rate = 0.4
-
         vp = GammaParam('test', min_rate=0.1)
-
-        # Check setting.
         vp.shape.set(shape)
         vp.rate.set(rate)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-
-        # Check getting and free parameters.
-        vp.shape.set(1.0)
-        vp.rate.set(1.0)
-        vp.set_free(free_par)
-        self.assertAlmostEqual(shape, vp.shape.get())
-        self.assertAlmostEqual(rate, vp.rate.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_DirichletParamVector(self):
         d = 4
         alpha = np.array([ 0.2, 1, 3, 0.7 ])
-
         vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
-
-        # Check setting.
         vp.alpha.set(alpha)
-
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-
-        # Check getting and free parameters.
-        vp.alpha.set(np.full(d, 1.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(alpha, vp.alpha.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
 
 class TestDifferentiation(unittest.TestCase):

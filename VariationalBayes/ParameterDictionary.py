@@ -12,6 +12,8 @@ from VariationalBayes import Parameters as par
 class ModelParamsDict(object):
     def __init__(self, name='ModelParamsDict'):
         self.param_dict = OrderedDict()
+        self.free_indices_dict = OrderedDict()
+        self.vector_indices_dict = OrderedDict()
         self.name = name
         # You will want free_size and vector_size to be different when you
         # are encoding simplexes.
@@ -24,6 +26,10 @@ class ModelParamsDict(object):
         return self.param_dict[key]
     def push_param(self, param):
         self.param_dict[param.name] = param
+        self.free_indices_dict[param.name] = \
+            range(self.__free_size, self.__free_size + param.free_size())
+        self.vector_indices_dict[param.name] = \
+            range(self.__vector_size, self.__vector_size + param.vector_size())
         self.__free_size = self.__free_size + param.free_size()
         self.__vector_size = self.__vector_size + param.vector_size()
     def set_name(self, name):
