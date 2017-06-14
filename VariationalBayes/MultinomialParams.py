@@ -44,6 +44,8 @@ class SimplexParam(object):
 
     def shape(self):
         return self.__shape
+    def free_shape(self):
+        return self.__free_shape
     def free_size(self):
         return np.product(self.__free_shape)
     def vector_size(self):
