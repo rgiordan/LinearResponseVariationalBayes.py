@@ -67,6 +67,7 @@ def unconstrain_simplex_matrix(simplex_mat):
     return np.log(simplex_mat[:, 1:]) - \
            np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
 
+
 def get_inbounds_value(lb, ub):
     assert lb < ub
     if lb > -float('inf') and ub < float('inf'):
