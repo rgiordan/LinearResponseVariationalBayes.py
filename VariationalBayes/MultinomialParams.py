@@ -3,6 +3,19 @@ import autograd.numpy as np
 import autograd.scipy as asp
 
 
+# The first index is assumed to index simplicial observations.
+def constrain_simplex_matrix(free_mat):
+    # The first column is the reference value.
+    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
+    log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
+    return np.exp(free_mat_aug - log_norm)
+
+
+def unconstrain_simplex_matrix(simplex_mat):
+    return np.log(simplex_mat[:, 1:]) - \
+           np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
+
+
 class SimplexParam(object):
     def __init__(self, name='', shape=(1, 2), val=None):
         self.name = name
