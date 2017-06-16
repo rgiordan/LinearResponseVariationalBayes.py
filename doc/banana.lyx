@@ -1,0 +1,197 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+We will have
+\begin_inset Formula 
+\begin{align*}
+\log P_{\theta,z}\left(\theta,z\right) & =-\frac{1}{2}\left(\theta^{2}\Lambda_{\theta}+z^{2}\Lambda_{z}+2\theta z\Lambda_{\theta z}\right)+\frac{1}{2}\log\left|\Lambda\right|+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+To define a 
+\begin_inset Quotes eld
+\end_inset
+
+banana distribution
+\begin_inset Quotes erd
+\end_inset
+
+, set
+\begin_inset Formula 
+\begin{align*}
+\tilde{\theta} & =\exp\left(\theta\right)\\
+P_{\tilde{\theta},z}\left(\tilde{\theta},z\right) & =P_{\theta,z}\left(\log\tilde{\theta},z\right)\frac{d\theta}{d\tilde{\theta}}=P_{\theta,z}\left(\log\tilde{\theta},z\right)\exp\left(-\theta\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that including the Jacobian 
+\begin_inset Formula $\frac{d\theta}{d\tilde{\theta}}$
+\end_inset
+
+ changes the MAP.
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\log P_{\tilde{\theta},z}\left(\tilde{\theta},z\right) & =-\frac{1}{2}\left(\left(\log\left(\tilde{\theta}\right)\right)^{2}\Lambda_{\theta}+z^{2}\Lambda_{z}+2\log\left(\tilde{\theta}\right)z\Lambda_{\theta z}\right)+\frac{1}{2}\log\left|\Lambda\right|-\log\left(\tilde{\theta}\right)+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Define the variational distributions
+\begin_inset Formula 
+\begin{align*}
+q\left(\tilde{\theta}\right) & =\mathrm{Lognormal}\left(\mu_{\theta},v_{\theta}^{2}\right)\\
+\mathbb{E}\left[\log\tilde{\theta}\right] & =\mu_{\theta}\\
+\mathbb{E}\left[\left(\log\tilde{\theta}\right)^{2}\right] & =\mu_{\theta}^{2}+v_{\theta}^{2}\\
+-\mathbb{E}\left[\log q\left(\tilde{\theta}\right)\right] & =\frac{1}{2}\log v_{\theta}^{2}+\mu_{\theta}+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+and
+\begin_inset Formula 
+\begin{align*}
+q\left(z\right) & =\mathcal{N}\left(\mu_{z},v_{z}^{2}\right)\\
+-\mathbb{E}\left[\log q\left(z\right)\right] & =\frac{1}{2}\log v_{z}^{2}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Thus the ELBO is given by
+\begin_inset Formula 
+\begin{align*}
+E\left(q\right) & =-\frac{1}{2}\left(\left(\mu_{\theta}^{2}+v_{\theta}^{2}\right)\Lambda_{\theta}+\left(\mu_{z}^{2}+v_{z}^{2}\right)\Lambda_{z}+2\mu_{\theta}\mu_{z}\Lambda_{\theta z}\right)-\mu_{\theta}+\frac{1}{2}\log v_{\theta}^{2}+\mu_{\theta}+\frac{1}{2}\log v_{z}^{2}\\
+ & =-\frac{1}{2}\left(\left(\mu_{\theta}^{2}+v_{\theta}^{2}\right)\Lambda_{\theta}+\left(\mu_{z}^{2}+v_{z}^{2}\right)\Lambda_{z}+2\mu_{\theta}\mu_{z}\Lambda_{\theta z}\right)+\frac{1}{2}\log v_{\theta}^{2}+\frac{1}{2}\log v_{z}^{2}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that the 
+\begin_inset Formula $\mu_{\theta}$
+\end_inset
+
+ cancels, since the KL divergence is invariance to changes of measure.
+ (Though of course the approximating distribution is not.) Note also that
+ we were able to choose the exact optimal 
+\begin_inset Formula $q$
+\end_inset
+
+.
+ That means we are solving the same problem as in the original normal space.
+ The optimum will be
+\begin_inset Formula 
+\begin{align*}
+\mu_{\theta}=\mu_{z} & =0\\
+v_{\theta}^{2} & =\Lambda_{\theta}^{-1}\\
+v_{z}^{2} & =\Lambda_{z}^{-1}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+
+\end_layout
+
+\end_body
+\end_document
