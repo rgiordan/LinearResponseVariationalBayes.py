@@ -2,9 +2,13 @@ import math
 import copy
 import numbers
 
+import autograd
 import autograd.numpy as np
 import autograd.scipy as sp
 from autograd.core import primitive
+
+import scipy as osp
+from scipy.sparse import csr_matrix
 
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
@@ -54,6 +58,8 @@ def constrain(free_vec, lb, ub):
             exp_vec = np.exp(free_vec)
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
+constrain_scalar_jac = autograd.jacobian(constrain)
+constrain_scalar_hess = autograd.hessian(constrain)
 
 # The first index is assumed to index simplicial observations.
 def constrain_simplex_matrix(free_mat):
@@ -98,6 +104,9 @@ class ScalarParam(object):
         else:
             self.set(get_inbounds_value(lb, ub))
 
+        self.free_to_vector_jac = autograd.jacobian(self.free_to_vector)
+        self.free_to_vector_hess = autograd.hessian(self.free_to_vector)
+
     def __str__(self):
         return self.name + ': ' + str(self.__val)
     def names(self):
@@ -129,6 +138,9 @@ class ScalarParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
         return unconstrain_scalar(self.__val, self.__lb, self.__ub)
+    def free_to_vector(self, free_val):
+        self.set_free(fee_val)
+        return self.get()
 
     def set_vector(self, val):
         self.set(val)
@@ -185,6 +197,25 @@ class VectorParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        rows_indices = np.array(range(self.vector_size()))
+        grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
+                  for vec_ind in range(self.vector_size()) ]
+        return csr_matrix((grads,
+                          (rows_indices, rows_indices)),
+                          (self.vector_size(), self.free_size()))
+    def free_to_vector_hess(self, free_val):
+        def get_ind_hess(vec_ind):
+            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            return csr_matrix(([ hess ],
+                               ([vec_ind], [vec_ind])),
+                               (self.free_size(), self.vector_size()))
+        return np.array([ get_ind_hess(vec_ind)
+                          for vec_ind in range(self.vector_size()) ])
+
 
     def set_vector(self, val):
         self.set(val)
@@ -240,6 +271,24 @@ class ArrayParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub).reshape(self.__shape))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        rows_indices = np.array(range(self.vector_size()))
+        grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
+                  for vec_ind in range(self.vector_size()) ]
+        return csr_matrix((grads,
+                          (rows_indices, rows_indices)),
+                          (self.vector_size(), self.free_size()))
+    def free_to_vector_hess(self, free_val):
+        def get_ind_hess(vec_ind):
+            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            return csr_matrix(([ hess ],
+                               ([vec_ind], [vec_ind])),
+                               (self.free_size(), self.vector_size()))
+        return np.array([ get_ind_hess(vec_ind)
+                          for vec_ind in range(self.vector_size()) ])
 
     def set_vector(self, val):
         if val.size != self.vector_size():
