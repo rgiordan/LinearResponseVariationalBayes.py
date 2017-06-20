@@ -316,7 +316,7 @@ def SymIndex(k1, k2):
         return LDInd(k2, k1)
 
 
-def VectorizeLDMatrix(mat):
+def vectorize_ld_matrix(mat):
     nrow, ncol = np.shape(mat)
     if nrow != ncol: raise ValueError('mat must be square')
     return mat[np.tril_indices(nrow)]
@@ -325,7 +325,7 @@ def VectorizeLDMatrix(mat):
 # Because we cannot use autograd with array assignment, just define the
 # vector jacobian product directly.
 @primitive
-def UnvectorizeLDMatrix(vec):
+def unvectorize_ld_matrix(vec):
     mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
     if mat_size * (mat_size + 1) / 2 != vec.size: \
         raise ValueError('Vector is an impossible size')
@@ -336,11 +336,11 @@ def UnvectorizeLDMatrix(vec):
     return mat
 
 
-def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
+def unvectorize_ld_matrix_vjp(g, ans, vs, gvs, vec):
     assert g.shape[0] == g.shape[1]
-    return VectorizeLDMatrix(g)
+    return vectorize_ld_matrix(g)
 
-UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
+unvectorize_ld_matrix.defvjp(unvectorize_ld_matrix_vjp)
 
 def exp_matrix_diagonal(mat):
     assert mat.shape[0] == mat.shape[1]
@@ -364,15 +364,37 @@ def pack_posdef_matrix(mat, diag_lb=0.0):
     k = mat.shape[0]
     mat_lb = mat - np.make_diagonal(
         np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
-    return VectorizeLDMatrix(log_matrix_diagonal(np.linalg.cholesky(mat_lb)))
+    return vectorize_ld_matrix(log_matrix_diagonal(np.linalg.cholesky(mat_lb)))
 
 
 def unpack_posdef_matrix(free_vec, diag_lb=0.0):
-    mat_chol = exp_matrix_diagonal(UnvectorizeLDMatrix(free_vec))
+    mat_chol = exp_matrix_diagonal(unvectorize_ld_matrix(free_vec))
     mat = np.matmul(mat_chol, mat_chol.T)
     k = mat.shape[0]
     return mat + np.make_diagonal(np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
 
+
+# Convert a vector containing the lower diagonal portion of a symmetric
+# matrix into the full symmetric matrix.
+def unvectorize_symmetric_matrix(vec_val):
+    ld_mat = unvectorize_ld_matrix(vec_val)
+    mat_val = ld_mat + ld_mat.transpose()
+    # We have double counted the diagonal.  For some reason the autograd
+    # diagonal functions require axis1=-1 and axis2=-2
+    mat_val = mat_val - \
+        np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
+                         axis1=-1, axis2=-2)
+    return mat_val
+
+
+def pos_def_matrix_free_to_vector(free_val, diag_lb=0.0):
+    mat_val = unpack_posdef_matrix(free_val, diag_lb=diag_lb)
+    return vectorize_ld_matrix(mat_val)
+
+pos_def_matrix_free_to_vector_jac = \
+    autograd.jacobian(pos_def_matrix_free_to_vector)
+pos_def_matrix_free_to_vector_hess = \
+    autograd.hessian(pos_def_matrix_free_to_vector)
 
 class PosDefMatrixParam(object):
     def __init__(self, name='', size=2, diag_lb=0.0, val=None):
@@ -385,6 +407,11 @@ class PosDefMatrixParam(object):
             self.__val = np.diag(np.full(self.__size, diag_lb + 1.0))
         else:
             self.set(val)
+
+        # These will be dense, so just use autograd directly.
+        self.free_to_vector_jac = autograd.jacobian(self.free_to_vector)
+        self.free_to_vector_hess = autograd.hessian(self.free_to_vector)
+
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
     def names(self):
@@ -408,20 +435,16 @@ class PosDefMatrixParam(object):
         self.set(unpack_posdef_matrix(free_val, diag_lb=self.__diag_lb))
     def get_free(self):
         return pack_posdef_matrix(self.__val, diag_lb=self.__diag_lb)
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
 
     def set_vector(self, vec_val):
         if vec_val.size != self.__vec_size:
             raise ValueError('Vector value is the wrong length')
-        ld_mat = UnvectorizeLDMatrix(vec_val)
-        mat_val = ld_mat + ld_mat.transpose()
-        # We have double counted the diagonal.  For some reason the autograd
-        # diagonal functions require axis1=-1 and axis2=-2
-        mat_val = mat_val - \
-            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
-                             axis1=-1, axis2=-2)
-        self.set(mat_val)
+        self.set(unvectorize_symmetric_matrix(vec_val))
     def get_vector(self):
-        return VectorizeLDMatrix(self.__val)
+        return vectorize_ld_matrix(self.__val)
 
     def size(self):
         return self.__size
@@ -446,6 +469,7 @@ class PosDefMatrixParamVector(object):
             self.__val = np.broadcast_to(default_val, self.__shape)
         else:
             self.set(val)
+
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
     def names(self):
@@ -475,29 +499,61 @@ class PosDefMatrixParamVector(object):
         return np.hstack([ \
             pack_posdef_matrix(self.__val[obs, :, :], diag_lb=self.__diag_lb) \
                           for obs in range(self.__length)])
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        jac_rows = []
+        grads = []
+        vec_rows = range(self.__vec_size)
+        packed_shape = (self.__length, self.__vec_size)
 
-    def unpack_vector_obs(self, vec_val):
-        # TODO: this code is duplicated in the PosDefMatrixParam class.
-        if len(vec_val) != self.__vec_size:
-            raise ValueError('Vector value is the wrong length')
-        ld_mat = UnvectorizeLDMatrix(vec_val)
-        mat_val = ld_mat + ld_mat.transpose()
-        # We have double counted the diagonal.  For some reason the autograd
-        # diagonal functions require axis1=-1 and axis2=-2
-        mat_val = mat_val - \
-            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
-                             axis1=-1, axis2=-2)
-        return mat_val
+        for row in range(self.__length):
+            vec_inds = np.ravel_multi_index([[row], vec_cols], packed_shape)
+            row_jac = pos_def_matrix_free_to_vector_jac(free_val[vec_inds])
+            jac_rows.append(vec_inds)
+            grads.append(row_jac)
+
+        return csr_matrix(
+            (grads, (jac_rows, jac_rows)),
+            (self.vector_size(), self.free_size()))
+
+    def free_to_vector_hess(self, free_val):
+        hessians = []
+        vec_rows = range(self.__vec_size)
+        packed_shape = (self.__length, self.__vec_size)
+        hess_shape = (self.__vec_size, self.__vec_size)
+        for row in range(self.__length):
+            vec_inds = np.ravel_multi_index([[row], vec_cols], packed_shape)
+            row_hess = pos_def_matrix_free_to_vector_hess(free_val[vec_inds])
+            hess_rows = []
+            hess_cols = []
+            hess_vals = []
+            for vec_row in vec_rows:
+                for free_row1 in vec_rows:
+                    for free_row2 in vec_rows:
+                        hess_rows.append(vec_inds[free_row1])
+                        hess_cols.append(vec_inds[free_row2])
+                        hess_vals.append(row_hess[vec_inds[vec_row],
+                                                  free_col1, free_col2])
+
+                # It is important that this traverse vec_inds in order because
+                # we simply append the hessians to the end.
+                hessians.append(
+                    csr_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
+
+        return hessians
 
     def set_vector(self, vec_val):
         if len(vec_val) != self.vector_size():
             raise ValueError('Vector value is the wrong length')
         self.__val = \
-            np.array([ self.unpack_vector_obs(vec_val[self.free_obs_slice(obs)]) \
+            np.array([
+              unvectorize_symmetric_matrix(vec_val[self.free_obs_slice(obs)]) \
               for obs in range(self.__length) ])
 
     def get_vector(self):
-        return np.hstack([ VectorizeLDMatrix(self.__val[obs, :, :]) \
+        return np.hstack([ vectorize_ld_matrix(self.__val[obs, :, :]) \
                            for obs in range(self.__length) ])
 
     def length(self):

@@ -254,9 +254,9 @@ class TestParameters(unittest.TestCase):
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
         mat_chol = np.linalg.cholesky(mat)
-        vec = Parameters.VectorizeLDMatrix(mat_chol)
+        vec = Parameters.vectorize_ld_matrix(mat_chol)
         np_test.assert_array_almost_equal(
-            mat_chol, Parameters.UnvectorizeLDMatrix(vec))
+            mat_chol, Parameters.unvectorize_ld_matrix(vec))
 
         mat_vec = Parameters.pack_posdef_matrix(mat)
         np_test.assert_array_almost_equal(
