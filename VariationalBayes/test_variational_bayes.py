@@ -103,7 +103,7 @@ class TestParameterMethods(unittest.TestCase):
             test_autograd=True, test_sparse_transform=True)
 
     def test_mvn(self):
-        execute_required_methods(self, MVNParam(), test_sparse_transform=False)
+        execute_required_methods(self, MVNParam(), test_sparse_transform=True)
     def test_uvn(self):
         execute_required_methods(self, UVNParam())
     def test_uvn_vec(self):

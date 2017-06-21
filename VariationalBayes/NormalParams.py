@@ -1,7 +1,8 @@
 from VariationalBayes import Parameters as par
 from VariationalBayes import MatrixParameters as mat_par
 
-from VariationalBayes.Parameters import free_to_vector_jac_offset
+from VariationalBayes.Parameters import \
+    free_to_vector_jac_offset, free_to_vector_hess_offset
 
 import autograd.numpy as np
 from scipy.sparse import block_diag
@@ -56,6 +57,14 @@ class MVNParam(object):
         free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
             self.info, free_val, free_offset, vec_offset)
         return block_diag((mean_jac, info_jac))
+    def free_to_vector_hess(self, free_val):
+        free_offset = 0
+        hessians = []
+        free_offset = free_to_vector_hess_offset(
+            self.mean, free_val, hessians, free_offset)
+        free_offset = free_to_vector_hess_offset(
+            self.info, free_val, hessians, free_offset)
+        return np.array(hessians)
 
 
     def set_vector(self, vec):

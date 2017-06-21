@@ -337,11 +337,11 @@ def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
            vec_offset + param.vector_size(), \
            jac
 
-def free_to_vector_hess_offset(
-    param, free_vec, hessians, free_offset, vec_offset):
 
+def free_to_vector_hess_offset(param, free_vec, hessians, free_offset):
     free_slice = slice(free_offset, free_offset + param.free_size())
     hess = param.free_to_vector_hess(free_vec[free_slice])
-    hessians.append(hess)
-    return free_offset + param.free_size(), \
-           vec_offset + param.vector_size()
+    for vec_ind in range(len(hess)):
+        hessians.append(prepend_sparse_zeros(
+            hess[vec_ind], (free_offset, free_offset)))
+    return free_offset + param.free_size()
