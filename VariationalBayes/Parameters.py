@@ -8,7 +8,7 @@ import autograd.scipy as sp
 from autograd.core import primitive
 
 import scipy as osp
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, block_diag
 
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
@@ -60,19 +60,6 @@ def constrain(free_vec, lb, ub):
 
 constrain_scalar_jac = autograd.jacobian(constrain)
 constrain_scalar_hess = autograd.hessian(constrain)
-
-# The first index is assumed to index simplicial observations.
-def constrain_simplex_matrix(free_mat):
-    # The first column is the reference value.
-    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
-    log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
-    return np.exp(free_mat_aug - log_norm)
-
-
-def unconstrain_simplex_matrix(simplex_mat):
-    return np.log(simplex_mat[:, 1:]) - \
-           np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
-
 
 def get_inbounds_value(lb, ub):
     assert lb < ub
@@ -138,13 +125,16 @@ class ScalarParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
         return np.reshape(unconstrain_scalar(self.__val, self.__lb, self.__ub), 1)
+
     def free_to_vector(self, free_val):
         self.set_free(free_val)
         return self.get()
     def free_to_vector_jac(self, free_val):
         return csr_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
-        return csr_matrix(self.free_to_vector_hess_dense(free_val))
+        hess_dense = self.free_to_vector_hess_dense(free_val)
+        return np.array([ csr_matrix(hess_dense[ind, :, :])
+                          for  ind in range(hess_dense.shape[0]) ])
 
     def set_vector(self, val):
         self.set(val)
@@ -332,3 +322,26 @@ def set_vector_offset(param, vec, offset):
 def get_vector_offset(param, vec, offset):
     vec[offset:(offset + param.vector_size())] = param.get_vector()
     return offset + param.vector_size()
+
+
+# Is this needed?
+def prepend_sparse_zeros(spmat, zero_shape):
+    zero_mat = csr_matrix(( (), ((), ()) ), zero_shape)
+    return block_diag((zero_mat, spmat))
+
+
+def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
+    free_slice = slice(free_offset, free_offset + param.free_size())
+    jac = param.free_to_vector_jac(free_vec[free_slice])
+    return free_offset + param.free_size(), \
+           vec_offset + param.vector_size(), \
+           jac
+
+def free_to_vector_hess_offset(
+    param, free_vec, hessians, free_offset, vec_offset):
+
+    free_slice = slice(free_offset, free_offset + param.free_size())
+    hess = param.free_to_vector_hess(free_vec[free_slice])
+    hessians.append(hess)
+    return free_offset + param.free_size(), \
+           vec_offset + param.vector_size()

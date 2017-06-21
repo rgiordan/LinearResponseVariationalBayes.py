@@ -146,7 +146,9 @@ class PosDefMatrixParam(object):
     def free_to_vector_jac(self, free_val):
         return csr_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
-        return csr_matrix(self.free_to_vector_hess_dense(free_val))
+        hess_dense = self.free_to_vector_hess_dense(free_val)
+        return np.array([ csr_matrix(hess_dense[ind, :, :])
+                          for  ind in range(hess_dense.shape[0]) ])
 
     def set_vector(self, vec_val):
         if vec_val.size != self.__vec_size:
@@ -235,9 +237,10 @@ class PosDefMatrixParamVector(object):
         hessians = []
         vec_rows = range(self.__vec_size)
         packed_shape = (self.__length, self.__vec_size)
-        hess_shape = (self.__vec_size, self.__vec_size)
+        hess_shape = (self.__length * self.__vec_size,
+                      self.__length * self.__vec_size)
         for row in range(self.__length):
-            vec_inds = np.ravel_multi_index([[row], vec_cols], packed_shape)
+            vec_inds = np.ravel_multi_index([[row], vec_rows], packed_shape)
             row_hess = pos_def_matrix_free_to_vector_hess(free_val[vec_inds])
             hess_rows = []
             hess_cols = []
@@ -247,8 +250,7 @@ class PosDefMatrixParamVector(object):
                     for free_row2 in vec_rows:
                         hess_rows.append(vec_inds[free_row1])
                         hess_cols.append(vec_inds[free_row2])
-                        hess_vals.append(row_hess[vec_inds[vec_row],
-                                                  free_col1, free_col2])
+                        hess_vals.append(row_hess[vec_row, free_row1, free_row2])
 
                 # It is important that this traverse vec_inds in order because
                 # we simply append the hessians to the end.

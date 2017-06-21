@@ -7,6 +7,19 @@ import scipy as osp
 from scipy.sparse import csr_matrix
 
 # The first index is assumed to index simplicial observations.
+# def constrain_simplex_matrix(free_mat):
+#     # The first column is the reference value.
+#     free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
+#     log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
+#     return np.exp(free_mat_aug - log_norm)
+#
+#
+# def unconstrain_simplex_matrix(simplex_mat):
+#     return np.log(simplex_mat[:, 1:]) - \
+#            np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
+#
+
+# The first index is assumed to index simplicial observations.
 def constrain_simplex_matrix(free_mat):
     # The first column is the reference value.
     free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
@@ -52,9 +65,9 @@ class SimplexParam(object):
         if len(free_val) != self.free_size():
             raise ValueError('Wrong free size for SimplexParam ' + self.name)
         free_mat = np.reshape(free_val, self.__free_shape)
-        self.set(par.constrain_simplex_matrix(free_mat))
+        self.set(constrain_simplex_matrix(free_mat))
     def get_free(self):
-        return par.unconstrain_simplex_matrix(self.__val).flatten()
+        return unconstrain_simplex_matrix(self.__val).flatten()
     def free_to_vector(self, free_val):
         self.set_free(free_val)
         return self.get_vector()

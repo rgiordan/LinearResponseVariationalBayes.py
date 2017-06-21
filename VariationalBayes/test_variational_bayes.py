@@ -8,6 +8,7 @@ from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
 from VariationalBayes import MatrixParameters
+from VariationalBayes import MultinomialParams
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 from VariationalBayes.MatrixParameters import \
@@ -68,6 +69,11 @@ def execute_required_methods(
         np_test.assert_array_almost_equal(
             jac, param.free_to_vector_jac(free_param).toarray())
 
+        sp_hess = param.free_to_vector_hess(free_param)
+        # hess_array = np.array(
+        #     [ sp_hess[vec_ind].toarray() for vec_ind in range(len(sp_hess)) ])
+        # np_test.assert_array_almost_equal(hess, sp_hess)
+
 class TestParameterMethods(unittest.TestCase):
     # For every parameter type, execute all the required methods.
     def test_scalar(self):
@@ -96,7 +102,7 @@ class TestParameterMethods(unittest.TestCase):
             test_autograd=True, test_sparse_transform=True)
 
     def test_mvn(self):
-        execute_required_methods(self, MVNParam())
+        execute_required_methods(self, MVNParam(), test_sparse_transform=False)
     def test_uvn(self):
         execute_required_methods(self, UVNParam())
     def test_uvn_vec(self):
@@ -130,11 +136,11 @@ class TestConstrainingFunctions(unittest.TestCase):
         nrow = 5
         ncol = 4
         free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
-        simplex_mat = Parameters.constrain_simplex_matrix(free_mat)
+        simplex_mat = MultinomialParams.constrain_simplex_matrix(free_mat)
         self.assertEqual(simplex_mat.shape, (nrow, ncol))
         np_test.assert_array_almost_equal(
             np.full(nrow, 1.0), np.sum(simplex_mat, 1))
-        free_mat2 = Parameters.unconstrain_simplex_matrix(simplex_mat)
+        free_mat2 = MultinomialParams.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
 
