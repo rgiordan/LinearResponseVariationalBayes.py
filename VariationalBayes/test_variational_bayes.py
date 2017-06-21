@@ -111,14 +111,16 @@ class TestParameterMethods(unittest.TestCase):
     def test_mvn(self):
         execute_required_methods(self, MVNParam(), test_sparse_transform=True)
     def test_uvn(self):
-        execute_required_methods(self, UVNParam())
+        execute_required_methods(self, UVNParam(), test_sparse_transform=True)
     def test_uvn_vec(self):
-        execute_required_methods(self, UVNParamVector())
+        execute_required_methods(self, UVNParamVector(),
+                                 test_sparse_transform=True)
 
     def test_gamma(self):
-        execute_required_methods(self, GammaParam())
+        execute_required_methods(self, GammaParam(), test_sparse_transform=True)
     def test_dirichlet(self):
-        execute_required_methods(self, DirichletParamVector())
+        execute_required_methods(self, DirichletParamVector(),
+                                 test_sparse_transform=True)
 
 
 class TestConstrainingFunctions(unittest.TestCase):
