@@ -61,18 +61,20 @@ def execute_required_methods(
             return param.get_vector()
 
         set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
-        set_free_and_get_vector_hess = jacobian(set_free_and_get_vector)
+        set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
 
         jac = set_free_and_get_vector_jac(free_param)
-        hess = set_free_and_get_vector_jac(free_param)
+        hess = set_free_and_get_vector_hess(free_param)
 
         np_test.assert_array_almost_equal(
             jac, param.free_to_vector_jac(free_param).toarray())
 
         sp_hess = param.free_to_vector_hess(free_param)
-        # hess_array = np.array(
-        #     [ sp_hess[vec_ind].toarray() for vec_ind in range(len(sp_hess)) ])
-        # np_test.assert_array_almost_equal(hess, sp_hess)
+        testcase.assertEqual(len(sp_hess), hess.shape[0])
+        for vec_row in range(len(sp_hess)):
+            np_test.assert_array_almost_equal(
+                hess[vec_row, :, :],
+                sp_hess[vec_row].toarray())
 
 class TestParameterMethods(unittest.TestCase):
     # For every parameter type, execute all the required methods.
