@@ -242,10 +242,10 @@ class PosDefMatrixParamVector(object):
         for row in range(self.__length):
             vec_inds = np.ravel_multi_index([[row], vec_rows], packed_shape)
             row_hess = pos_def_matrix_free_to_vector_hess(free_val[vec_inds])
-            hess_rows = []
-            hess_cols = []
-            hess_vals = []
             for vec_row in vec_rows:
+                hess_rows = []
+                hess_cols = []
+                hess_vals = []
                 for free_row1 in vec_rows:
                     for free_row2 in vec_rows:
                         hess_rows.append(vec_inds[free_row1])

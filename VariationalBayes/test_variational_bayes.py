@@ -73,8 +73,7 @@ def execute_required_methods(
         testcase.assertEqual(len(sp_hess), hess.shape[0])
         for vec_row in range(len(sp_hess)):
             np_test.assert_array_almost_equal(
-                hess[vec_row, :, :],
-                sp_hess[vec_row].toarray())
+                hess[vec_row, :, :], sp_hess[vec_row].toarray())
 
 class TestParameterMethods(unittest.TestCase):
     # For every parameter type, execute all the required methods.
@@ -85,7 +84,7 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, VectorParam(lb=1.0),
             test_autograd=True, test_sparse_transform=True)
     def test_array(self):
-        execute_required_methods(self, ArrayParam(shape=(2, 3, 5), lb=1.0),
+        execute_required_methods(self, ArrayParam(shape=(2, 3, 2), lb=1.0),
             test_autograd=True, test_sparse_transform=True)
     def test_pos_def_matrix(self):
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
@@ -94,7 +93,7 @@ class TestParameterMethods(unittest.TestCase):
     def test_pos_def_matrix_vector(self):
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
         single_mat = np.expand_dims(single_mat, 0)
-        mat = np.tile(single_mat, (3, 1, 1))
+        mat = np.tile(single_mat, (2, 1, 1))
         execute_required_methods(self,
             PosDefMatrixParamVector(
                 val=mat, length=mat.shape[0], matrix_size=2),
