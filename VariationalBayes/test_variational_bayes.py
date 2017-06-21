@@ -302,6 +302,14 @@ class TestParameters(unittest.TestCase):
         sp.set_vector(vec_val)
         np_test.assert_array_almost_equal(val, sp.get())
 
+        # Check get_vector_indices
+        distinct_free_val = np.arange(0., 1., 1. / sp.free_size())
+        sp.set_free(distinct_free_val)
+        vec_val = sp.get_vector()
+        val = sp.get()
+        for row in range(sp.shape()[0]):
+            row_inds = sp.get_vector_indices(row)
+            np_test.assert_array_almost_equal(vec_val[row_inds], val[row, :])
 
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
