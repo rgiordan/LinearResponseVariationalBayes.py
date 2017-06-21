@@ -59,11 +59,12 @@ class MVNParam(object):
         return block_diag((mean_jac, info_jac))
     def free_to_vector_hess(self, free_val):
         free_offset = 0
+        full_shape = (self.free_size(), self.free_size())
         hessians = []
         free_offset = free_to_vector_hess_offset(
-            self.mean, free_val, hessians, free_offset)
+            self.mean, free_val, hessians, free_offset, full_shape)
         free_offset = free_to_vector_hess_offset(
-            self.info, free_val, hessians, free_offset)
+            self.info, free_val, hessians, free_offset, full_shape)
         return np.array(hessians)
 
 

@@ -324,10 +324,17 @@ def get_vector_offset(param, vec, offset):
     return offset + param.vector_size()
 
 
-# Is this needed?
-def prepend_sparse_zeros(spmat, zero_shape):
-    zero_mat = csr_matrix(( (), ((), ()) ), zero_shape)
-    return block_diag((zero_mat, spmat))
+# Define a sparse matrix with spmat offset by offset_shape and with
+# total shape give by total_shape.  This is useful for placing a sub-Hessian
+# in the middle of a larger Hessian.
+def offset_sparse_matrix(spmat, offset_shape, full_shape):
+    post_shape = (full_shape[0] - spmat.shape[0] - offset_shape[0],
+                  full_shape[1] - spmat.shape[1] - offset_shape[1])
+    assert post_shape[0] >= 0
+    assert post_shape[1] >= 0
+    pre_zero_mat = csr_matrix(( (), ((), ()) ), offset_shape)
+    post_zero_mat = csr_matrix(( (), ((), ()) ), post_shape)
+    return block_diag((pre_zero_mat, spmat, post_zero_mat), format='csr')
 
 
 def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
@@ -338,10 +345,12 @@ def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
            jac
 
 
-def free_to_vector_hess_offset(param, free_vec, hessians, free_offset):
+def free_to_vector_hess_offset(
+    param, free_vec, hessians, free_offset, full_shape):
+
     free_slice = slice(free_offset, free_offset + param.free_size())
     hess = param.free_to_vector_hess(free_vec[free_slice])
     for vec_ind in range(len(hess)):
-        hessians.append(prepend_sparse_zeros(
-            hess[vec_ind], (free_offset, free_offset)))
+        hessians.append(offset_sparse_matrix(
+            hess[vec_ind], (free_offset, free_offset), full_shape))
     return free_offset + param.free_size()
