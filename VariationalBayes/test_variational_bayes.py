@@ -51,7 +51,7 @@ def check_sparse_transforms(testcase, param):
 
 
 def execute_required_methods(
-    testcase, param, test_autograd=False, test_sparse_transform=False):
+    testcase, param, test_autograd=False, test_sparse_transform=True):
     # Execute all the methods requied for a parameter type.
 
     param.names()
