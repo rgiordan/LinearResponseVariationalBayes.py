@@ -9,6 +9,12 @@ from autograd.core import primitive
 from collections import OrderedDict
 from VariationalBayes import Parameters as par
 
+from VariationalBayes.Parameters import \
+    free_to_vector_jac_offset, free_to_vector_hess_offset
+
+from scipy.sparse import block_diag
+
+
 class ModelParamsDict(object):
     def __init__(self, name='ModelParamsDict'):
         self.param_dict = OrderedDict()
@@ -47,6 +53,27 @@ class ModelParamsDict(object):
             offset = par.set_free_offset(param, vec, offset)
     def get_free(self):
         return np.hstack([ par.get_free() for par in self.param_dict.values() ])
+
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        free_offset = 0
+        vec_offset = 0
+        jacobians = []
+        for param in self.param_dict.values():
+            free_offset, vec_offset, param_jac = free_to_vector_jac_offset(
+                param, free_val, free_offset, vec_offset)
+            jacobians.append(param_jac)
+        return block_diag(jacobians)
+    def free_to_vector_hess(self, free_val):
+        free_offset = 0
+        full_shape = (self.free_size(), self.free_size())
+        hessians = []
+        for param in self.param_dict.values():
+            free_offset = free_to_vector_hess_offset(
+                param, free_val, hessians, free_offset, full_shape)
+        return np.array(hessians)
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size: raise ValueError("Wrong size.")

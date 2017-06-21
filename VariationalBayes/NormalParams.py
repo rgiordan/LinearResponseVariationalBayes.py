@@ -49,14 +49,6 @@ class MVNParam(object):
         free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
             self.info, free_val, free_offset, vec_offset)
         return block_diag((mean_jac, info_jac))
-    def free_to_vector_jac(self, free_val):
-        free_offset = 0
-        vec_offset = 0
-        free_offset, vec_offset, mean_jac = free_to_vector_jac_offset(
-            self.mean, free_val, free_offset, vec_offset)
-        free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
-            self.info, free_val, free_offset, vec_offset)
-        return block_diag((mean_jac, info_jac))
     def free_to_vector_hess(self, free_val):
         free_offset = 0
         full_shape = (self.free_size(), self.free_size())

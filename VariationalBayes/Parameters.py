@@ -317,11 +317,20 @@ def set_vector_offset(param, vec, offset):
     param.set_vector(vec[offset:(offset + param.vector_size())])
     return offset + param.vector_size()
 
+
 # Sets the value of vec starting at offset with the param's free value.
 # Returns the next offset.
 def get_vector_offset(param, vec, offset):
     vec[offset:(offset + param.vector_size())] = param.get_vector()
     return offset + param.vector_size()
+
+
+def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
+    free_slice = slice(free_offset, free_offset + param.free_size())
+    jac = param.free_to_vector_jac(free_vec[free_slice])
+    return free_offset + param.free_size(), \
+           vec_offset + param.vector_size(), \
+           jac
 
 
 # Define a sparse matrix with spmat offset by offset_shape and with
@@ -337,14 +346,8 @@ def offset_sparse_matrix(spmat, offset_shape, full_shape):
     return block_diag((pre_zero_mat, spmat, post_zero_mat), format='csr')
 
 
-def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
-    free_slice = slice(free_offset, free_offset + param.free_size())
-    jac = param.free_to_vector_jac(free_vec[free_slice])
-    return free_offset + param.free_size(), \
-           vec_offset + param.vector_size(), \
-           jac
-
-
+# Append the parameter Hessian to the array of full sparse hessians and
+# return the amount by which to increment the offset in the free vector.
 def free_to_vector_hess_offset(
     param, free_vec, hessians, free_offset, full_shape):
 

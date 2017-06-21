@@ -28,6 +28,28 @@ import scipy as sp
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
+def check_sparse_transforms(testcase, param):
+
+    free_param = param.get_free()
+    def set_free_and_get_vector(free_param):
+        param.set_free(free_param)
+        return param.get_vector()
+
+    set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
+    set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
+
+    jac = set_free_and_get_vector_jac(free_param)
+    np_test.assert_array_almost_equal(
+        jac, param.free_to_vector_jac(free_param).toarray())
+
+    hess = set_free_and_get_vector_hess(free_param)
+    sp_hess = param.free_to_vector_hess(free_param)
+    testcase.assertEqual(len(sp_hess), hess.shape[0])
+    for vec_row in range(len(sp_hess)):
+        np_test.assert_array_almost_equal(
+            hess[vec_row, :, :], sp_hess[vec_row].toarray())
+
+
 def execute_required_methods(
     testcase, param, test_autograd=False, test_sparse_transform=False):
     # Execute all the methods requied for a parameter type.
@@ -56,24 +78,8 @@ def execute_required_methods(
         jac = param_value_jacobian(free_param)
 
     if test_sparse_transform:
-        def set_free_and_get_vector(free_param):
-            param.set_free(free_param)
-            return param.get_vector()
+        check_sparse_transforms(testcase, param)
 
-        set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
-        set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
-
-        jac = set_free_and_get_vector_jac(free_param)
-        hess = set_free_and_get_vector_hess(free_param)
-
-        np_test.assert_array_almost_equal(
-            jac, param.free_to_vector_jac(free_param).toarray())
-
-        sp_hess = param.free_to_vector_hess(free_param)
-        testcase.assertEqual(len(sp_hess), hess.shape[0])
-        for vec_row in range(len(sp_hess)):
-            np_test.assert_array_almost_equal(
-                hess[vec_row, :, :], sp_hess[vec_row].toarray())
 
 class TestParameterMethods(unittest.TestCase):
     # For every parameter type, execute all the required methods.
@@ -381,15 +387,14 @@ class TestParameters(unittest.TestCase):
 
 class TestParameterDictionary(unittest.TestCase):
     def test_model_params_dict(self):
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
         def clear_model_params(mp):
             mp['scalar'].set(0.)
             mp['vector'].set(np.full(k, 0.))
             mp['matrix'].set(np.full((k, k), 0.))
             mp['simplex'].set(np.full(simp.shape, 1. / np.prod(simp.shape)))
-
-        k = 2
-        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
         lb = -0.1
         ub = 5.2
@@ -402,7 +407,7 @@ class TestParameterDictionary(unittest.TestCase):
         vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
         vp_simp = SimplexParam('simplex', shape=simp.shape)
 
-        mp = par_dict.ModelParamsDict()
+        mp = par_dict.ModelParamsDict(name='ModelParamsDict')
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
@@ -468,6 +473,11 @@ class TestParameterDictionary(unittest.TestCase):
                 np_test.assert_array_almost_equal(
                     param_vals[unchanged_param], mp[unchanged_param].get())
             mp.set_vector(param_vec)
+
+        # Check the sparse transforms.  Note that the Hessian of this test
+        # gives the autograd warning that the output seems to be independent
+        # of the input.
+        check_sparse_transforms(self, mp)
 
 
 class TestDifferentiation(unittest.TestCase):
