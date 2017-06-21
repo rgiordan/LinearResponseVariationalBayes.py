@@ -104,8 +104,8 @@ class ScalarParam(object):
         else:
             self.set(get_inbounds_value(lb, ub))
 
-        self.free_to_vector_jac = autograd.jacobian(self.free_to_vector)
-        self.free_to_vector_hess = autograd.hessian(self.free_to_vector)
+        self.free_to_vector_jac_dense = autograd.jacobian(self.free_to_vector)
+        self.free_to_vector_hess_dense = autograd.hessian(self.free_to_vector)
 
     def __str__(self):
         return self.name + ': ' + str(self.__val)
@@ -137,15 +137,19 @@ class ScalarParam(object):
     def set_free(self, free_val):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
-        return unconstrain_scalar(self.__val, self.__lb, self.__ub)
+        return np.reshape(unconstrain_scalar(self.__val, self.__lb, self.__ub), 1)
     def free_to_vector(self, free_val):
-        self.set_free(fee_val)
+        self.set_free(free_val)
         return self.get()
+    def free_to_vector_jac(self, free_val):
+        return csr_matrix(self.free_to_vector_jac_dense(free_val))
+    def free_to_vector_hess(self, free_val):
+        return csr_matrix(self.free_to_vector_hess_dense(free_val))
 
     def set_vector(self, val):
         self.set(val)
     def get_vector(self):
-        return self.__val
+        return np.reshape(self.__val, 1)
 
     def size(self):
         return 1
@@ -409,8 +413,8 @@ class PosDefMatrixParam(object):
             self.set(val)
 
         # These will be dense, so just use autograd directly.
-        self.free_to_vector_jac = autograd.jacobian(self.free_to_vector)
-        self.free_to_vector_hess = autograd.hessian(self.free_to_vector)
+        self.free_to_vector_jac_dense = autograd.jacobian(self.free_to_vector)
+        self.free_to_vector_hess_dense = autograd.hessian(self.free_to_vector)
 
     def __str__(self):
         return self.name + ':\n' + str(self.__val)
@@ -438,6 +442,10 @@ class PosDefMatrixParam(object):
     def free_to_vector(self, free_val):
         self.set_free(free_val)
         return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        return csr_matrix(self.free_to_vector_jac_dense(free_val))
+    def free_to_vector_hess(self, free_val):
+        return csr_matrix(self.free_to_vector_hess_dense(free_val))
 
     def set_vector(self, vec_val):
         if vec_val.size != self.__vec_size:
@@ -504,18 +512,22 @@ class PosDefMatrixParamVector(object):
         return self.get_vector()
     def free_to_vector_jac(self, free_val):
         jac_rows = []
+        jac_cols = []
         grads = []
         vec_rows = range(self.__vec_size)
         packed_shape = (self.__length, self.__vec_size)
 
         for row in range(self.__length):
-            vec_inds = np.ravel_multi_index([[row], vec_cols], packed_shape)
+            vec_inds = np.ravel_multi_index([[row], vec_rows], packed_shape)
             row_jac = pos_def_matrix_free_to_vector_jac(free_val[vec_inds])
-            jac_rows.append(vec_inds)
-            grads.append(row_jac)
+            for vec_row in vec_rows:
+                for free_row in vec_rows:
+                    jac_rows.append(vec_inds[vec_row])
+                    jac_cols.append(vec_inds[free_row])
+                    grads.append(row_jac[vec_row, free_row])
 
         return csr_matrix(
-            (grads, (jac_rows, jac_rows)),
+            (grads, (jac_rows, jac_cols)),
             (self.vector_size(), self.free_size()))
 
     def free_to_vector_hess(self, free_val):

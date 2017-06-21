@@ -25,7 +25,8 @@ import scipy as sp
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
-def execute_required_methods(testcase, param, test_autograd=False):
+def execute_required_methods(
+    testcase, param, test_autograd=False, test_sparse_transform=False):
     # Execute all the methods requied for a parameter type.
 
     param.names()
@@ -51,27 +52,65 @@ def execute_required_methods(testcase, param, test_autograd=False):
         param_value_jacobian = jacobian(set_free_and_get)
         jac = param_value_jacobian(free_param)
 
+    if test_sparse_transform:
+        def set_free_and_get_vector(free_param):
+            param.set_free(free_param)
+            return param.get_vector()
+
+        set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
+        set_free_and_get_vector_hess = jacobian(set_free_and_get_vector)
+
+        jac = set_free_and_get_vector_jac(free_param)
+        hess = set_free_and_get_vector_jac(free_param)
+
+        print('------')
+        print(jac)
+        print(param.free_to_vector_jac(free_param))
+        print('------')
+        np_test.assert_array_almost_equal(
+            jac, param.free_to_vector_jac(free_param).toarray())
+
+class TestParameterMethods(unittest.TestCase):
+    # For every parameter type, execute all the required methods.
+    def test_scalar(self):
+        execute_required_methods(self, ScalarParam(lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_vector(self):
+        execute_required_methods(self, VectorParam(lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_array(self):
+        execute_required_methods(self, ArrayParam(shape=(2, 3, 5), lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix(self):
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        execute_required_methods(self, PosDefMatrixParam(val=single_mat),
+                test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix_vector(self):
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        single_mat = np.expand_dims(single_mat, 0)
+        mat = np.tile(single_mat, (3, 1, 1))
+        execute_required_methods(self,
+            PosDefMatrixParamVector(
+                val=mat, length=mat.shape[0], matrix_size=2),
+            test_autograd=True, test_sparse_transform=True)
+    def test_simplex(self):
+        execute_required_methods(self, SimplexParam(shape=(5, 3)),
+            test_autograd=True, test_sparse_transform=True)
+
+    def test_mvn(self):
+        execute_required_methods(self, MVNParam())
+    def test_uvn(self):
+        execute_required_methods(self, UVNParam())
+    def test_uvn_vec(self):
+        execute_required_methods(self, UVNParamVector())
+
+    def test_gamma(self):
+        execute_required_methods(self, GammaParam())
+    def test_dirichlet(self):
+        execute_required_methods(self, DirichletParamVector())
+
 
 class TestConstrainingFunctions(unittest.TestCase):
-
-    class TestParameterMethods(unittest.TestCase):
-        def test_methods_work(self):
-            # For every parameter type, execute all the required methods.
-            execute_required_methods(self, ScalarParam(), test_autograd=True)
-            execute_required_methods(self, VectorParam(), test_autograd=True)
-            execute_required_methods(self, ArrayParam(), test_autograd=True)
-            execute_required_methods(
-                self, PosDefMatrixParam, test_autograd=True)
-            execute_required_methods(
-                self, PosDefMatrixParamVector(), test_autograd=True)
-            execute_required_methods(self, SimplexParam(), test_autograd=True)
-
-            execute_required_methods(self, MVNParam())
-            execute_required_methods(self, UVNParam())
-            execute_required_methods(self, UVNParamVector())
-
-            execute_required_methods(self, GammaParam())
-            execute_required_methods(self, DirichletParamVector())
 
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
