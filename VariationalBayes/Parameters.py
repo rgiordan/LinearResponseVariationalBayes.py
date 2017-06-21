@@ -357,3 +357,33 @@ def free_to_vector_hess_offset(
         hessians.append(offset_sparse_matrix(
             hess[vec_ind], (free_offset, free_offset), full_shape))
     return free_offset + param.free_size()
+
+
+# Using sparse jacobians and hessians, convert a hessian with respect
+# to a parameters vector to a hessian with respect to the free parameters.
+def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
+    free_hess = csr_matrix((param.free_size(), param.free_size()))
+    free_to_vec_jacobian = param.free_to_vector_jac(free_val)
+    free_to_vec_hessian = param.free_to_vector_hess(free_val)
+
+    # Accumulate the third order terms, which are sparse.
+    for vec_ind in range(param.vector_size()):
+        free_hess += free_to_vec_hessian[vec_ind] * vector_jac[vec_ind]
+
+    # Then add the second-order terms, which may be dense depending on the
+    # vec_hess_target.
+    free_hess += \
+        free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
+
+    return free_hess
+
+
+
+
+
+
+
+
+
+
+#

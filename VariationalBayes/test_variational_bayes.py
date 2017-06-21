@@ -629,6 +629,50 @@ class TestDifferentiation(unittest.TestCase):
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
 
+    def test_sparse_free_hessians(self):
+        k = 2
+
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+        vp_array = ArrayParam('array', shape=(4, 5, 7))
+        vp_mat = PosDefMatrixParam('mat', k, val=mat)
+        vp_simplex = SimplexParam('simplex', shape=(5, 3))
+
+        mp = par_dict.ModelParamsDict()
+        mp.push_param(vp_mat)
+        mp.push_param(vp_simplex)
+        mp.push_param(vp_array)
+
+        def model(mp):
+            mat = mp['mat'].get()
+            array = mp['array'].get()
+            simplex = mp['simplex'].get()
+
+            return np.sum(mat)**2 * np.sum(array)**2 * np.sum(simplex)**2
+
+        def model_wrap_free(free_param, mp):
+            mp.set_free(free_param)
+            return model_wrap_vec(mp.get_vector(), mp)
+
+        def model_wrap_vec(vec_param, mp):
+            mp.set_vector(vec_param)
+            return model(mp)
+
+        free_vec = np.random.random(mp.free_size())
+        mp.set_free(free_vec)
+        mp_vec = mp.get_vector()
+
+        model_wrap_vec_jac = jacobian(model_wrap_vec)
+        model_wrap_free_hess = hessian(model_wrap_free)
+        model_wrap_vec_hess = hessian(model_wrap_vec)
+
+        vec_jac_model = model_wrap_vec_jac(mp_vec, mp)
+        vec_hess_model = model_wrap_vec_hess(mp_vec, mp)
+        free_hess_model = model_wrap_free_hess(free_vec, mp)
+
+        free_hess_sparse = Parameters.convert_vector_to_free_hessian(
+            mp, free_vec, vec_jac_model, vec_hess_model)
+
+        np_test.assert_array_almost_equal(free_hess_model, free_hess_sparse)
 
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
