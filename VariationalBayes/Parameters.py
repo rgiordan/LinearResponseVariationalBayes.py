@@ -375,8 +375,8 @@ def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
     free_hess += \
         free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
 
-    return np.array(free_hess)
-    
+    return free_hess
+
 
 
 
