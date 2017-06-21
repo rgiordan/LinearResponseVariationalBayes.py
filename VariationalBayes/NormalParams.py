@@ -1,4 +1,6 @@
 from VariationalBayes import Parameters as par
+from VariationalBayes import MatrixParameters as mat_par
+
 import autograd.numpy as np
 
 class MVNParam(object):
@@ -6,7 +8,7 @@ class MVNParam(object):
         self.name = name
         self.__dim = dim
         self.mean = par.VectorParam(name + '_mean', dim)
-        self.info = par.PosDefMatrixParam(name + '_info', dim, diag_lb=min_info)
+        self.info = mat_par.PosDefMatrixParam(name + '_info', dim, diag_lb=min_info)
         self.__free_size = self.mean.free_size() + self.info.free_size()
         self.__vector_size = self.mean.vector_size() + self.info.vector_size()
     def __str__(self):

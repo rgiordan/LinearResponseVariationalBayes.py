@@ -7,8 +7,10 @@ import copy
 from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
+from VariationalBayes import MatrixParameters
 from VariationalBayes.Parameters import \
-    ScalarParam, VectorParam, ArrayParam, \
+    ScalarParam, VectorParam, ArrayParam
+from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
@@ -63,10 +65,6 @@ def execute_required_methods(
         jac = set_free_and_get_vector_jac(free_param)
         hess = set_free_and_get_vector_jac(free_param)
 
-        print('------')
-        print(jac)
-        print(param.free_to_vector_jac(free_param))
-        print('------')
         np_test.assert_array_almost_equal(
             jac, param.free_to_vector_jac(free_param).toarray())
 
@@ -293,13 +291,13 @@ class TestParameters(unittest.TestCase):
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
         mat_chol = np.linalg.cholesky(mat)
-        vec = Parameters.vectorize_ld_matrix(mat_chol)
+        vec = MatrixParameters.vectorize_ld_matrix(mat_chol)
         np_test.assert_array_almost_equal(
-            mat_chol, Parameters.unvectorize_ld_matrix(vec))
+            mat_chol, MatrixParameters.unvectorize_ld_matrix(vec))
 
-        mat_vec = Parameters.pack_posdef_matrix(mat)
+        mat_vec = MatrixParameters.pack_posdef_matrix(mat)
         np_test.assert_array_almost_equal(
-            mat, Parameters.unpack_posdef_matrix(mat_vec))
+            mat, MatrixParameters.unpack_posdef_matrix(mat_vec))
 
     def test_pos_def_matrix_param(self):
         k = 2
