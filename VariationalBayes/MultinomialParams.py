@@ -21,8 +21,37 @@ def unconstrain_simplex_matrix(simplex_mat):
 def constrain_simplex_vector(free_vec):
     return constrain_simplex_matrix(np.expand_dims(free_vec, 0)).flatten()
 
+
+# TODO: you would save a lot of computation by hard-coding these, which
+# should not be too hard.
 constrain_grad = autograd.jacobian(constrain_simplex_vector)
-constrain_hess = autograd.hessian(constrain_simplex_vector)
+#constrain_hess = autograd.hessian(constrain_simplex_vector)
+
+# The Hessian of the constraint is most easily calculated as a function
+# of the constrained moments.
+def constrain_hess_from_moment(z):
+    # See the notes for a derivation.
+    z_last = z[1:]
+    z_outer = np.expand_dims(2 * np.outer(z_last, z_last), axis=0)
+    z_hess = np.tile(z_outer, (len(z), 1, 1))
+    # The first index is different.
+    for k in range(1, len(z)):
+        z_hess[0, k - 1, k - 1] += -z[k]
+
+    z_hess[0] *= z[0]
+
+    for k in range(1, len(z)):
+        z_hess[k, k - 1, :] += -z_last
+        z_hess[k, :, k - 1] += -z_last
+        for j in range(1, len(z)):
+            if j == k:
+                z_hess[k, j - 1, j - 1] += 1 - z[j]
+            else:
+                z_hess[k, j - 1, j - 1] += -z[j]
+        z_hess[k, :, :] *= z[k]
+
+    return z_hess
+
 
 class SimplexParam(object):
     def __init__(self, name='', shape=(1, 2), val=None):
@@ -91,8 +120,8 @@ class SimplexParam(object):
             # Each of the output depends only on one row of the input.
             free_inds = np.ravel_multi_index([[row], free_cols], self.free_shape())
             vec_inds = self.get_vector_indices(row)
-            row_hess = constrain_hess(free_val[free_inds])
-            #print(row_hess)
+            z = constrain_simplex_vector(free_val[free_inds])
+            row_hess = constrain_hess_from_moment(z)
             for vec_col in vec_cols:
                 vec_ind = vec_inds[vec_col]
                 hess_rows = []

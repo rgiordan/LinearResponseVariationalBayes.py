@@ -17,12 +17,15 @@ from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
+from VariationalBayes.MultinomialParams import \
+    constrain_simplex_vector, constrain_hess_from_moment
 from VariationalBayes.DirichletParams import DirichletParamVector
 from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
     DirichletEntropy
 import unittest
 import scipy as sp
+
 
 # Lower and upper bounds for unit tests.
 lbs = [ 0., -2., 1.2, -float("inf")]
@@ -638,6 +641,20 @@ class TestDifferentiation(unittest.TestCase):
                            (MatFun(mat_free + eps1_vec) - MatFun(mat_free))
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
+
+    def test_simplex_hessian(self):
+        k = 3
+        free_param = np.arange(0., float(k), 1.)
+        z = constrain_simplex_vector(free_param)
+        get_constrain_hess = hessian(constrain_simplex_vector)
+
+        target_hess = get_constrain_hess(free_param)
+        hess = constrain_hess_from_moment(z)
+
+        print(target_hess.shape)
+        print(hess.shape)
+
+        np_test.assert_array_almost_equal(target_hess, hess)
 
     def test_sparse_free_hessians(self):
         k = 2
