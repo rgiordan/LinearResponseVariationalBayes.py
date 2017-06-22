@@ -22,15 +22,13 @@ def constrain_simplex_vector(free_vec):
     return constrain_simplex_matrix(np.expand_dims(free_vec, 0)).flatten()
 
 
-# TODO: you would save a lot of computation by hard-coding these, which
-# should not be too hard.
+# It may be beneficial to hand-code the Jacobian, too.
 constrain_grad = autograd.jacobian(constrain_simplex_vector)
-#constrain_hess = autograd.hessian(constrain_simplex_vector)
 
 # The Hessian of the constraint is most easily calculated as a function
 # of the constrained moments.
 def constrain_hess_from_moment(z):
-    # See the notes for a derivation.
+    # See the notes simplex_derivatives.lyx for a derivation.
     z_last = z[1:]
     z_outer = np.expand_dims(2 * np.outer(z_last, z_last), axis=0)
     z_hess = np.tile(z_outer, (len(z), 1, 1))
