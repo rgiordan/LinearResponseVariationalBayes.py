@@ -87,6 +87,7 @@ class SimplexParam(object):
         self.set_free(free_val)
         return self.get_vector()
 
+    # The rows are the vector and the columns are the free values.
     def free_to_vector_jac(self, free_val):
         jac_rows = []
         jac_cols = []
