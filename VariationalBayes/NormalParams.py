@@ -233,7 +233,7 @@ class UVNArray(object):
         self.set_free(free_val)
         return self.get_vector()
 
-    # concerned about the two classes below atm since we now have matrices  ...
+    #  TODO: concerned about the two classes below atm since we now have matrices  ...
     def free_to_vector_jac(self, free_val):
         free_offset = 0
         vec_offset = 0
@@ -264,5 +264,3 @@ class UVNArray(object):
         return self.__free_size
     def vector_size(self):
         return self.__vector_size
-    def dim(self):
-        return self.__dim

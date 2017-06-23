@@ -29,7 +29,7 @@ class DirichletParamVector(object):
 
     def e_log(self):
         digamma_sum = asp.special.digamma(np.sum(self.alpha.get()))
-        return np.log(self.alpha.get()) / digamma_sum
+        return asp.special.digamma(self.alpha.get()) - digamma_sum
 
     def set_free(self, free_val):
         self.alpha.set_free(free_val)
@@ -64,7 +64,7 @@ class DirichletParamVector(object):
 
 # each row is a draw from a Dirichlet distribution
 class DirichletParamArray(object):
-    def __init__(self, name='', shape=(2,2), min_alpha = 0.0):
+    def __init__(self, name='', shape=(1,2), min_alpha = 0.0):
         self.name = name
         self.__shape = shape
         assert min_alpha >= 0, 'alpha parameter must be non-negative'
@@ -80,11 +80,12 @@ class DirichletParamArray(object):
         return { 'alpha': self.alpha.dictval() }
 
     def e(self):
-        return self.alpha.get() / np.sum(self.alpha.get(), 1)
+        denom = np.sum(self.alpha.get(),1)
+        return self.alpha.get() / denom[:,None]
 
     def e_log(self):
-        digamma_sum = asp.special.digamma(np.sum(self.alpha.get()))
-        return np.log(self.alpha.get()) / digamma_sum
+        digamma_sum = asp.special.digamma(np.sum(self.alpha.get(),1))
+        return asp.special.digamma(self.alpha.get()) - digamma_sum[:,None]
 
     def set_free(self, free_val):
         self.alpha.set_free(free_val)
@@ -96,6 +97,7 @@ class DirichletParamArray(object):
         self.set_free(free_val)
         return self.get_vector()
 
+    # TODO: lets worry about the jacobians later...
     def free_to_vector_jac(self, free_val):
         return self.alpha.free_to_vector_jac(free_val)
 
@@ -103,9 +105,9 @@ class DirichletParamArray(object):
         return self.alpha.free_to_vector_hess(free_val)
 
     def set_vector(self, vec):
-        if vec.size != self.__vector_size:
+        if vec.size != self.vector_size:
             raise ValueError("Wrong size.")
-        self.alpha.set(vec)
+        self.alpha.set_vector(vec)
 
     def get_vector(self):
         return self.alpha.get_vector()
@@ -114,5 +116,5 @@ class DirichletParamArray(object):
         return self.__free_size
     def vector_size(self):
         return self.__vector_size
-    def dim(self):
-        return self.__dim
+    def shape(self):
+        return self.__shape
