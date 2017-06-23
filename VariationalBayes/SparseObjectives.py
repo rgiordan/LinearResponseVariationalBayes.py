@@ -9,6 +9,7 @@ import autograd.numpy as np
 import scipy as sp
 from scipy import sparse
 
+import time
 
 # par should be a Parameter type.
 # fun should be a function that takes no arguments but which is
@@ -94,10 +95,13 @@ class SparseObjective(object):
         # it's the other way around.
         # Note: I'm using the dense version here to avoid requiring the user-
         # defined on to be differentiable by autograd.
-        self.fun_vector_local_grad_dense = \
-            autograd.grad(self.fun_vector_split, argnum=1)
+        # self.fun_vector_local_grad_dense = \
+        #     autograd.grad(self.fun_vector_split, argnum=1)
+        # self.fun_vector_cross_hessian = autograd.jacobian(
+        #     self.fun_vector_local_grad_dense, argnum=0)
+
         self.fun_vector_cross_hessian = autograd.jacobian(
-            self.fun_vector_local_grad_dense, argnum=0)
+            self.fun_vector_global_grad, argnum=1)
 
     def fun_free(self, free_val):
         self.par.set_free(free_val)
@@ -131,14 +135,22 @@ class SparseObjective(object):
         self.global_par.set_vector(global_vec_val)
         self.local_par.set_vector(local_vec_val)
 
+        tic = time.time()
         global_hess = self.fun_vector_global_hessian(
             global_vec_val, local_vec_val)
+        print('fun_vector_hessian_split: fun_vector_global_hessian: ', time.time() - tic)
+
+        tic = time.time()
         cross_hess = self.fun_vector_cross_hessian(
-            global_vec_val, local_vec_val)
+            global_vec_val, local_vec_val).T
+        print('fun_vector_hessian_split: fun_vector_cross_hessian: ', time.time() - tic)
+
+        tic = time.time()
         local_hess = self.fun_vector_local_hessian(
             global_vec_val, local_vec_val)
         sp_hess =  sp.sparse.bmat([ [global_hess,  cross_hess.T],
                                     [cross_hess,   local_hess]], format='csr')
+        print('fun_vector_hessian_split: bmat: ', time.time() - tic)
 
         # TODO: maybe sometimes you want the sparse version.
         return np.array(sp_hess.toarray())
@@ -166,12 +178,20 @@ class SparseObjective(object):
         global_vec_val = self.global_par.get_vector()
         local_vec_val = self.local_par.get_vector()
 
+        tic = time.time()
         fun_vector_hessian = self.fun_vector_hessian_split(
             global_vec_val, local_vec_val)
+        print('fun_vector_hessian_split: ', time.time() - tic)
+
+        tic = time.time()
         fun_vector_grad = self.fun_vector_grad_split(
             global_vec_val, local_vec_val)
+        print('fun_vector_grad_split: ', time.time() - tic)
+
+        tic = time.time()
         fun_hessian_sparse = convert_vector_to_free_hessian(
             self.par, free_val, fun_vector_grad, fun_vector_hessian)
+        print('convert_vector_to_free_hessian: ', time.time() - tic)
 
         # If you don't convert to an array, it returns a matrix type, which
         # seems to cause mysterious problems with scipy.optimize.minimize.
