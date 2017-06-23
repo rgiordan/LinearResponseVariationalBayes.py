@@ -7,12 +7,19 @@ import copy
 from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
+from VariationalBayes import MatrixParameters
+from VariationalBayes import MultinomialParams
 from VariationalBayes.Parameters import \
-    ScalarParam, VectorParam, ArrayParam, \
-    PosDefMatrixParam, PosDefMatrixParamVector, ModelParamsDict
+    ScalarParam, VectorParam, ArrayParam
+from VariationalBayes.MatrixParameters import \
+    PosDefMatrixParam, PosDefMatrixParamVector
+from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
+from VariationalBayes.MultinomialParams import \
+    constrain_simplex_vector, constrain_hess_from_moment, \
+    constrain_grad_from_moment
 from VariationalBayes.DirichletParams import DirichletParamVector
 from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
@@ -20,15 +27,36 @@ from VariationalBayes.ExponentialFamilies import \
 import unittest
 import scipy as sp
 
+
 # Lower and upper bounds for unit tests.
 lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
-def execute_required_methods(testcase, ParamType, test_autograd=False):
-    # Execute all the methods requied for a parameter type.
+def check_sparse_transforms(testcase, param):
 
-    # Every parameter type must provide a valid default value.
-    param = ParamType()
+    free_param = param.get_free()
+    def set_free_and_get_vector(free_param):
+        param.set_free(free_param)
+        return param.get_vector()
+
+    set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
+    set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
+
+    jac = set_free_and_get_vector_jac(free_param)
+    np_test.assert_array_almost_equal(
+        jac, param.free_to_vector_jac(free_param).toarray())
+
+    hess = set_free_and_get_vector_hess(free_param)
+    sp_hess = param.free_to_vector_hess(free_param)
+    testcase.assertEqual(len(sp_hess), hess.shape[0])
+    for vec_row in range(len(sp_hess)):
+        np_test.assert_array_almost_equal(
+            hess[vec_row, :, :], sp_hess[vec_row].toarray())
+
+
+def execute_required_methods(
+    testcase, param, test_autograd=False, test_sparse_transform=True):
+    # Execute all the methods requied for a parameter type.
 
     param.names()
     param.dictval()
@@ -53,27 +81,53 @@ def execute_required_methods(testcase, ParamType, test_autograd=False):
         param_value_jacobian = jacobian(set_free_and_get)
         jac = param_value_jacobian(free_param)
 
+    if test_sparse_transform:
+        check_sparse_transforms(testcase, param)
+
+
+class TestParameterMethods(unittest.TestCase):
+    # For every parameter type, execute all the required methods.
+    def test_scalar(self):
+        execute_required_methods(self, ScalarParam(lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_vector(self):
+        execute_required_methods(self, VectorParam(lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_array(self):
+        execute_required_methods(self, ArrayParam(shape=(2, 3, 2), lb=1.0),
+            test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix(self):
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        execute_required_methods(self, PosDefMatrixParam(val=single_mat),
+                test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix_vector(self):
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        single_mat = np.expand_dims(single_mat, 0)
+        mat = np.tile(single_mat, (2, 1, 1))
+        execute_required_methods(self,
+            PosDefMatrixParamVector(
+                val=mat, length=mat.shape[0], matrix_size=2),
+            test_autograd=True, test_sparse_transform=True)
+    def test_simplex(self):
+        execute_required_methods(self, SimplexParam(shape=(5, 3)),
+            test_autograd=True, test_sparse_transform=True)
+
+    def test_mvn(self):
+        execute_required_methods(self, MVNParam(), test_sparse_transform=True)
+    def test_uvn(self):
+        execute_required_methods(self, UVNParam(), test_sparse_transform=True)
+    def test_uvn_vec(self):
+        execute_required_methods(self, UVNParamVector(),
+                                 test_sparse_transform=True)
+
+    def test_gamma(self):
+        execute_required_methods(self, GammaParam(), test_sparse_transform=True)
+    def test_dirichlet(self):
+        execute_required_methods(self, DirichletParamVector(),
+                                 test_sparse_transform=True)
+
 
 class TestConstrainingFunctions(unittest.TestCase):
-
-    class TestParameterMethods(unittest.TestCase):
-        def test_methods_work(self):
-            # For every parameter type, execute all the required methods.
-            execute_required_methods(self, ScalarParam, test_autograd=True)
-            execute_required_methods(self, VectorParam, test_autograd=True)
-            execute_required_methods(self, ArrayParam, test_autograd=True)
-            execute_required_methods(
-                self, PosDefMatrixParam, test_autograd=True)
-            execute_required_methods(
-                self, PosDefMatrixParamVector, test_autograd=True)
-            execute_required_methods(self, SimplexParam, test_autograd=True)
-
-            execute_required_methods(self, MVNParam)
-            execute_required_methods(self, UVNParam)
-            execute_required_methods(self, UVNParamVector)
-
-            execute_required_methods(self, GammaParam)
-            execute_required_methods(self, DirichletParamVector)
 
     def test_scalar(self):
         for lb, ub in product(lbs, ubs):
@@ -95,11 +149,11 @@ class TestConstrainingFunctions(unittest.TestCase):
         nrow = 5
         ncol = 4
         free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
-        simplex_mat = Parameters.constrain_simplex_matrix(free_mat)
+        simplex_mat = MultinomialParams.constrain_simplex_matrix(free_mat)
         self.assertEqual(simplex_mat.shape, (nrow, ncol))
         np_test.assert_array_almost_equal(
             np.full(nrow, 1.0), np.sum(simplex_mat, 1))
-        free_mat2 = Parameters.unconstrain_simplex_matrix(simplex_mat)
+        free_mat2 = MultinomialParams.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
 
@@ -252,17 +306,25 @@ class TestParameters(unittest.TestCase):
         sp.set_vector(vec_val)
         np_test.assert_array_almost_equal(val, sp.get())
 
+        # Check get_vector_indices
+        distinct_free_val = np.arange(0., 1., 1. / sp.free_size())
+        sp.set_free(distinct_free_val)
+        vec_val = sp.get_vector()
+        val = sp.get()
+        for row in range(sp.shape()[0]):
+            row_inds = sp.get_vector_indices(row)
+            np_test.assert_array_almost_equal(vec_val[row_inds], val[row, :])
 
     def test_LDMatrix_helpers(self):
         mat = np.full(4, 0.2).reshape(2, 2) + np.eye(2)
         mat_chol = np.linalg.cholesky(mat)
-        vec = Parameters.VectorizeLDMatrix(mat_chol)
+        vec = MatrixParameters.vectorize_ld_matrix(mat_chol)
         np_test.assert_array_almost_equal(
-            mat_chol, Parameters.UnvectorizeLDMatrix(vec))
+            mat_chol, MatrixParameters.unvectorize_ld_matrix(vec))
 
-        mat_vec = Parameters.pack_posdef_matrix(mat)
+        mat_vec = MatrixParameters.pack_posdef_matrix(mat)
         np_test.assert_array_almost_equal(
-            mat, Parameters.unpack_posdef_matrix(mat_vec))
+            mat, MatrixParameters.unpack_posdef_matrix(mat_vec))
 
     def test_pos_def_matrix_param(self):
         k = 2
@@ -298,202 +360,138 @@ class TestParameters(unittest.TestCase):
         vp.set_vector(mat_vectorized)
         np_test.assert_array_almost_equal(mat, vp.get())
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
-
-    def test_model_params_dict(self):
-        k = 2
-        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-
-        lb = -0.1
-        ub = 5.2
-        val = 0.5 * (ub - lb) + lb
-        vec = np.linspace(lb, ub, k)
-
-        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
-        vp_mat = PosDefMatrixParam('matrix', k)
-        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
-
-        mp = ModelParamsDict()
-        mp.push_param(vp_scalar)
-        mp.push_param(vp_vec)
-        mp.push_param(vp_mat)
-
-        mp['scalar'].set(val)
-        mp['vector'].set(vec)
-        mp['matrix'].set(mat)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-
-        free_vec = mp.get_free()
-        mp['scalar'].set(0.)
-        mp['vector'].set(np.full(k, 0.))
-        mp['matrix'].set(np.full((k, k), 0.))
-        mp.set_free(free_vec)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-        self.assertEqual(len(free_vec), mp.free_size())
-
-        param_vec = mp.get_vector()
-        mp['scalar'].set(0.)
-        mp['vector'].set(np.full(k, 0.))
-        mp['matrix'].set(np.full((k, k), 0.))
-        mp.set_vector(param_vec)
-        self.assertAlmostEqual(val, mp['scalar'].get())
-        np_test.assert_array_almost_equal(vec, mp['vector'].get())
-        np_test.assert_array_almost_equal(mat, mp['matrix'].get())
-        self.assertEqual(len(param_vec), mp.vector_size())
-
-        # Just check that these run.
-        mp.names()
-        str(mp)
-        mp.dictval()
-
-
     def test_MVNParam(self):
         k = 2
         vec = np.full(2, 0.2)
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-
         vp = MVNParam('test', k)
-
-        # Check setting.
-        self.assertRaises(ValueError, vp.mean.set, vec[-1])
-        self.assertRaises(ValueError, vp.info.set, np.eye(k + 1))
         vp.mean.set(vec)
         vp.info.set(mat)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-        self.assertEqual(k, vp.dim())
-
-        # Check getting and free parameters.
-        vp.mean.set(np.full(k, 0.))
-        vp.info.set(np.full((k, k), 0.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(mat, vp.info.get())
-        np_test.assert_array_almost_equal(vec, vp.mean.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_UVNParam(self):
-        vp_mean = 0.2
-        vp_info = 1.2
-
         vp = UVNParam('test', min_info=0.1)
+        vp.mean.set(0.2)
+        vp.info.set(1.2)
 
-        # Check setting.
-        vp.mean.set(vp_mean)
-        vp.info.set(vp_info)
-
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-        vec_par = vp.get_vector()
-        self.assertEqual(len(vec_par), vp.vector_size())
-
-        # Check getting and free parameters.
-        vp.mean.set(0.)
-        vp.info.set(1.0)
-        vp.set_free(free_par)
-        self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_info, vp.info.get())
-
-        # Check getting and free parameters.
-        vp.mean.set(0.)
-        vp.info.set(1.0)
-        vp.set_vector(vec_par)
-        self.assertAlmostEqual(vp_mean, vp.mean.get())
-        self.assertAlmostEqual(vp_info, vp.info.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_UVNParamVector(self):
         k = 2
         vp_mean = np.array([ 0.2, 0.5 ])
         vp_info = np.array([ 1.2, 2.1 ])
-
         vp = UVNParamVector('test', k, min_info=0.1)
-
-        # Check setting.
         vp.mean.set(vp_mean)
         vp.info.set(vp_info)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-
-        # Check getting and free parameters.
-        vp.mean.set(np.full(k, 0.))
-        vp.info.set(np.full(k, 1.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(vp_mean, vp.mean.get())
-        np_test.assert_array_almost_equal(vp_info, vp.info.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_GammaParam(self):
         shape = 0.2
         rate = 0.4
-
         vp = GammaParam('test', min_rate=0.1)
-
-        # Check setting.
         vp.shape.set(shape)
         vp.rate.set(rate)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
-
-        # Check getting and free parameters.
-        vp.shape.set(1.0)
-        vp.rate.set(1.0)
-        vp.set_free(free_par)
-        self.assertAlmostEqual(shape, vp.shape.get())
-        self.assertAlmostEqual(rate, vp.rate.get())
-
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
 
     def test_DirichletParamVector(self):
         d = 4
         alpha = np.array([ 0.2, 1, 3, 0.7 ])
-
         vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
-
-        # Check setting.
         vp.alpha.set(alpha)
 
-        # Check size.
-        free_par = vp.get_free()
-        self.assertEqual(len(free_par), vp.free_size())
 
-        # Check getting and free parameters.
-        vp.alpha.set(np.full(d, 1.))
-        vp.set_free(free_par)
-        np_test.assert_array_almost_equal(alpha, vp.alpha.get())
+class TestParameterDictionary(unittest.TestCase):
+    def test_model_params_dict(self):
+        k = 2
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
 
-        # Just make sure these run without error.
-        vp.names()
-        str(vp)
-        vp.dictval()
+        def clear_model_params(mp):
+            mp['scalar'].set(0.)
+            mp['vector'].set(np.full(k, 0.))
+            mp['matrix'].set(np.full((k, k), 0.))
+            mp['simplex'].set(np.full(simp.shape, 1. / np.prod(simp.shape)))
+
+        lb = -0.1
+        ub = 5.2
+        val = 0.5 * (ub - lb) + lb
+        vec = np.linspace(lb, ub, k)
+        simp = np.linspace(2., 10., k * 2).reshape(k, 2)
+        simp = simp / np.expand_dims(np.sum(simp, 1), axis=1)
+        vp_scalar = ScalarParam('scalar', lb=lb - 0.1, ub=ub + 0.1)
+        vp_mat = PosDefMatrixParam('matrix', k)
+        vp_vec = VectorParam('vector', k, lb=lb - 0.1, ub=ub + 0.1)
+        vp_simp = SimplexParam('simplex', shape=simp.shape)
+
+        mp = par_dict.ModelParamsDict(name='ModelParamsDict')
+        mp.push_param(vp_scalar)
+        mp.push_param(vp_vec)
+        mp.push_param(vp_mat)
+        mp.push_param(vp_simp)
+
+        execute_required_methods(self, mp, test_autograd=False)
+
+        param_names = ['scalar', 'vector', 'matrix', 'simplex']
+        param_vals = \
+            { 'scalar': val, 'vector': vec, 'matrix': mat, 'simplex': simp }
+
+        for param in param_names:
+            mp[param].set(param_vals[param])
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+
+        free_vec = mp.get_free()
+        clear_model_params(mp)
+        mp.set_free(free_vec)
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+        self.assertEqual(len(free_vec), mp.free_size())
+
+        param_vec = mp.get_vector()
+        clear_model_params(mp)
+        mp.set_vector(param_vec)
+        for param in param_names:
+            np_test.assert_array_almost_equal(
+                param_vals[param], mp[param].get())
+        self.assertEqual(len(param_vec), mp.vector_size())
+
+        # Check the index dictionaries.
+        free_vec = mp.get_free()
+        mp.set_free(free_vec)
+        for param_id in range(len(param_names)):
+            param = param_names[param_id]
+            free_vec_peturb = mp.get_free()
+            free_vec_peturb[mp.free_indices_dict[param]] += 1.0
+            mp.set_free(free_vec_peturb)
+
+            # Check that only the parameter we're looking at has changed.
+            self.assertTrue(
+                np.max(np.abs(mp[param].get() - param_vals[param]) > 1e-6))
+            for unchanged_param in set(param_names) - set([param]):
+                np_test.assert_array_almost_equal(
+                    param_vals[unchanged_param], mp[unchanged_param].get())
+            mp.set_free(free_vec)
+
+        param_vec = mp.get_vector()
+        mp.set_vector(param_vec)
+        for param_id in range(len(param_names)):
+            param = param_names[param_id]
+            param_vec_peturb = mp.get_vector()
+            param_vec_peturb[mp.vector_indices_dict[param]] += 0.1
+            mp.set_vector(param_vec_peturb)
+
+            # Check that only the parameter we're looking at has changed.
+            self.assertTrue(
+                np.max(np.abs(mp[param].get() - param_vals[param]) > 1e-6))
+            for unchanged_param in set(param_names) - set([param]):
+                np_test.assert_array_almost_equal(
+                    param_vals[unchanged_param], mp[unchanged_param].get())
+            mp.set_vector(param_vec)
+
+        # Check the sparse transforms.  Note that the Hessian of this test
+        # gives the autograd warning that the output seems to be independent
+        # of the input.
+        check_sparse_transforms(self, mp)
 
 
 class TestDifferentiation(unittest.TestCase):
@@ -514,7 +512,7 @@ class TestDifferentiation(unittest.TestCase):
         vp_vec.set(vec)
         vp_mat.set(mat)
 
-        mp = ModelParamsDict()
+        mp = par_dict.ModelParamsDict()
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
@@ -567,7 +565,7 @@ class TestDifferentiation(unittest.TestCase):
         vp_vec.set(vec)
         vp_mat.set(mat)
 
-        mp = ModelParamsDict()
+        mp = par_dict.ModelParamsDict()
         mp.push_param(vp_scalar)
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
@@ -644,6 +642,67 @@ class TestDifferentiation(unittest.TestCase):
                            (MatFun(mat_free + eps1_vec) - MatFun(mat_free))
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
+
+    def test_simplex_derivatives(self):
+        k = 3
+        free_param = np.arange(0., float(k), 1.)
+        z = constrain_simplex_vector(free_param)
+
+        get_constrain_hess = hessian(constrain_simplex_vector)
+        target_hess = get_constrain_hess(free_param)
+        hess = constrain_hess_from_moment(z)
+        np_test.assert_array_almost_equal(target_hess, hess)
+
+        get_constrain_jac = jacobian(constrain_simplex_vector)
+        target_jac = get_constrain_jac(free_param)
+        jac = constrain_grad_from_moment(z)
+
+        np_test.assert_array_almost_equal(target_jac, jac)
+
+    def test_sparse_free_hessians(self):
+        k = 2
+
+        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
+        vp_array = ArrayParam('array', shape=(4, 5, 7))
+        vp_mat = PosDefMatrixParam('mat', k, val=mat)
+        vp_simplex = SimplexParam('simplex', shape=(5, 3))
+
+        mp = par_dict.ModelParamsDict()
+        mp.push_param(vp_mat)
+        mp.push_param(vp_simplex)
+        mp.push_param(vp_array)
+
+        def model(mp):
+            mat = mp['mat'].get()
+            array = mp['array'].get()
+            simplex = mp['simplex'].get()
+
+            return np.sum(mat)**2 * np.sum(array)**2 * np.sum(simplex)**2
+
+        def model_wrap_free(free_param, mp):
+            mp.set_free(free_param)
+            return model_wrap_vec(mp.get_vector(), mp)
+
+        def model_wrap_vec(vec_param, mp):
+            mp.set_vector(vec_param)
+            return model(mp)
+
+        free_vec = np.random.random(mp.free_size())
+        mp.set_free(free_vec)
+        mp_vec = mp.get_vector()
+
+        model_wrap_vec_jac = jacobian(model_wrap_vec)
+        model_wrap_free_hess = hessian(model_wrap_free)
+        model_wrap_vec_hess = hessian(model_wrap_vec)
+
+        vec_jac_model = model_wrap_vec_jac(mp_vec, mp)
+        vec_hess_model = model_wrap_vec_hess(mp_vec, mp)
+        free_hess_model = model_wrap_free_hess(free_vec, mp)
+
+        free_hess_sparse = Parameters.convert_vector_to_free_hessian(
+            mp, free_vec, vec_jac_model, vec_hess_model)
+
+        np_test.assert_array_almost_equal(free_hess_model, free_hess_sparse)
 
 
 class TestEntropy(unittest.TestCase):

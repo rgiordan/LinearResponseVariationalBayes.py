@@ -2,11 +2,15 @@ import math
 import copy
 import numbers
 
+import autograd
 import autograd.numpy as np
 import autograd.scipy as sp
 from autograd.core import primitive
 
-from collections import OrderedDict
+import scipy as osp
+from scipy.sparse import coo_matrix, csr_matrix, block_diag
+
+import time
 
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
@@ -56,18 +60,8 @@ def constrain(free_vec, lb, ub):
             exp_vec = np.exp(free_vec)
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
-
-# The first index is assumed to index simplicial observations.
-def constrain_simplex_matrix(free_mat):
-    # The first column is the reference value.
-    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
-    log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
-    return np.exp(free_mat_aug - log_norm)
-
-
-def unconstrain_simplex_matrix(simplex_mat):
-    return np.log(simplex_mat[:, 1:]) - \
-           np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
+constrain_scalar_jac = autograd.jacobian(constrain)
+constrain_scalar_hess = autograd.hessian(constrain)
 
 def get_inbounds_value(lb, ub):
     assert lb < ub
@@ -99,6 +93,9 @@ class ScalarParam(object):
         else:
             self.set(get_inbounds_value(lb, ub))
 
+        self.free_to_vector_jac_dense = autograd.jacobian(self.free_to_vector)
+        self.free_to_vector_hess_dense = autograd.hessian(self.free_to_vector)
+
     def __str__(self):
         return self.name + ': ' + str(self.__val)
     def names(self):
@@ -129,12 +126,22 @@ class ScalarParam(object):
     def set_free(self, free_val):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
-        return unconstrain_scalar(self.__val, self.__lb, self.__ub)
+        return np.reshape(unconstrain_scalar(self.__val, self.__lb, self.__ub), 1)
+
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get()
+    def free_to_vector_jac(self, free_val):
+        return coo_matrix(self.free_to_vector_jac_dense(free_val))
+    def free_to_vector_hess(self, free_val):
+        hess_dense = self.free_to_vector_hess_dense(free_val)
+        return np.array([ coo_matrix(hess_dense[ind, :, :])
+                          for  ind in range(hess_dense.shape[0]) ])
 
     def set_vector(self, val):
         self.set(val)
     def get_vector(self):
-        return self.__val
+        return np.reshape(self.__val, 1)
 
     def size(self):
         return 1
@@ -186,6 +193,25 @@ class VectorParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        rows_indices = np.array(range(self.vector_size()))
+        grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
+                  for vec_ind in range(self.vector_size()) ]
+        return coo_matrix((grads,
+                          (rows_indices, rows_indices)),
+                          (self.vector_size(), self.free_size()))
+    def free_to_vector_hess(self, free_val):
+        def get_ind_hess(vec_ind):
+            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            return coo_matrix(([ hess ],
+                               ([vec_ind], [vec_ind])),
+                               (self.free_size(), self.vector_size()))
+        return np.array([ get_ind_hess(vec_ind)
+                          for vec_ind in range(self.vector_size()) ])
+
 
     def set_vector(self, val):
         self.set(val)
@@ -241,6 +267,24 @@ class ArrayParam(object):
         self.set(constrain(free_val, self.__lb, self.__ub).reshape(self.__shape))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        rows_indices = np.array(range(self.vector_size()))
+        grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
+                  for vec_ind in range(self.vector_size()) ]
+        return coo_matrix((grads,
+                          (rows_indices, rows_indices)),
+                          (self.vector_size(), self.free_size()))
+    def free_to_vector_hess(self, free_val):
+        def get_ind_hess(vec_ind):
+            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            return coo_matrix(([ hess ],
+                               ([vec_ind], [vec_ind])),
+                               (self.free_size(), self.vector_size()))
+        return np.array([ get_ind_hess(vec_ind)
+                          for vec_ind in range(self.vector_size()) ])
 
     def set_vector(self, val):
         if val.size != self.vector_size():
@@ -255,208 +299,6 @@ class ArrayParam(object):
         return int(np.product(self.__shape))
     def vector_size(self):
         return int(np.product(self.__shape))
-
-
-# Uses 0-indexing. (row, col) = (k1, k2)
-def SymIndex(k1, k2):
-    def LDInd(k1, k2):
-        return int(k2 + k1 * (k1 + 1) / 2)
-
-    if k2 <= k1:
-        return LDInd(k1, k2)
-    else:
-        return LDInd(k2, k1)
-
-
-def VectorizeLDMatrix(mat):
-    nrow, ncol = np.shape(mat)
-    if nrow != ncol: raise ValueError('mat must be square')
-    return mat[np.tril_indices(nrow)]
-
-
-# Because we cannot use autograd with array assignment, just define the
-# vector jacobian product directly.
-@primitive
-def UnvectorizeLDMatrix(vec):
-    mat_size = int(0.5 * (math.sqrt(1 + 8 * vec.size) - 1))
-    if mat_size * (mat_size + 1) / 2 != vec.size: \
-        raise ValueError('Vector is an impossible size')
-    mat = np.zeros((mat_size, mat_size))
-    for k1 in range(mat_size):
-        for k2 in range(k1 + 1):
-            mat[k1, k2] = vec[SymIndex(k1, k2)]
-    return mat
-
-
-def UnvectorizeLDMatrix_vjp(g, ans, vs, gvs, vec):
-    assert g.shape[0] == g.shape[1]
-    return VectorizeLDMatrix(g)
-
-UnvectorizeLDMatrix.defvjp(UnvectorizeLDMatrix_vjp)
-
-def exp_matrix_diagonal(mat):
-    assert mat.shape[0] == mat.shape[1]
-    # make_diagonal() is only defined in the autograd version of numpy
-    mat_exp_diag = np.make_diagonal(np.exp(np.diag(mat)), offset=0, axis1=-1, axis2=-2)
-    mat_diag = np.make_diagonal(np.diag(mat), offset=0, axis1=-1, axis2=-2)
-    return mat_exp_diag + mat - mat_diag
-
-
-def log_matrix_diagonal(mat):
-    assert mat.shape[0] == mat.shape[1]
-    # make_diagonal() is only defined in the autograd version of numpy
-    mat_log_diag = np.make_diagonal(np.log(np.diag(mat)), offset=0, axis1=-1, axis2=-2)
-    mat_diag = np.make_diagonal(np.diag(mat), offset=0, axis1=-1, axis2=-2)
-    return mat_log_diag + mat - mat_diag
-
-
-def pack_posdef_matrix(mat, diag_lb=0.0):
-    k = mat.shape[0]
-    mat_lb = mat - np.make_diagonal(np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
-    return VectorizeLDMatrix(log_matrix_diagonal(np.linalg.cholesky(mat_lb)))
-
-
-def unpack_posdef_matrix(free_vec, diag_lb=0.0):
-    mat_chol = exp_matrix_diagonal(UnvectorizeLDMatrix(free_vec))
-    mat = np.matmul(mat_chol, mat_chol.T)
-    k = mat.shape[0]
-    return mat + np.make_diagonal(np.full(k, diag_lb), offset=0, axis1=-1, axis2=-2)
-
-
-class PosDefMatrixParam(object):
-    def __init__(self, name='', size=2, diag_lb=0.0, val=None):
-        self.name = name
-        self.__size = int(size)
-        self.__vec_size = int(size * (size + 1) / 2)
-        self.__diag_lb = diag_lb
-        assert diag_lb >= 0
-        if val is None:
-            self.__val = np.diag(np.full(self.__size, diag_lb + 1.0))
-        else:
-            self.set(val)
-    def __str__(self):
-        return self.name + ':\n' + str(self.__val)
-    def names(self):
-        return [ self.name ]
-    def dictval(self):
-        return self.__val.tolist()
-
-    def set(self, val):
-        nrow, ncol = np.shape(val)
-        if nrow != self.__size or ncol != self.__size:
-            raise ValueError('Matrix is a different size')
-        if not (val.transpose() == val).all():
-            raise ValueError('Matrix is not symmetric')
-        self.__val = val
-    def get(self):
-        return self.__val
-
-    def set_free(self, free_val):
-        if free_val.size != self.__vec_size:
-            raise ValueError('Free value is the wrong length')
-        self.set(unpack_posdef_matrix(free_val, diag_lb=self.__diag_lb))
-    def get_free(self):
-        return pack_posdef_matrix(self.__val, diag_lb=self.__diag_lb)
-
-    def set_vector(self, vec_val):
-        if vec_val.size != self.__vec_size:
-            raise ValueError('Vector value is the wrong length')
-        ld_mat = UnvectorizeLDMatrix(vec_val)
-        mat_val = ld_mat + ld_mat.transpose()
-        # We have double counted the diagonal.  For some reason the autograd
-        # diagonal functions require axis1=-1 and axis2=-2
-        mat_val = mat_val - \
-            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
-                             axis1=-1, axis2=-2)
-        self.set(mat_val)
-    def get_vector(self):
-        return VectorizeLDMatrix(self.__val)
-
-    def size(self):
-        return self.__size
-    def free_size(self):
-        return self.__vec_size
-    def vector_size(self):
-        return self.__vec_size
-
-
-class PosDefMatrixParamVector(object):
-    def __init__(self, name='', length=1, matrix_size=2, diag_lb=0.0, val=None):
-        self.name = name
-        self.__matrix_size = int(matrix_size)
-        self.__matrix_shape = np.array([ int(matrix_size), int(matrix_size) ])
-        self.__length = int(length)
-        self.__shape = np.append(self.__length, self.__matrix_shape)
-        self.__vec_size = int(matrix_size * (matrix_size + 1) / 2)
-        self.__diag_lb = diag_lb
-        assert diag_lb >= 0
-        if val is None:
-            default_val = np.diag(np.full(self.__matrix_size, diag_lb + 1.0))
-            self.__val = np.broadcast_to(default_val, self.__shape)
-        else:
-            self.set(val)
-    def __str__(self):
-        return self.name + ':\n' + str(self.__val)
-    def names(self):
-        return [ self.name ]
-    def dictval(self):
-        return self.__val.tolist()
-
-    def set(self, val):
-        if (val.shape != self.__shape).all():
-            raise ValueError('Array is the wrong size')
-        self.__val = val
-    def get(self):
-        return self.__val
-
-    def free_obs_slice(self, obs):
-        assert obs < self.__length
-        return slice(self.__vec_size * obs, self.__vec_size * (obs + 1))
-
-    def set_free(self, free_val):
-        if free_val.size != self.free_size():
-            raise ValueError('Free value is the wrong length')
-        self.__val = \
-            np.array([ unpack_posdef_matrix(free_val[self.free_obs_slice(obs)], diag_lb=self.__diag_lb) \
-              for obs in range(self.__length) ])
-    def get_free(self):
-        return np.hstack([ \
-            pack_posdef_matrix(self.__val[obs, :, :], diag_lb=self.__diag_lb) \
-                          for obs in range(self.__length)])
-
-    def unpack_vector_obs(self, vec_val):
-        # TODO: this code is duplicated in the PosDefMatrixParam class.
-        if len(vec_val) != self.__vec_size:
-            raise ValueError('Vector value is the wrong length')
-        ld_mat = UnvectorizeLDMatrix(vec_val)
-        mat_val = ld_mat + ld_mat.transpose()
-        # We have double counted the diagonal.  For some reason the autograd
-        # diagonal functions require axis1=-1 and axis2=-2
-        mat_val = mat_val - \
-            np.make_diagonal(np.diagonal(ld_mat, axis1=-1, axis2=-2),
-                             axis1=-1, axis2=-2)
-        return mat_val
-
-    def set_vector(self, vec_val):
-        if len(vec_val) != self.vector_size():
-            raise ValueError('Vector value is the wrong length')
-        self.__val = \
-            np.array([ self.unpack_vector_obs(vec_val[self.free_obs_slice(obs)]) \
-              for obs in range(self.__length) ])
-
-    def get_vector(self):
-        return np.hstack([ VectorizeLDMatrix(self.__val[obs, :, :]) \
-                           for obs in range(self.__length) ])
-
-    def length(self):
-        return self.__length
-    def matrix_size(self):
-        return self.__matrix_size
-    def free_size(self):
-        return self.__vec_size * self.__length
-    def vector_size(self):
-        return self.__vec_size * self.__length
-
 
 # Sets the param using the slice in free_vec starting at offset.
 # Returns the next offset.
@@ -477,6 +319,7 @@ def set_vector_offset(param, vec, offset):
     param.set_vector(vec[offset:(offset + param.vector_size())])
     return offset + param.vector_size()
 
+
 # Sets the value of vec starting at offset with the param's free value.
 # Returns the next offset.
 def get_vector_offset(param, vec, offset):
@@ -484,50 +327,73 @@ def get_vector_offset(param, vec, offset):
     return offset + param.vector_size()
 
 
-class ModelParamsDict(object):
-    def __init__(self, name='ModelParamsDict'):
-        self.param_dict = OrderedDict()
-        self.name = name
-        # You will want free_size and vector_size to be different when you
-        # are encoding simplexes.
-        self.__free_size = 0
-        self.__vector_size = 0
-    def __str__(self):
-        return self.name + ':\n' + \
-            '\n'.join([ '\t' + str(param) for param in self.param_dict.values() ])
-    def __getitem__(self, key):
-        return self.param_dict[key]
-    def push_param(self, param):
-        self.param_dict[param.name] = param
-        self.__free_size = self.__free_size + param.free_size()
-        self.__vector_size = self.__vector_size + param.vector_size()
-    def set_name(self, name):
-        self.name = name
-    def dictval(self):
-        result = {}
-        for param in self.param_dict.values():
-            result[param.name] = param.dictval()
-        return result
+def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
+    free_slice = slice(free_offset, free_offset + param.free_size())
+    jac = param.free_to_vector_jac(free_vec[free_slice])
+    return free_offset + param.free_size(), \
+           vec_offset + param.vector_size(), \
+           jac
 
-    def set_free(self, vec):
-        if vec.size != self.__free_size: raise ValueError("Wrong size.")
-        offset = 0
-        for param in self.param_dict.values():
-            offset = set_free_offset(param, vec, offset)
-    def get_free(self):
-        return np.hstack([ par.get_free() for par in self.param_dict.values() ])
 
-    def set_vector(self, vec):
-        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
-        offset = 0
-        for param in self.param_dict.values():
-            offset = set_vector_offset(param, vec, offset)
-    def get_vector(self):
-        return np.hstack([ par.get_vector() for par in self.param_dict.values() ])
+# Define a sparse matrix with spmat offset by offset_shape and with
+# total shape give by total_shape.  This is useful for placing a sub-Hessian
+# in the middle of a larger Hessian.
+def offset_sparse_matrix(spmat, offset_shape, full_shape):
+    return coo_matrix(
+        (spmat.data,
+         (spmat.row + offset_shape[0], spmat.col + offset_shape[1])),
+         shape=full_shape)
 
-    def names(self):
-        return np.concatenate([ param.names() for param in self.param_dict.values()])
-    def free_size(self):
-        return self.__free_size
-    def vector_size(self):
-        return self.__vector_size
+
+# Append the parameter Hessian to the array of full sparse hessians and
+# return the amount by which to increment the offset in the free vector.
+def free_to_vector_hess_offset(
+    param, free_vec, hessians, free_offset, full_shape):
+    free_slice = slice(free_offset, free_offset + param.free_size())
+    hess = param.free_to_vector_hess(free_vec[free_slice])
+    for vec_ind in range(len(hess)):
+        hessians.append(offset_sparse_matrix(
+            hess[vec_ind], (free_offset, free_offset), full_shape))
+    return free_offset + param.free_size()
+
+
+# Using sparse jacobians and hessians, convert a hessian with respect
+# to a parameters vector to a hessian with respect to the free parameters.
+def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
+    #free_hess = csr_matrix((param.free_size(), param.free_size()))
+
+    free_to_vec_jacobian = param.free_to_vector_jac(free_val)
+    free_to_vec_hessian = param.free_to_vector_hess(free_val)
+
+    # Accumulate the third order terms, which are sparse.  Use the fact
+    # that elements of a coo_matrix add when converted to any other type.
+    free_hess_size = (param.free_size(), param.free_size())
+    vec_range = range(param.vector_size())
+    free_hess_vals = np.hstack([
+        free_to_vec_hessian[vec_ind].data * vector_jac[vec_ind]
+        for vec_ind in vec_range ])
+    free_hess_rows = np.hstack([
+        free_to_vec_hessian[vec_ind].row for vec_ind in vec_range ])
+    free_hess_cols = np.hstack([
+        free_to_vec_hessian[vec_ind].col for vec_ind in vec_range ])
+    free_hess = coo_matrix(
+        (free_hess_vals, (free_hess_rows, free_hess_cols)), free_hess_size)
+
+    # Then add the second-order terms, which may be dense depending on the
+    # vec_hess_target.
+    free_hess += \
+        free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
+
+    return free_hess
+
+
+
+
+
+
+
+
+
+
+
+#

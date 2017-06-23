@@ -1,12 +1,18 @@
 from VariationalBayes import Parameters as par
+from VariationalBayes import MatrixParameters as mat_par
+
+from VariationalBayes.Parameters import \
+    free_to_vector_jac_offset, free_to_vector_hess_offset
+
 import autograd.numpy as np
+from scipy.sparse import block_diag
 
 class MVNParam(object):
     def __init__(self, name='', dim=2, min_info=0.0):
         self.name = name
         self.__dim = dim
         self.mean = par.VectorParam(name + '_mean', dim)
-        self.info = par.PosDefMatrixParam(name + '_info', dim, diag_lb=min_info)
+        self.info = mat_par.PosDefMatrixParam(name + '_info', dim, diag_lb=min_info)
         self.__free_size = self.mean.free_size() + self.info.free_size()
         self.__vector_size = self.mean.vector_size() + self.info.vector_size()
     def __str__(self):
@@ -31,6 +37,27 @@ class MVNParam(object):
         offset = par.set_free_offset(self.info, free_val, offset)
     def get_free(self):
         return np.hstack([ self.mean.get_free(), self.info.get_free() ])
+
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        free_offset = 0
+        vec_offset = 0
+        free_offset, vec_offset, mean_jac = free_to_vector_jac_offset(
+            self.mean, free_val, free_offset, vec_offset)
+        free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
+            self.info, free_val, free_offset, vec_offset)
+        return block_diag((mean_jac, info_jac))
+    def free_to_vector_hess(self, free_val):
+        free_offset = 0
+        full_shape = (self.free_size(), self.free_size())
+        hessians = []
+        free_offset = free_to_vector_hess_offset(
+            self.mean, free_val, hessians, free_offset, full_shape)
+        free_offset = free_to_vector_hess_offset(
+            self.info, free_val, hessians, free_offset, full_shape)
+        return np.array(hessians)
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size: raise ValueError("Wrong size.")
@@ -75,6 +102,27 @@ class UVNParam(object):
     def get_free(self):
         return np.hstack([ self.mean.get_free(), self.info.get_free() ])
 
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        free_offset = 0
+        vec_offset = 0
+        free_offset, vec_offset, mean_jac = free_to_vector_jac_offset(
+            self.mean, free_val, free_offset, vec_offset)
+        free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
+            self.info, free_val, free_offset, vec_offset)
+        return block_diag((mean_jac, info_jac))
+    def free_to_vector_hess(self, free_val):
+        free_offset = 0
+        full_shape = (self.free_size(), self.free_size())
+        hessians = []
+        free_offset = free_to_vector_hess_offset(
+            self.mean, free_val, hessians, free_offset, full_shape)
+        free_offset = free_to_vector_hess_offset(
+            self.info, free_val, hessians, free_offset, full_shape)
+        return np.array(hessians)
+
     def set_vector(self, vec):
         if vec.size != self.__vector_size: raise ValueError("Wrong size.")
         offset = 0
@@ -115,6 +163,27 @@ class UVNParamVector(object):
         offset = par.set_free_offset(self.info, free_val, offset)
     def get_free(self):
         return np.hstack([ self.mean.get_free(), self.info.get_free() ])
+
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+    def free_to_vector_jac(self, free_val):
+        free_offset = 0
+        vec_offset = 0
+        free_offset, vec_offset, mean_jac = free_to_vector_jac_offset(
+            self.mean, free_val, free_offset, vec_offset)
+        free_offset, vec_offset, info_jac = free_to_vector_jac_offset(
+            self.info, free_val, free_offset, vec_offset)
+        return block_diag((mean_jac, info_jac))
+    def free_to_vector_hess(self, free_val):
+        free_offset = 0
+        full_shape = (self.free_size(), self.free_size())
+        hessians = []
+        free_offset = free_to_vector_hess_offset(
+            self.mean, free_val, hessians, free_offset, full_shape)
+        free_offset = free_to_vector_hess_offset(
+            self.info, free_val, hessians, free_offset, full_shape)
+        return np.array(hessians)
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size: raise ValueError("Wrong size.")

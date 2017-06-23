@@ -2,6 +2,11 @@ from VariationalBayes import Parameters as par
 import autograd.numpy as np
 import autograd.scipy as asp
 
+from VariationalBayes.Parameters import \
+    free_to_vector_jac_offset, free_to_vector_hess_offset
+
+from scipy.sparse import block_diag
+
 # a vector drawn according to a Dirichlet(alpha) distribution
 class DirichletParamVector(object):
     def __init__(self, name='', dim=2, min_alpha = 0.0):
@@ -31,6 +36,16 @@ class DirichletParamVector(object):
 
     def get_free(self):
         return self.alpha.get_free()
+
+    def free_to_vector(self, free_val):
+        self.set_free(free_val)
+        return self.get_vector()
+
+    def free_to_vector_jac(self, free_val):
+        return self.alpha.free_to_vector_jac(free_val)
+
+    def free_to_vector_hess(self, free_val):
+        return self.alpha.free_to_vector_hess(free_val)
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size:
