@@ -92,14 +92,32 @@ p_{k} & =\frac{\exp\left(\alpha_{k}\right)}{1+\sum_{j}\exp\left(\alpha_{j}\right
 Then 
 \begin_inset Formula 
 \begin{align*}
-\frac{dp_{k}}{d\alpha_{k}} & =\frac{\exp\left(\alpha_{k}\right)}{1+\sum_{j}\exp\left(\alpha_{j}\right)}-\frac{\exp\left(\alpha_{k}\right)\exp\left(\alpha_{k}\right)}{\left(1+\sum_{j}\exp\left(\alpha_{j}\right)\right)^{2}}=p_{k}\left(1-p_{k}\right)\\
-\frac{dp_{k}}{d\alpha_{j\ne k}} & =-\frac{\exp\left(\alpha_{k}\right)\exp\left(\alpha_{j}\right)}{\left(1+\sum_{j}\exp\left(\alpha_{j}\right)\right)^{2}}=-p_{j}p_{k}\\
+\frac{dp_{k}}{d\alpha_{k}} & =\frac{\exp\left(\alpha_{k}\right)}{1+\sum_{j}\exp\left(\alpha_{j}\right)}-\frac{\exp\left(\alpha_{k}\right)\exp\left(\alpha_{k}\right)}{\left(1+\sum_{j}\exp\left(\alpha_{j}\right)\right)^{2}}\\
+ & =p_{k}\left(1-p_{k}\right)\\
+ & =p_{k}-p_{k}^{2}\\
+\frac{dp_{k}}{d\alpha_{j\ne k}} & =-\frac{\exp\left(\alpha_{k}\right)\exp\left(\alpha_{j}\right)}{\left(1+\sum_{j}\exp\left(\alpha_{j}\right)\right)^{2}}=-p_{k}p_{j}\\
 \frac{dp_{0}}{d\alpha_{k}} & =-p_{0}p_{k}
 \end{align*}
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+So start with 
+\begin_inset Formula $-\vec{p}\vec{p}^{T}$
+\end_inset
+
+ and add 
+\begin_inset Formula $p_{k}$
+\end_inset
+
+ to the diagonal excluding for 
+\begin_inset Formula $p_{0}$
+\end_inset
+
+.
 \end_layout
 
 \begin_layout Standard
@@ -155,7 +173,7 @@ So we can start with the outer product
 \begin_inset Formula $p_{j}$
 \end_inset
 
- from the other diagonals,  and finally multiply by 
+ from the other diagonals, and finally multiply by 
 \begin_inset Formula $p_{k}$
 \end_inset
 

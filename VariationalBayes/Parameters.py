@@ -349,22 +349,11 @@ def offset_sparse_matrix(spmat, offset_shape, full_shape):
 # return the amount by which to increment the offset in the free vector.
 def free_to_vector_hess_offset(
     param, free_vec, hessians, free_offset, full_shape):
-
-    print('** ', param.name, '<')
     free_slice = slice(free_offset, free_offset + param.free_size())
-
-    tic = time.time()
     hess = param.free_to_vector_hess(free_vec[free_slice])
-    print('** ', param.name, 'calculating hessian: ', time.time() - tic)
-
-    tic = time.time()
     for vec_ind in range(len(hess)):
         hessians.append(offset_sparse_matrix(
             hess[vec_ind], (free_offset, free_offset), full_shape))
-
-    print('** ', param.name, 'appending hessian: ', time.time() - tic)
-    print('** ', param.name, '>')
-
     return free_offset + param.free_size()
 
 

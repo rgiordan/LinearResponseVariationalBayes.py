@@ -25,6 +25,18 @@ def constrain_simplex_vector(free_vec):
 # It may be beneficial to hand-code the Jacobian, too.
 constrain_grad = autograd.jacobian(constrain_simplex_vector)
 
+
+# TODO: some compuatation is shared between the Jacobian and Hessian.
+
+# The Jacobian of the constraint is most easily calculated as a function
+# of the constrained moments.
+def constrain_grad_from_moment(z):
+    z_last = z[1:]
+    z_jac = -1 * np.outer(z, z_last)
+    for k in range(1, len(z)):
+        z_jac[k, k - 1] += z[k]
+    return z_jac
+
 # The Hessian of the constraint is most easily calculated as a function
 # of the constrained moments.
 def constrain_hess_from_moment(z):
@@ -98,7 +110,9 @@ class SimplexParam(object):
             # Each of the output depends only on one row of the input.
             free_inds = np.ravel_multi_index([[row], free_cols], self.free_shape())
             vec_inds = np.ravel_multi_index([[row], vec_cols], self.shape())
-            row_jac = constrain_grad(free_val[free_inds])
+            #row_jac = constrain_grad(free_val[free_inds])
+            z = constrain_simplex_vector(free_val[free_inds])
+            row_jac = constrain_grad_from_moment(z)
             for vec_col in vec_cols:
                 for free_col in free_cols:
                     jac_rows.append(vec_inds[vec_col])
