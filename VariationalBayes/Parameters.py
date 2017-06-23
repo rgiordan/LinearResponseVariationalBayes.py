@@ -362,13 +362,8 @@ def free_to_vector_hess_offset(
 def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
     #free_hess = csr_matrix((param.free_size(), param.free_size()))
 
-    tic = time.time()
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
-    print('Parameters: free_to_vector_jac: ', time.time() - tic)
-
-    tic = time.time()
     free_to_vec_hessian = param.free_to_vector_hess(free_val)
-    print('Parameters: free_to_vector_hess: ', time.time() - tic)
 
     # Accumulate the third order terms, which are sparse.  Use the fact
     # that elements of a coo_matrix add when converted to any other type.
@@ -386,10 +381,8 @@ def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
 
     # Then add the second-order terms, which may be dense depending on the
     # vec_hess_target.
-    tic = time.time()
     free_hess += \
         free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
-    print('Parameters: jacobian multiply: ', time.time() - tic)
 
     return free_hess
 

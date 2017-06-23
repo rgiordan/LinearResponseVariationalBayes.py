@@ -72,11 +72,8 @@ class ModelParamsDict(object):
         full_shape = (self.free_size(), self.free_size())
         hessians = []
         for param in self.param_dict.values():
-            tic = time.time()
             free_offset = free_to_vector_hess_offset(
                 param, free_val, hessians, free_offset, full_shape)
-            print('Dict ', self.name, 'free_to_vector_hess ', param.name, ': ',
-                  time.time() - tic)
         return np.array(hessians)
 
     def set_vector(self, vec):

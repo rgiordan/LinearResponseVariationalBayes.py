@@ -21,11 +21,6 @@ def unconstrain_simplex_matrix(simplex_mat):
 def constrain_simplex_vector(free_vec):
     return constrain_simplex_matrix(np.expand_dims(free_vec, 0)).flatten()
 
-
-# It may be beneficial to hand-code the Jacobian, too.
-constrain_grad = autograd.jacobian(constrain_simplex_vector)
-
-
 # TODO: some compuatation is shared between the Jacobian and Hessian.
 
 # The Jacobian of the constraint is most easily calculated as a function

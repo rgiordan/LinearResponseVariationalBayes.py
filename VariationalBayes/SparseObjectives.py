@@ -135,22 +135,16 @@ class SparseObjective(object):
         self.global_par.set_vector(global_vec_val)
         self.local_par.set_vector(local_vec_val)
 
-        tic = time.time()
         global_hess = self.fun_vector_global_hessian(
             global_vec_val, local_vec_val)
-        print('fun_vector_hessian_split: fun_vector_global_hessian: ', time.time() - tic)
 
-        tic = time.time()
         cross_hess = self.fun_vector_cross_hessian(
             global_vec_val, local_vec_val).T
-        print('fun_vector_hessian_split: fun_vector_cross_hessian: ', time.time() - tic)
 
-        tic = time.time()
         local_hess = self.fun_vector_local_hessian(
             global_vec_val, local_vec_val)
         sp_hess =  sp.sparse.bmat([ [global_hess,  cross_hess.T],
                                     [cross_hess,   local_hess]], format='csr')
-        print('fun_vector_hessian_split: bmat: ', time.time() - tic)
 
         # TODO: maybe sometimes you want the sparse version.
         return np.array(sp_hess.toarray())
@@ -184,11 +178,9 @@ class SparseObjective(object):
         fun_vector_grad = self.fun_vector_grad_split(
             global_vec_val, local_vec_val)
 
-        # This is taking all the time.
-        tic = time.time()
+        # This is taking most of the time.
         fun_hessian_sparse = convert_vector_to_free_hessian(
             self.par, free_val, fun_vector_grad, fun_vector_hessian)
-        print('convert_vector_to_free_hessian: ', time.time() - tic)
 
         # If you don't convert to an array, it returns a matrix type, which
         # seems to cause mysterious problems with scipy.optimize.minimize.
