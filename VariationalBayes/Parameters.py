@@ -353,17 +353,39 @@ def offset_sparse_matrix(spmat, offset_shape, full_shape):
 def free_to_vector_hess_offset(
     param, free_vec, hessians, free_offset, full_shape):
 
+    print('** ', param.name, '<')
     free_slice = slice(free_offset, free_offset + param.free_size())
 
     tic = time.time()
     hess = param.free_to_vector_hess(free_vec[free_slice])
-    print('** calculating hessian: ', time.time() - tic)
+    print('** ', param.name, 'calculating hessian: ', time.time() - tic)
 
     tic = time.time()
+    
+    # Define Hessians with the same shape as the full Hessian and the
+    # parameter's own Hessian placed at the appropriate offset.
+    # reshape doesn't seem to work, so use block_diag with empty
+    # matrices instead.
+
+    # Note that each of the param's Hessians should have the same shape.
+    offset_shape = (free_offset, free_offset)
+    post_shape = (full_shape[0] - hess[0].shape[0] - offset_shape[0],
+                  full_shape[1] - hess[0].shape[1] - offset_shape[1])
+    assert post_shape[0] >= 0
+    assert post_shape[1] >= 0
+    pre_zero_mat = csr_matrix(( (), ((), ()) ), offset_shape)
+    post_zero_mat = csr_matrix(( (), ((), ()) ), post_shape)
+
     for vec_ind in range(len(hess)):
-        hessians.append(offset_sparse_matrix(
-            hess[vec_ind], (free_offset, free_offset), full_shape))
-    print('** appending hessian: ', time.time() - tic)
+        # hessians.append(offset_sparse_matrix(
+        #     hess[vec_ind], (free_offset, free_offset), full_shape))
+        assert hess[vec_ind].shape == hess[0].shape
+        hessians.append(
+            block_diag((pre_zero_mat, hess[vec_ind], post_zero_mat),
+                       format='csr'))
+    print('** ', param.name, 'appending hessian: ', time.time() - tic)
+    print('** ', param.name, '>')
+
     return free_offset + param.free_size()
 
 

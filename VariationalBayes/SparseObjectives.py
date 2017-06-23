@@ -178,16 +178,13 @@ class SparseObjective(object):
         global_vec_val = self.global_par.get_vector()
         local_vec_val = self.local_par.get_vector()
 
-        tic = time.time()
         fun_vector_hessian = self.fun_vector_hessian_split(
             global_vec_val, local_vec_val)
-        print('fun_vector_hessian_split: ', time.time() - tic)
 
-        tic = time.time()
         fun_vector_grad = self.fun_vector_grad_split(
             global_vec_val, local_vec_val)
-        print('fun_vector_grad_split: ', time.time() - tic)
 
+        # This is taking all the time.
         tic = time.time()
         fun_hessian_sparse = convert_vector_to_free_hessian(
             self.par, free_val, fun_vector_grad, fun_vector_hessian)

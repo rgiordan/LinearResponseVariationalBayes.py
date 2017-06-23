@@ -75,7 +75,7 @@ class ModelParamsDict(object):
             tic = time.time()
             free_offset = free_to_vector_hess_offset(
                 param, free_val, hessians, free_offset, full_shape)
-            print('Dict free_to_vector_hess ', param.name, ': ',
+            print('Dict ', self.name, 'free_to_vector_hess ', param.name, ': ',
                   time.time() - tic)
         return np.array(hessians)
 
