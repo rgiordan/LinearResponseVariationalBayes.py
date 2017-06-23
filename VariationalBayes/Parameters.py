@@ -10,6 +10,8 @@ from autograd.core import primitive
 import scipy as osp
 from scipy.sparse import csr_matrix, block_diag
 
+import time
+
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
         raise ValueError('Elements larger than the upper bound')
@@ -352,10 +354,16 @@ def free_to_vector_hess_offset(
     param, free_vec, hessians, free_offset, full_shape):
 
     free_slice = slice(free_offset, free_offset + param.free_size())
+
+    tic = time.time()
     hess = param.free_to_vector_hess(free_vec[free_slice])
+    print('** calculating hessian: ', time.time() - tic)
+
+    tic = time.time()
     for vec_ind in range(len(hess)):
         hessians.append(offset_sparse_matrix(
             hess[vec_ind], (free_offset, free_offset), full_shape))
+    print('** appending hessian: ', time.time() - tic)
     return free_offset + param.free_size()
 
 
@@ -363,17 +371,27 @@ def free_to_vector_hess_offset(
 # to a parameters vector to a hessian with respect to the free parameters.
 def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
     free_hess = csr_matrix((param.free_size(), param.free_size()))
+
+    tic = time.time()
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
+    print('Parameters: free_to_vector_jac: ', time.time() - tic)
+
+    tic = time.time()
     free_to_vec_hessian = param.free_to_vector_hess(free_val)
+    print('Parameters: free_to_vector_hess: ', time.time() - tic)
 
     # Accumulate the third order terms, which are sparse.
+    tic = time.time()
     for vec_ind in range(param.vector_size()):
         free_hess += free_to_vec_hessian[vec_ind] * vector_jac[vec_ind]
+    print('Parameters: accumulate: ', time.time() - tic)
 
     # Then add the second-order terms, which may be dense depending on the
     # vec_hess_target.
+    tic = time.time()
     free_hess += \
         free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
+    print('Parameters: jac multiply: ', time.time() - tic)
 
     return free_hess
 
