@@ -18,7 +18,8 @@ from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
 from VariationalBayes.MultinomialParams import \
-    constrain_simplex_vector, constrain_hess_from_moment
+    constrain_simplex_vector, constrain_hess_from_moment, \
+    constrain_grad_from_moment
 from VariationalBayes.DirichletParams import DirichletParamVector
 from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
@@ -642,19 +643,21 @@ class TestDifferentiation(unittest.TestCase):
                 np_test.assert_array_almost_equal(
                     num_hess, (eps ** 2) * MatFunHess(mat_free)[:, :, ind1, ind2])
 
-    def test_simplex_hessian(self):
+    def test_simplex_derivatives(self):
         k = 3
         free_param = np.arange(0., float(k), 1.)
         z = constrain_simplex_vector(free_param)
-        get_constrain_hess = hessian(constrain_simplex_vector)
 
+        get_constrain_hess = hessian(constrain_simplex_vector)
         target_hess = get_constrain_hess(free_param)
         hess = constrain_hess_from_moment(z)
-
-        print(target_hess.shape)
-        print(hess.shape)
-
         np_test.assert_array_almost_equal(target_hess, hess)
+
+        get_constrain_jac = jacobian(constrain_simplex_vector)
+        target_jac = get_constrain_jac(free_param)
+        jac = constrain_grad_from_moment(z)
+
+        np_test.assert_array_almost_equal(target_jac, jac)
 
     def test_sparse_free_hessians(self):
         k = 2
@@ -700,6 +703,7 @@ class TestDifferentiation(unittest.TestCase):
             mp, free_vec, vec_jac_model, vec_hess_model)
 
         np_test.assert_array_almost_equal(free_hess_model, free_hess_sparse)
+
 
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
