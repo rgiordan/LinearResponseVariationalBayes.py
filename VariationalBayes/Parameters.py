@@ -338,16 +338,6 @@ def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
 # Define a sparse matrix with spmat offset by offset_shape and with
 # total shape give by total_shape.  This is useful for placing a sub-Hessian
 # in the middle of a larger Hessian.
-def offset_sparse_matrix_block_diag(spmat, offset_shape, full_shape):
-    post_shape = (full_shape[0] - spmat.shape[0] - offset_shape[0],
-                  full_shape[1] - spmat.shape[1] - offset_shape[1])
-    assert post_shape[0] >= 0
-    assert post_shape[1] >= 0
-    pre_zero_mat = coo_matrix(( (), ((), ()) ), offset_shape)
-    post_zero_mat = coo_matrix(( (), ((), ()) ), post_shape)
-    return block_diag((pre_zero_mat, spmat, post_zero_mat), format='csr')
-
-
 def offset_sparse_matrix(spmat, offset_shape, full_shape):
     return coo_matrix(
         (spmat.data,
@@ -368,29 +358,10 @@ def free_to_vector_hess_offset(
     print('** ', param.name, 'calculating hessian: ', time.time() - tic)
 
     tic = time.time()
-
-    # Define Hessians with the same shape as the full Hessian and the
-    # parameter's own Hessian placed at the appropriate offset.
-    # reshape doesn't seem to work, so use block_diag with empty
-    # matrices instead.
-
-    # Note that each of the param's Hessians should have the same shape.
-    # offset_shape = (free_offset, free_offset)
-    # post_shape = (full_shape[0] - hess[0].shape[0] - offset_shape[0],
-    #               full_shape[1] - hess[0].shape[1] - offset_shape[1])
-    # assert post_shape[0] >= 0
-    # assert post_shape[1] >= 0
-    # pre_zero_mat = coo_matrix(( (), ((), ()) ), offset_shape)
-    # post_zero_mat = coo_matrix(( (), ((), ()) ), post_shape)
-
     for vec_ind in range(len(hess)):
         hessians.append(offset_sparse_matrix(
             hess[vec_ind], (free_offset, free_offset), full_shape))
-        # assert hess[vec_ind].shape == hess[0].shape
-        # hessians.append(
-        #     block_diag((pre_zero_mat, hess[vec_ind], post_zero_mat),
-        #                format='csr'))
-        # hessians
+
     print('** ', param.name, 'appending hessian: ', time.time() - tic)
     print('** ', param.name, '>')
 
@@ -400,7 +371,7 @@ def free_to_vector_hess_offset(
 # Using sparse jacobians and hessians, convert a hessian with respect
 # to a parameters vector to a hessian with respect to the free parameters.
 def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
-    free_hess = csr_matrix((param.free_size(), param.free_size()))
+    #free_hess = csr_matrix((param.free_size(), param.free_size()))
 
     tic = time.time()
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
@@ -410,18 +381,26 @@ def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
     free_to_vec_hessian = param.free_to_vector_hess(free_val)
     print('Parameters: free_to_vector_hess: ', time.time() - tic)
 
-    # Accumulate the third order terms, which are sparse.
-    tic = time.time()
-    for vec_ind in range(param.vector_size()):
-        free_hess += free_to_vec_hessian[vec_ind] * vector_jac[vec_ind]
-    print('Parameters: accumulate: ', time.time() - tic)
+    # Accumulate the third order terms, which are sparse.  Use the fact
+    # that elements of a coo_matrix add when converted to any other type.
+    free_hess_size = (param.free_size(), param.free_size())
+    vec_range = range(param.vector_size())
+    free_hess_vals = np.hstack([
+        free_to_vec_hessian[vec_ind].data * vector_jac[vec_ind]
+        for vec_ind in vec_range ])
+    free_hess_rows = np.hstack([
+        free_to_vec_hessian[vec_ind].row for vec_ind in vec_range ])
+    free_hess_cols = np.hstack([
+        free_to_vec_hessian[vec_ind].col for vec_ind in vec_range ])
+    free_hess = coo_matrix(
+        (free_hess_vals, (free_hess_rows, free_hess_cols)), free_hess_size)
 
     # Then add the second-order terms, which may be dense depending on the
     # vec_hess_target.
     tic = time.time()
     free_hess += \
         free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
-    print('Parameters: jac multiply: ', time.time() - tic)
+    print('Parameters: jacobian multiply: ', time.time() - tic)
 
     return free_hess
 
