@@ -79,6 +79,10 @@ class SparseObjective(object):
         self.fun_free_global_hessian = \
             autograd.hessian(self.fun_free_split, argnum=0)
 
+        # Use autograd for the Hessian vector product.
+        self.fun_free_hvp = \
+            autograd.hessian_vector_product(self.fun_free)
+
         self.fun_vector_global_grad = \
             autograd.grad(self.fun_vector_split, argnum=0)
         self.fun_vector_global_hessian = \
@@ -97,7 +101,7 @@ class SparseObjective(object):
 
     def fun_free(self, free_val):
         self.par.set_free(free_val)
-        self.fun()
+        return self.fun()
 
     def fun_free_split(self, global_free_val, local_free_val):
         self.global_par.set_free(global_free_val)
@@ -106,7 +110,7 @@ class SparseObjective(object):
 
     def fun_vector(self, vec_val):
         self.par.set_vector(vec_val)
-        self.fun()
+        return self.fun()
 
     # Define the vector derivatives.
     def fun_vector_split(self, global_vec_val, local_vec_val):
@@ -141,7 +145,7 @@ class SparseObjective(object):
 
     # Use the sparse transforms to change the vector gradiend into a free
     # gradient.
-    def fun_free_grad(self, free_val):
+    def fun_free_grad_sparse(self, free_val):
         self.par.set_free(free_val)
         global_vec_val = self.global_par.get_vector()
         local_vec_val = self.local_par.get_vector()
@@ -157,7 +161,7 @@ class SparseObjective(object):
 
     # Use the sparse transforms to change the vector Hessian into a free
     # Hessian.
-    def fun_free_hessian(self, free_val):
+    def fun_free_hessian_sparse(self, free_val):
         self.par.set_free(free_val)
         global_vec_val = self.global_par.get_vector()
         local_vec_val = self.local_par.get_vector()
