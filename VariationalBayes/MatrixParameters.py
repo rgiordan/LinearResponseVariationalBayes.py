@@ -8,7 +8,7 @@ import autograd.scipy as sp
 from autograd.core import primitive
 
 import scipy as osp
-from scipy.sparse import csr_matrix
+from scipy.sparse import coo_matrix
 
 # Uses 0-indexing. (row, col) = (k1, k2)
 def SymIndex(k1, k2):
@@ -144,10 +144,10 @@ class PosDefMatrixParam(object):
         self.set_free(free_val)
         return self.get_vector()
     def free_to_vector_jac(self, free_val):
-        return csr_matrix(self.free_to_vector_jac_dense(free_val))
+        return coo_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
         hess_dense = self.free_to_vector_hess_dense(free_val)
-        return np.array([ csr_matrix(hess_dense[ind, :, :])
+        return np.array([ coo_matrix(hess_dense[ind, :, :])
                           for  ind in range(hess_dense.shape[0]) ])
 
     def set_vector(self, vec_val):
@@ -229,7 +229,7 @@ class PosDefMatrixParamVector(object):
                     jac_cols.append(vec_inds[free_row])
                     grads.append(row_jac[vec_row, free_row])
 
-        return csr_matrix(
+        return coo_matrix(
             (grads, (jac_rows, jac_cols)),
             (self.vector_size(), self.free_size()))
 
@@ -255,7 +255,7 @@ class PosDefMatrixParamVector(object):
                 # It is important that this traverse vec_inds in order because
                 # we simply append the hessians to the end.
                 hessians.append(
-                    csr_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
+                    coo_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
 
         return hessians
 

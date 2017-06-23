@@ -4,7 +4,7 @@ import autograd.numpy as np
 import autograd.scipy as sp
 
 import scipy as osp
-from scipy.sparse import csr_matrix
+from scipy.sparse import coo_matrix
 
 # The first index is assumed to index simplicial observations.
 def constrain_simplex_matrix(free_mat):
@@ -105,7 +105,7 @@ class SimplexParam(object):
                     jac_cols.append(free_inds[free_col])
                     grads.append(row_jac[vec_col,free_col])
 
-        return csr_matrix((grads, (jac_rows, jac_cols)),
+        return coo_matrix((grads, (jac_rows, jac_cols)),
                           (self.vector_size(), self.free_size()))
 
 
@@ -132,7 +132,7 @@ class SimplexParam(object):
                         hess_cols.append(free_inds[free_col2])
                         hess_vals.append(row_hess[vec_col, free_col1, free_col2])
                 hesses.append(
-                    csr_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
+                    coo_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
 
         return hesses
 

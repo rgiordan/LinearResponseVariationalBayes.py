@@ -8,7 +8,7 @@ import autograd.scipy as sp
 from autograd.core import primitive
 
 import scipy as osp
-from scipy.sparse import csr_matrix, block_diag
+from scipy.sparse import coo_matrix, csr_matrix, block_diag
 
 import time
 
@@ -132,10 +132,10 @@ class ScalarParam(object):
         self.set_free(free_val)
         return self.get()
     def free_to_vector_jac(self, free_val):
-        return csr_matrix(self.free_to_vector_jac_dense(free_val))
+        return coo_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
         hess_dense = self.free_to_vector_hess_dense(free_val)
-        return np.array([ csr_matrix(hess_dense[ind, :, :])
+        return np.array([ coo_matrix(hess_dense[ind, :, :])
                           for  ind in range(hess_dense.shape[0]) ])
 
     def set_vector(self, val):
@@ -200,13 +200,13 @@ class VectorParam(object):
         rows_indices = np.array(range(self.vector_size()))
         grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
                   for vec_ind in range(self.vector_size()) ]
-        return csr_matrix((grads,
+        return coo_matrix((grads,
                           (rows_indices, rows_indices)),
                           (self.vector_size(), self.free_size()))
     def free_to_vector_hess(self, free_val):
         def get_ind_hess(vec_ind):
             hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
-            return csr_matrix(([ hess ],
+            return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
         return np.array([ get_ind_hess(vec_ind)
@@ -274,13 +274,13 @@ class ArrayParam(object):
         rows_indices = np.array(range(self.vector_size()))
         grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
                   for vec_ind in range(self.vector_size()) ]
-        return csr_matrix((grads,
+        return coo_matrix((grads,
                           (rows_indices, rows_indices)),
                           (self.vector_size(), self.free_size()))
     def free_to_vector_hess(self, free_val):
         def get_ind_hess(vec_ind):
             hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
-            return csr_matrix(([ hess ],
+            return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
         return np.array([ get_ind_hess(vec_ind)
@@ -338,14 +338,21 @@ def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
 # Define a sparse matrix with spmat offset by offset_shape and with
 # total shape give by total_shape.  This is useful for placing a sub-Hessian
 # in the middle of a larger Hessian.
-def offset_sparse_matrix(spmat, offset_shape, full_shape):
+def offset_sparse_matrix_block_diag(spmat, offset_shape, full_shape):
     post_shape = (full_shape[0] - spmat.shape[0] - offset_shape[0],
                   full_shape[1] - spmat.shape[1] - offset_shape[1])
     assert post_shape[0] >= 0
     assert post_shape[1] >= 0
-    pre_zero_mat = csr_matrix(( (), ((), ()) ), offset_shape)
-    post_zero_mat = csr_matrix(( (), ((), ()) ), post_shape)
+    pre_zero_mat = coo_matrix(( (), ((), ()) ), offset_shape)
+    post_zero_mat = coo_matrix(( (), ((), ()) ), post_shape)
     return block_diag((pre_zero_mat, spmat, post_zero_mat), format='csr')
+
+
+def offset_sparse_matrix(spmat, offset_shape, full_shape):
+    return coo_matrix(
+        (spmat.data,
+         (spmat.row + offset_shape[0], spmat.col + offset_shape[1])),
+         shape=full_shape)
 
 
 # Append the parameter Hessian to the array of full sparse hessians and
@@ -361,28 +368,29 @@ def free_to_vector_hess_offset(
     print('** ', param.name, 'calculating hessian: ', time.time() - tic)
 
     tic = time.time()
-    
+
     # Define Hessians with the same shape as the full Hessian and the
     # parameter's own Hessian placed at the appropriate offset.
     # reshape doesn't seem to work, so use block_diag with empty
     # matrices instead.
 
     # Note that each of the param's Hessians should have the same shape.
-    offset_shape = (free_offset, free_offset)
-    post_shape = (full_shape[0] - hess[0].shape[0] - offset_shape[0],
-                  full_shape[1] - hess[0].shape[1] - offset_shape[1])
-    assert post_shape[0] >= 0
-    assert post_shape[1] >= 0
-    pre_zero_mat = csr_matrix(( (), ((), ()) ), offset_shape)
-    post_zero_mat = csr_matrix(( (), ((), ()) ), post_shape)
+    # offset_shape = (free_offset, free_offset)
+    # post_shape = (full_shape[0] - hess[0].shape[0] - offset_shape[0],
+    #               full_shape[1] - hess[0].shape[1] - offset_shape[1])
+    # assert post_shape[0] >= 0
+    # assert post_shape[1] >= 0
+    # pre_zero_mat = coo_matrix(( (), ((), ()) ), offset_shape)
+    # post_zero_mat = coo_matrix(( (), ((), ()) ), post_shape)
 
     for vec_ind in range(len(hess)):
-        # hessians.append(offset_sparse_matrix(
-        #     hess[vec_ind], (free_offset, free_offset), full_shape))
-        assert hess[vec_ind].shape == hess[0].shape
-        hessians.append(
-            block_diag((pre_zero_mat, hess[vec_ind], post_zero_mat),
-                       format='csr'))
+        hessians.append(offset_sparse_matrix(
+            hess[vec_ind], (free_offset, free_offset), full_shape))
+        # assert hess[vec_ind].shape == hess[0].shape
+        # hessians.append(
+        #     block_diag((pre_zero_mat, hess[vec_ind], post_zero_mat),
+        #                format='csr'))
+        # hessians
     print('** ', param.name, 'appending hessian: ', time.time() - tic)
     print('** ', param.name, '>')
 
