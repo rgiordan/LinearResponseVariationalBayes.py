@@ -68,7 +68,7 @@ class DirichletParamArray(object):
         self.name = name
         self.__shape = shape
         assert min_alpha >= 0, 'alpha parameter must be non-negative'
-        self.alpha = par.ArrayParam(name + '_alpha', shape=dim, lb=min_alpha)
+        self.alpha = par.ArrayParam(name + '_alpha', shape=shape, lb=min_alpha)
         self.__free_size = self.alpha.free_size()
         self.__vector_size = self.alpha.vector_size()
 
@@ -105,7 +105,7 @@ class DirichletParamArray(object):
         return self.alpha.free_to_vector_hess(free_val)
 
     def set_vector(self, vec):
-        if vec.size != self.vector_size:
+        if vec.size != self.vector_size():
             raise ValueError("Wrong size.")
         self.alpha.set_vector(vec)
 

@@ -198,15 +198,15 @@ class UVNParamVector(object):
     def vector_size(self):
         return self.__vector_size
 
-# Array of univariate normals
-# I should just do this with an array of multivariate normals...
-# unsure at the moment how to handle a collection of matrices though
-class UVNArray(object):
-    def __init__(self, name='', shape=[2,2], min_info=0.0):
+# Array of multivariate normals
+# for now each row is a draw from a MVN with diagonal constant variance ...
+# not sure how to handle a collection of matrices yet
+class MVNArray(object):
+    def __init__(self, name='', shape=(2,2), min_info=0.0):
         self.name = name
         self.__shape = shape
-        self.mean = par.ArrayParam(name + '_mean', shape)
-        self.info = par.ArrayParam(name + '_info', shape, lb=min_info)
+        self.mean = par.ArrayParam(name + '_mean', shape = shape)
+        self.info = par.VectorParam(name + '_info', size = shape[0], lb=min_info)
         self.__free_size = self.mean.free_size() + self.info.free_size()
         self.__vector_size = self.mean.vector_size() + self.info.vector_size()
     def __str__(self):
@@ -218,11 +218,12 @@ class UVNArray(object):
     def e(self):
         return self.mean.get()
     def e2(self):
-        return self.mean.get()**2 + 1 / self.mean.info.get()
+        var = 1 / self.info.get()
+        return self.mean.get()**2 + var[:,None]
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
-            raise ValueError('Wrong size for UVNArray ' + self.name)
+            raise ValueError('Wrong size for MVNArray ' + self.name)
         offset = 0
         offset = par.set_free_offset(self.mean, free_val, offset)
         offset = par.set_free_offset(self.info, free_val, offset)

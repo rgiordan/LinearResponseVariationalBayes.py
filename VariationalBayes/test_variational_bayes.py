@@ -14,13 +14,15 @@ from VariationalBayes.Parameters import \
 from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 from VariationalBayes import ParameterDictionary as par_dict
-from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
+from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
+                            MVNArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
 from VariationalBayes.MultinomialParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
-from VariationalBayes.DirichletParams import DirichletParamVector
+from VariationalBayes.DirichletParams import DirichletParamVector, \
+            DirichletParamArray
 from VariationalBayes.ExponentialFamilies import \
     UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
     DirichletEntropy
@@ -124,6 +126,12 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)
     def test_dirichlet(self):
         execute_required_methods(self, DirichletParamVector(),
+                                 test_sparse_transform=True)
+    def test_dirichlet_array(self):
+        execute_required_methods(self, DirichletParamArray(),
+                                 test_sparse_transform=True)
+    def test_UVN_array(self):
+        execute_required_methods(self, MVNArray(),
                                  test_sparse_transform=True)
 
 
