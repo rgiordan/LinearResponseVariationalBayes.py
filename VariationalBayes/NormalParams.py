@@ -201,6 +201,7 @@ class UVNParamVector(object):
 # Array of multivariate normals
 # for now each row is a draw from a MVN with diagonal constant variance ...
 # not sure how to handle a collection of matrices yet
+# but for the current IBP model, this is all we need
 class MVNArray(object):
     def __init__(self, name='', shape=(2,2), min_info=0.0):
         self.name = name
@@ -234,7 +235,6 @@ class MVNArray(object):
         self.set_free(free_val)
         return self.get_vector()
 
-    #  TODO: concerned about the two classes below atm since we now have matrices  ...
     def free_to_vector_jac(self, free_val):
         free_offset = 0
         vec_offset = 0

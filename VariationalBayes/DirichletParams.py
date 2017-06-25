@@ -97,7 +97,6 @@ class DirichletParamArray(object):
         self.set_free(free_val)
         return self.get_vector()
 
-    # TODO: lets worry about the jacobians later...
     def free_to_vector_jac(self, free_val):
         return self.alpha.free_to_vector_jac(free_val)
 
