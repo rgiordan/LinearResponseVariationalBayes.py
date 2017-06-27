@@ -92,22 +92,15 @@ class Model(object):
         pi = self.params['global']['pi'].get()
         return loglik_obs_by_k(mu, info, pi, self.x)
 
-    # This needs to be defined so we can differentiate it for CAVI.
-    def loglik_e_z(self, e_z):
-        return np.sum(e_z * self.loglik_obs_by_k())
-
     def loglik(self):
+        self.optimize_z()
         e_z = self.params['local']['e_z'].get()
-        return self.loglik_e_z(e_z)
+        return np.sum(self.loglik_obs_by_k() * e_z)
 
     def loglik_obs(self):
-        e_z = self.params['local']['e_z'].get()
-        log_lik_array = self.loglik_obs_by_k()
-        return np.sum(log_lik_array * e_z, axis=1)
-
-    def kl_optimal_z(self):
         self.optimize_z()
-        return -1. * np.sum(self.loglik_obs())
+        e_z = self.params['local']['e_z'].get()
+        return np.sum(self.loglik_obs_by_k() * e_z, axis=1)
 
     def prior(self):
         info = self.params['global']['info'].get()
@@ -134,13 +127,10 @@ class Model(object):
         e_z = np.exp(natural_parameters - z_logsumexp)
         self.params['local']['e_z'].set(e_z)
 
-    def kl(self, include_local_entropy=True):
+    def kl(self, verbose=False):
         elbo = self.prior() + self.loglik()
-
-        if include_local_entropy:
-            e_z = self.params['local']['e_z'].get()
-            elbo += multinoulli_entropy(e_z)
-
+        if verbose:
+            print('ELBO:\t', elbo)
         return -1 * elbo
 
 
@@ -154,6 +144,8 @@ class Model(object):
 
     ######################################
     # Compute sparse hessians by hand.
+
+    # The below is only necessary for doing compuation with z.
 
     # Log likelihood by data point.
 
