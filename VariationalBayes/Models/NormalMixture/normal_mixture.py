@@ -38,7 +38,6 @@ def loglik_obs_by_k(mu, info, pi, x):
 
     return log_lik
 
-
 def mu_prior(mu, mu_prior_mean, mu_prior_info):
     k_num = mu.shape[0]
     d_num = len(mu_prior_mean)
@@ -84,8 +83,6 @@ class Model(object):
         self.params = deepcopy(params)
         self.prior_params = deepcopy(prior_params)
         self.weights = np.full((x.shape[0], 1), 1.0)
-
-        self.get_z_nat_params = autograd.grad(self.loglik_e_z)
         self.get_moment_jacobian = \
             autograd.jacobian(self.get_interesting_moments)
 
@@ -104,9 +101,13 @@ class Model(object):
         return self.loglik_e_z(e_z)
 
     def loglik_obs(self):
-        log_lik_array = self.loglik_obs_by_k()
         e_z = self.params['local']['e_z'].get()
+        log_lik_array = self.loglik_obs_by_k()
         return np.sum(log_lik_array * e_z, axis=1)
+
+    def kl_optimal_z(self):
+        self.optimize_z()
+        return -1. * np.sum(self.loglik_obs())
 
     def prior(self):
         info = self.params['global']['info'].get()
@@ -128,7 +129,6 @@ class Model(object):
         e_z = self.params['local']['e_z'].get()
 
         natural_parameters = self.loglik_obs_by_k()
-        #natural_parameters = self.get_z_nat_params(e_z)
         z_logsumexp = np.expand_dims(
             sp.misc.logsumexp(natural_parameters, 1), axis=1)
         e_z = np.exp(natural_parameters - z_logsumexp)
@@ -147,8 +147,9 @@ class Model(object):
     #######################
     # Moments for sensitivity
 
-    def get_interesting_moments(self, free_params):
-        self.params.set_free(free_params)
+    def get_interesting_moments(self, global_free_params):
+        self.params['global'].set_free(global_free_params)
+        self.optimize_z()
         return self.params['global']['mu'].get_vector()
 
     ######################################
