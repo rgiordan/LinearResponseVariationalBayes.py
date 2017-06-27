@@ -95,12 +95,12 @@ class Model(object):
     def loglik(self):
         self.optimize_z()
         e_z = self.params['local']['e_z'].get()
-        return np.sum(self.loglik_obs_by_k() * e_z)
+        return np.sum(self.loglik_obs_by_k() * e_z * self.weights)
 
     def loglik_obs(self):
         self.optimize_z()
         e_z = self.params['local']['e_z'].get()
-        return np.sum(self.loglik_obs_by_k() * e_z, axis=1)
+        return np.sum(self.loglik_obs_by_k() * e_z * self.weights, axis=1)
 
     def prior(self):
         info = self.params['global']['info'].get()
@@ -144,78 +144,78 @@ class Model(object):
 
     ######################################
     # Compute sparse hessians by hand.
-
-    # The below is only necessary for doing compuation with z.
-
-    # Log likelihood by data point.
-
-    # The rows are the z vector indices and the columns are the data points.
-    def loglik_vector_local_weight_hessian_sparse(self):
-        log_lik_array = self.loglik_obs_by_k()
-
-        hess_vals = [] # These will be the entries of dkl / dz dweight^T
-        hess_rows = [] # These will be the z indices
-        hess_cols = [] # These will be the data indices
-        # This is the Hessian of the negative entropy, which enters the KL
-        # divergence.
-        e_z_param = self.params['local']['e_z']
-        e_z = e_z_param.get()
-        for row in range(e_z.shape[0]):
-            z_row_inds = e_z_param.get_vector_indices(row)
-            for col in range(e_z.shape[1]):
-                hess_vals.append(log_lik_array[row, col])
-                hess_rows.append(z_row_inds[col])
-                hess_cols.append(row)
-
-        local_size = e_z_param.vector_size()
-        return csr_matrix((hess_vals, (hess_rows, hess_cols)),
-                                     (local_size, self.x.shape[0]))
-
-    # KL
-    def kl_vector_local_hessian_sparse(self, global_vec, local_vec):
-        self.params['global'].set_vector(global_vec)
-        self.params['local'].set_vector(local_vec)
-        hess_vals = []
-        hess_rows = []
-        # This is the Hessian of the negative entropy, which enters the KL
-        # divergence.
-        e_z = self.params['local']['e_z'].get()
-        for row in range(e_z.shape[0]):
-            # Note that we are relying on the fact that the local parameters
-            # only contain e_z, so the vector index in e_z is the vector index
-            # in the local parameters.
-            row_inds = self.params['local']['e_z'].get_vector_indices(row)
-            for col in range(e_z.shape[1]):
-                hess_vals.append(1. / e_z[row, col])
-                hess_rows.append(row_inds[col])
-        local_size = self.params['local']['e_z'].vector_size()
-        return csr_matrix((hess_vals, (hess_rows, hess_rows)),
-                                    (local_size, local_size))
-
-    ######################
-    # Everything below here should be boilerplate.
-
-    # The SparseObjectives module still needs to support sparse Jacobians.
-    def loglik_free_local_weight_hessian_sparse(self):
-        free_par_local = self.params['local'].get_free()
-        free_to_vec_jac = \
-            self.params['local'].free_to_vector_jac(free_par_local)
-        return free_to_vec_jac .T * \
-               self.loglik_vector_local_weight_hessian_sparse()
-
-    def loglik_free_weight_hessian_sparse(self):
-        get_loglik_obs_free_global_jac = \
-            autograd.jacobian(self.loglik_obs_free_global_local, argnum=0)
-        loglik_obs_free_global_jac = \
-            get_loglik_obs_free_global_jac(self.params['global'].get_free(),
-                                           self.params['local'].get_free()).T
-        loglik_obs_free_local_jac = \
-            self.loglik_free_local_weight_hessian_sparse()
-
-        return osp.sparse.vstack(
-            [ loglik_obs_free_global_jac, loglik_obs_free_local_jac ])
-
-    def loglik_obs_free_global_local(self, free_params_global, free_params_local):
-        self.params['global'].set_free(free_params_global)
-        self.params['local'].set_free(free_params_local)
-        return self.loglik_obs()
+    #
+    # # The below is only necessary for doing compuation with z.
+    #
+    # # Log likelihood by data point.
+    #
+    # # The rows are the z vector indices and the columns are the data points.
+    # def loglik_vector_local_weight_hessian_sparse(self):
+    #     log_lik_array = self.loglik_obs_by_k()
+    #
+    #     hess_vals = [] # These will be the entries of dkl / dz dweight^T
+    #     hess_rows = [] # These will be the z indices
+    #     hess_cols = [] # These will be the data indices
+    #     # This is the Hessian of the negative entropy, which enters the KL
+    #     # divergence.
+    #     e_z_param = self.params['local']['e_z']
+    #     e_z = e_z_param.get()
+    #     for row in range(e_z.shape[0]):
+    #         z_row_inds = e_z_param.get_vector_indices(row)
+    #         for col in range(e_z.shape[1]):
+    #             hess_vals.append(log_lik_array[row, col])
+    #             hess_rows.append(z_row_inds[col])
+    #             hess_cols.append(row)
+    #
+    #     local_size = e_z_param.vector_size()
+    #     return csr_matrix((hess_vals, (hess_rows, hess_cols)),
+    #                                  (local_size, self.x.shape[0]))
+    #
+    # # KL
+    # def kl_vector_local_hessian_sparse(self, global_vec, local_vec):
+    #     self.params['global'].set_vector(global_vec)
+    #     self.params['local'].set_vector(local_vec)
+    #     hess_vals = []
+    #     hess_rows = []
+    #     # This is the Hessian of the negative entropy, which enters the KL
+    #     # divergence.
+    #     e_z = self.params['local']['e_z'].get()
+    #     for row in range(e_z.shape[0]):
+    #         # Note that we are relying on the fact that the local parameters
+    #         # only contain e_z, so the vector index in e_z is the vector index
+    #         # in the local parameters.
+    #         row_inds = self.params['local']['e_z'].get_vector_indices(row)
+    #         for col in range(e_z.shape[1]):
+    #             hess_vals.append(1. / e_z[row, col])
+    #             hess_rows.append(row_inds[col])
+    #     local_size = self.params['local']['e_z'].vector_size()
+    #     return csr_matrix((hess_vals, (hess_rows, hess_rows)),
+    #                                 (local_size, local_size))
+    #
+    # ######################
+    # # Everything below here should be boilerplate.
+    #
+    # # The SparseObjectives module still needs to support sparse Jacobians.
+    # def loglik_free_local_weight_hessian_sparse(self):
+    #     free_par_local = self.params['local'].get_free()
+    #     free_to_vec_jac = \
+    #         self.params['local'].free_to_vector_jac(free_par_local)
+    #     return free_to_vec_jac .T * \
+    #            self.loglik_vector_local_weight_hessian_sparse()
+    #
+    # def loglik_free_weight_hessian_sparse(self):
+    #     get_loglik_obs_free_global_jac = \
+    #         autograd.jacobian(self.loglik_obs_free_global_local, argnum=0)
+    #     loglik_obs_free_global_jac = \
+    #         get_loglik_obs_free_global_jac(self.params['global'].get_free(),
+    #                                        self.params['local'].get_free()).T
+    #     loglik_obs_free_local_jac = \
+    #         self.loglik_free_local_weight_hessian_sparse()
+    #
+    #     return osp.sparse.vstack(
+    #         [ loglik_obs_free_global_jac, loglik_obs_free_local_jac ])
+    #
+    # def loglik_obs_free_global_local(self, free_params_global, free_params_local):
+    #     self.params['global'].set_free(free_params_global)
+    #     self.params['local'].set_free(free_params_local)
+    #     return self.loglik_obs()
