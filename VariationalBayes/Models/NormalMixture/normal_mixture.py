@@ -1,9 +1,12 @@
 import autograd
 import autograd.numpy as np
-import scipy as sp
+import autograd.scipy as sp
+import scipy as osp
 from scipy import optimize
 from scipy import stats
 from copy import deepcopy
+
+from scipy.sparse import csr_matrix
 
 def generate_data(num_obs, true_mu, true_sigma, true_pi):
     true_z = np.random.multinomial(1, true_pi, num_obs)
@@ -18,7 +21,8 @@ def generate_data(num_obs, true_mu, true_sigma, true_pi):
     return x, true_z, true_z_ind
 
 def get_info_logdet_array(info):
-    return np.array([ np.linalg.slogdet(info[k, :, :])[1] for k in range(info.shape[0]) ])
+    return np.array([ np.linalg.slogdet(info[k, :, :])[1] \
+                      for k in range(info.shape[0]) ])
 
 # This is the log probability of each observation for each component.
 def loglik_obs_by_k(mu, info, pi, x):
@@ -44,7 +48,8 @@ def mu_prior(mu, mu_prior_mean, mu_prior_info):
     mu_prior_val = 0.0
     for k in range(k_num):
         mu_centered = mu[k, :] - mu_prior_mean
-        mu_prior_val += -0.5 * np.matmul(np.matmul(mu_centered, mu_prior_info), mu_centered)
+        mu_prior_val += -0.5 * np.matmul(
+            np.matmul(mu_centered, mu_prior_info), mu_centered)
     return mu_prior_val
 
 def pi_prior(pi, alpha):
@@ -70,7 +75,7 @@ def multinoulli_entropy(e_z):
 def get_sparse_multinoulli_entropy_hessian(e_z_vec):
     k = len(e_z_vec)
     vals = -1. / e_z_vec
-    return sp.sparse.csr_matrix((vals, ((range(k)), (range(k)))), (k, k))
+    return csr_matrix((vals, ((range(k)), (range(k)))), (k, k))
 
 
 class Model(object):
@@ -81,7 +86,8 @@ class Model(object):
         self.weights = np.full((x.shape[0], 1), 1.0)
 
         self.get_z_nat_params = autograd.grad(self.loglik_e_z)
-        self.get_moment_jacobian = autograd.jacobian(self.get_interesting_moments)
+        self.get_moment_jacobian = \
+            autograd.jacobian(self.get_interesting_moments)
 
     def loglik_obs_by_k(self):
         info = self.params['global']['info'].get()
@@ -121,8 +127,10 @@ class Model(object):
         pi = self.params['global']['pi'].get()
         e_z = self.params['local']['e_z'].get()
 
-        natural_parameters = self.get_z_nat_params(e_z)
-        z_logsumexp = np.expand_dims(sp.misc.logsumexp(natural_parameters, 1), axis=1)
+        natural_parameters = self.loglik_obs_by_k()
+        #natural_parameters = self.get_z_nat_params(e_z)
+        z_logsumexp = np.expand_dims(
+            sp.misc.logsumexp(natural_parameters, 1), axis=1)
         e_z = np.exp(natural_parameters - z_logsumexp)
         self.params['local']['e_z'].set(e_z)
 
@@ -167,7 +175,7 @@ class Model(object):
                 hess_cols.append(row)
 
         local_size = e_z_param.vector_size()
-        return sp.sparse.csr_matrix((hess_vals, (hess_rows, hess_cols)),
+        return csr_matrix((hess_vals, (hess_rows, hess_cols)),
                                      (local_size, self.x.shape[0]))
 
     # KL
@@ -176,7 +184,8 @@ class Model(object):
         self.params['local'].set_vector(local_vec)
         hess_vals = []
         hess_rows = []
-        # This is the Hessian of the negative entropy, which enters the KL divergence.
+        # This is the Hessian of the negative entropy, which enters the KL
+        # divergence.
         e_z = self.params['local']['e_z'].get()
         for row in range(e_z.shape[0]):
             # Note that we are relying on the fact that the local parameters
@@ -187,7 +196,7 @@ class Model(object):
                 hess_vals.append(1. / e_z[row, col])
                 hess_rows.append(row_inds[col])
         local_size = self.params['local']['e_z'].vector_size()
-        return sp.sparse.csr_matrix((hess_vals, (hess_rows, hess_rows)),
+        return csr_matrix((hess_vals, (hess_rows, hess_rows)),
                                     (local_size, local_size))
 
     ######################
@@ -196,7 +205,8 @@ class Model(object):
     # The SparseObjectives module still needs to support sparse Jacobians.
     def loglik_free_local_weight_hessian_sparse(self):
         free_par_local = self.params['local'].get_free()
-        free_to_vec_jac = self.params['local'].free_to_vector_jac(free_par_local)
+        free_to_vec_jac = \
+            self.params['local'].free_to_vector_jac(free_par_local)
         return free_to_vec_jac .T * \
                self.loglik_vector_local_weight_hessian_sparse()
 
@@ -209,7 +219,8 @@ class Model(object):
         loglik_obs_free_local_jac = \
             self.loglik_free_local_weight_hessian_sparse()
 
-        return sp.sparse.vstack([ loglik_obs_free_global_jac, loglik_obs_free_local_jac ])
+        return osp.sparse.vstack(
+            [ loglik_obs_free_global_jac, loglik_obs_free_local_jac ])
 
     def loglik_obs_free_global_local(self, free_params_global, free_params_local):
         self.params['global'].set_free(free_params_global)
