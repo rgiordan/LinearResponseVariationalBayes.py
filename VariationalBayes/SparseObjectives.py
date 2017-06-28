@@ -28,9 +28,12 @@ class Objective(object):
         self.fun_vector_hessian = autograd.hessian(self.fun_vector)
         self.fun_vector_hvp = autograd.hessian_vector_product(self.fun_vector)
 
-    def fun_free(self, free_val):
+    def fun_free(self, free_val, verbose=False):
         self.par.set_free(free_val)
-        return self.fun()
+        val = self.fun()
+        if verbose:
+            print('Value: ', val)
+        return val
 
     def fun_vector(self, vec_val):
         self.par.set_vector(vec_val)
@@ -103,9 +106,12 @@ class SparseObjective(object):
         self.fun_vector_cross_hessian = autograd.jacobian(
             self.fun_vector_global_grad, argnum=1)
 
-    def fun_free(self, free_val):
+    def fun_free(self, free_val, verbose=False):
         self.par.set_free(free_val)
-        return self.fun()
+        val = self.fun()
+        if verbose:
+            print('Value: ', val)
+        return val
 
     def fun_free_split(self, global_free_val, local_free_val):
         self.global_par.set_free(global_free_val)
