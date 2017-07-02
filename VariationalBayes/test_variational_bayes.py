@@ -22,8 +22,8 @@ from VariationalBayes.MultinomialParams import \
     constrain_grad_from_moment
 from VariationalBayes.DirichletParams import DirichletParamVector
 from VariationalBayes.ExponentialFamilies import \
-    UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
-    DirichletEntropy
+    univariate_normal_entropy, multivariate_normal_entropy, gamma_entropy, \
+    dirichlet_entropy
 import unittest
 import scipy as sp
 
@@ -711,7 +711,7 @@ class TestEntropy(unittest.TestCase):
         info_par = 1.5
         num_draws = 10000
         norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(1 / info_par))
-        self.assertAlmostEqual(norm_dist.entropy(), UnivariateNormalEntropy(info_par))
+        self.assertAlmostEqual(norm_dist.entropy(), univariate_normal_entropy(info_par))
 
     def test_mvn_entropy(self):
         mean_par = np.array([1., 2.])
@@ -719,19 +719,19 @@ class TestEntropy(unittest.TestCase):
         norm_dist = sp.stats.multivariate_normal(
             mean=mean_par, cov=np.linalg.inv(info_par))
         self.assertAlmostEqual(
-            norm_dist.entropy(), MultivariateNormalEntropy(info_par))
+            norm_dist.entropy(), multivariate_normal_entropy(info_par))
 
     def test_gamma_entropy(self):
         shape = 3.0
         rate = 2.4
         gamma_dist = sp.stats.gamma(a=shape, scale=1 / rate)
-        self.assertAlmostEqual(gamma_dist.entropy(), GammaEntropy(shape, rate))
+        self.assertAlmostEqual(gamma_dist.entropy(), gamma_entropy(shape, rate))
 
     def test_dirichlet_entropy(self):
         alpha = np.array([23, 4, 5, 6, 7])
         dirichlet_dist = sp.stats.dirichlet(alpha)
         self.assertAlmostEqual\
-                (dirichlet_dist.entropy(), DirichletEntropy(alpha))
+                (dirichlet_dist.entropy(), dirichlet_entropy(alpha))
 
 
 if __name__ == '__main__':
