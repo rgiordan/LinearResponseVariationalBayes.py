@@ -3,6 +3,15 @@ import autograd.scipy as asp
 import math
 
 # Entropies.  Note that autograd hasn't defined these yet.
+def multivariate_digamma(x, size):
+    x_vec = x - 0.5 * np.arange(0, size - 1, size)
+    return np.sum(asp.special.digamma(x_vec))
+
+
+def multivariate_gammaln(x, size):
+    x_vec = x - 0.5 * np.arange(0, size - 1, size)
+    return np.sum(asp.special.gammaln(x_vec))
+
 
 def UnivariateNormalEntropy(info_obs):
     # np.sum(asp.stats.norm.entropy(scale=np.sqrt(var_obs)))
@@ -25,6 +34,18 @@ def DirichletEntropy(alpha):
     return log_beta - (len(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
             - np.dot((alpha - 1), asp.special.digamma(alpha))
 
+
+def WishartEntropy(df, v):
+    k = float(v.shape[0])
+    assert v.shape[0] == v.shape[1]
+    s, log_det_v = sp.linalg.slogdet(v)
+    assert s > 0
+    return \
+        0.5 * (k + 1) * log_det_v + \
+        0.5 * k * (k + 1) * np.log(2) +
+        multivariate_gammaln(0.5 * df, k) -
+        0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) +
+        0.5 * df * k
 
 # Priors
 
