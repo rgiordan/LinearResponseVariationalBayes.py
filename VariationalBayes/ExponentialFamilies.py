@@ -2,16 +2,18 @@ import autograd.numpy as np
 import autograd.scipy as asp
 import math
 
-# Entropies.  Note that autograd hasn't defined these yet.
 def multivariate_digamma(x, size):
-    x_vec = x - 0.5 * np.arange(0, size - 1, size)
+    x_vec = x - 0.5 * np.arange(0, size - 1, 1)
     return np.sum(asp.special.digamma(x_vec))
 
 
 def multivariate_gammaln(x, size):
-    x_vec = x - 0.5 * np.arange(0, size - 1, size)
+    x_vec = x - 0.5 * np.arange(0, size - 1, 1)
     return np.sum(asp.special.gammaln(x_vec))
 
+##################################################
+# Entropies.  Note that autograd hasn't defined these yet and doesn't seem to
+# work with the sp.stats functions.
 
 def univariate_normal_entropy(info_obs):
     # np.sum(asp.stats.norm.entropy(scale=np.sqrt(var_obs)))
@@ -38,13 +40,13 @@ def dirichlet_entropy(alpha):
 def wishart_entropy(df, v):
     k = float(v.shape[0])
     assert v.shape[0] == v.shape[1]
-    s, log_det_v = sp.linalg.slogdet(v)
+    s, log_det_v = np.linalg.slogdet(v)
     assert s > 0
     return \
         0.5 * (k + 1) * log_det_v + \
-        0.5 * k * (k + 1) * np.log(2) +
-        multivariate_gammaln(0.5 * df, k) -
-        0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) +
+        0.5 * k * (k + 1) * np.log(2) + \
+        multivariate_gammaln(0.5 * df, k) - \
+        0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) + \
         0.5 * df * k
 
 # Priors
