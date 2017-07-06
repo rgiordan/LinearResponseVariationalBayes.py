@@ -3,13 +3,15 @@ import autograd.scipy as asp
 import math
 
 def multivariate_digamma(x, size):
-    x_vec = x - 0.5 * np.arange(0, size - 1, 1)
+    x_vec = x - 0.5 * np.linspace(0, size - 1., size)
     return np.sum(asp.special.digamma(x_vec))
 
 
 def multivariate_gammaln(x, size):
-    x_vec = x - 0.5 * np.arange(0, size - 1, 1)
-    return np.sum(asp.special.gammaln(x_vec))
+    x_vec = x - 0.5 * np.linspace(0, size - 1., size)
+    return np.sum(asp.special.gammaln(x_vec)) + \
+           0.25 * np.log(np.pi) * size * (size - 1.0);
+
 
 ##################################################
 # Entropies.  Note that autograd hasn't defined these yet and doesn't seem to
@@ -48,6 +50,7 @@ def wishart_entropy(df, v):
         multivariate_gammaln(0.5 * df, k) - \
         0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) + \
         0.5 * df * k
+
 
 # Priors
 

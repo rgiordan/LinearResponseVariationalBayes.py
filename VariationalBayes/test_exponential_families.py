@@ -37,12 +37,11 @@ class TestEntropy(unittest.TestCase):
                 (dirichlet_dist.entropy(), dirichlet_entropy(alpha))
 
     def test_wishart_entropy(self):
-        # Does sp.stats silently convert float degrees of freedom
-        # to integers?
-        df = 4.0
+        df = 4.3
         v = np.eye(2) + np.full((2, 2), 0.1)
         wishart_dist = sp.stats.wishart(df=df, scale=v)
-        #self.assertAlmostEqual(wishart_dist.entropy(), wishart_entropy(df, v))
+        self.assertAlmostEqual(
+            wishart_dist.entropy(), wishart_entropy(df, v))
 
 
 if __name__ == '__main__':
