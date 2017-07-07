@@ -14,13 +14,18 @@ from VariationalBayes.Parameters import \
 from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 from VariationalBayes import ParameterDictionary as par_dict
-from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
+from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
+                            MVNArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.MultinomialParams import SimplexParam
 from VariationalBayes.MultinomialParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
-from VariationalBayes.DirichletParams import DirichletParamVector
+from VariationalBayes.DirichletParams import DirichletParamVector, \
+            DirichletParamArray
+from VariationalBayes.ExponentialFamilies import \
+    UnivariateNormalEntropy, MultivariateNormalEntropy, GammaEntropy, \
+    DirichletEntropy
 import unittest
 import scipy as sp
 
@@ -121,6 +126,12 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)
     def test_dirichlet(self):
         execute_required_methods(self, DirichletParamVector(),
+                                 test_sparse_transform=True)
+    def test_dirichlet_array(self):
+        execute_required_methods(self, DirichletParamArray(),
+                                 test_sparse_transform=True)
+    def test_UVN_array(self):
+        execute_required_methods(self, MVNArray(),
                                  test_sparse_transform=True)
 
 
@@ -700,6 +711,35 @@ class TestDifferentiation(unittest.TestCase):
             mp, free_vec, vec_jac_model, vec_hess_model)
 
         np_test.assert_array_almost_equal(free_hess_model, free_hess_sparse)
+
+
+class TestEntropy(unittest.TestCase):
+    def test_uvn_entropy(self):
+        mean_par = 2.0
+        info_par = 1.5
+        num_draws = 10000
+        norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(1 / info_par))
+        self.assertAlmostEqual(norm_dist.entropy(), UnivariateNormalEntropy(info_par))
+
+    def test_mvn_entropy(self):
+        mean_par = np.array([1., 2.])
+        info_par = np.eye(2) + np.full((2, 2), 0.1)
+        norm_dist = sp.stats.multivariate_normal(
+            mean=mean_par, cov=np.linalg.inv(info_par))
+        self.assertAlmostEqual(
+            norm_dist.entropy(), MultivariateNormalEntropy(info_par))
+
+    def test_gamma_entropy(self):
+        shape = 3.0
+        rate = 2.4
+        gamma_dist = sp.stats.gamma(a=shape, scale=1 / rate)
+        self.assertAlmostEqual(gamma_dist.entropy(), GammaEntropy(shape, rate))
+
+    def test_dirichlet_entropy(self):
+        alpha = np.array([23, 4, 5, 6, 7])
+        dirichlet_dist = sp.stats.dirichlet(alpha)
+        self.assertAlmostEqual\
+                (dirichlet_dist.entropy(), DirichletEntropy(alpha))
 
 
 if __name__ == '__main__':
