@@ -69,6 +69,12 @@ def e_log_inv_wishart_diag(df, v):
     return np.log(v_inv_diag) - \
            asp.special.digamma(0.5 * (df - k + 1)) - np.log(2)
 
+def get_e_lognormal(mu, sigma_sq):
+    return np.exp(mu + 0.5 * sigma_sq)
+
+def get_var_lognormal(mu, sigma_sq):
+    e_lognormal = get_e_lognormal(mu, sigma_sq)
+    return (np.exp(sigma_sq) - 1) * (e_lognormal ** 2)
 
 # Priors
 

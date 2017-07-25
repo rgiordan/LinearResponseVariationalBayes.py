@@ -1,5 +1,6 @@
 from VariationalBayes import Parameters as par
 from VariationalBayes import MatrixParameters as mat_par
+import VariationalBayes.ExponentialFamilies as ef
 
 from VariationalBayes.Parameters import \
     free_to_vector_jac_offset, free_to_vector_hess_offset
@@ -92,6 +93,14 @@ class UVNParam(object):
         return self.mean.get()
     def e_outer(self):
         return self.mean.get() ** 2 + 1 / self.info.get()
+    def var(self):
+        return 1. / self.info.get()
+    def e_exp(self):
+        return ef.get_e_lognormal(self.mean.get(), 1. / self.info.get())
+    def var_exp(self):
+        return ef.get_var_lognormal(self.mean.get(), 1. / self.info.get())
+    def e2_exp(self):
+        return self.e_exp() ** 2 + self.var_exp()
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
@@ -150,10 +159,19 @@ class UVNParamVector(object):
         return self.mean.names() + self.info.names()
     def dictval(self):
         return { 'mean': self.mean.dictval(), 'info': self.info.dictval() }
+
     def e(self):
         return self.mean.get()
     def e_outer(self):
         return self.mean.get() ** 2 + 1 / self.info.get()
+    def var(self):
+        return 1. / self.info.get()
+    def e_exp(self):
+        return ef.get_e_lognormal(self.mean.get(), 1. / self.info.get())
+    def var_exp(self):
+        return ef.get_var_lognormal(self.mean.get(), 1. / self.info.get())
+    def e2_exp(self):
+        return self.e_exp() ** 2 + self.var_exp()
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \

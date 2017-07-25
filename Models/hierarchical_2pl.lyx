@@ -71,11 +71,34 @@
 \begin_body
 
 \begin_layout Standard
+\begin_inset FormulaMacro
+\newcommand{\mbe}{\mathbb{E}}
+{\mathbb{E}}
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
 \rho_{ij}=\log\left(\frac{p_{ij}}{1-p_{ij}}\right) & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)\\
 \log p\left(y_{ij}\vert p_{ij}\right) & =\log\left(\frac{p_{ij}}{1-p_{ij}}\right)y_{ij}+\log\left(1-p_{ij}\right)\\
  & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)y_{ij}+\log\left(1-\frac{\exp\left(\rho_{ij}\right)}{1-\exp\left(\rho_{ij}\right)}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We need
+\begin_inset Formula 
+\begin{align*}
+\mbe_{q}\left[\rho_{ij}\right] & =\mbe_{q}\left[\alpha_{i}\right]\left(\mbe_{q}\left[\theta_{j}\right]-\mbe_{q}\left[\beta_{i}\right]\right)\\
+\mathrm{Var}_{q}\left(\rho_{ij}\right) & =\mbe_{q}\left[\alpha_{i}^{2}\right]\mathrm{Var}\left(\theta_{j}-\beta_{i}\right)\\
+ & =\left(\mathrm{Var}_{q}\left(\alpha_{i}\right)+\mbe_{q}\left[\alpha_{i}\right]^{2}\right)\left(\mathrm{Var}\left(\theta_{j}\right)+\mathrm{Var}\left(\beta_{i}\right)\right)
 \end{align*}
 
 \end_inset

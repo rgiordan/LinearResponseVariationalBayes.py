@@ -1,4 +1,5 @@
 from VariationalBayes import Parameters as par
+from VariationalBayes import MatrixParameters as mat_par
 from VariationalBayes import ParameterDictionary as par_dict
 import autograd.numpy as np
 import autograd.scipy as asp
@@ -20,7 +21,7 @@ class WishartParam(object):
         self.params = par_dict.ModelParamsDict(name='params')
         self.params.push_param(par.ScalarParam('df', lb=min_df))
         self.params.push_param(
-            par.PosDefMatrixParam(name + '_mat', diag_lb=min_rate))
+            mat_par.PosDefMatrixParam(name + '_mat', diag_lb=diag_lb))
 
     def __str__(self):
         return self.name + ':\n' + str(self.params)
@@ -52,6 +53,6 @@ class WishartParam(object):
         return self.params.get_vector()
 
     def free_size(self):
-        return self.self.params.free_size()
+        return self.params.free_size()
     def vector_size(self):
-        return self.self.params.vector_size()
+        return self.params.vector_size()

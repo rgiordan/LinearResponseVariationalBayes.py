@@ -17,6 +17,7 @@ from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray
 from VariationalBayes.GammaParams import GammaParam
+from VariationalBayes.WishartParams import WishartParam
 from VariationalBayes.MultinomialParams import SimplexParam
 from VariationalBayes.MultinomialParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
@@ -129,6 +130,9 @@ class TestParameterMethods(unittest.TestCase):
                                  test_sparse_transform=True)
     def test_UVN_array(self):
         execute_required_methods(self, MVNArray(),
+                                 test_sparse_transform=True)
+    def test_wishart(self):
+        execute_required_methods(self, WishartParam(),
                                  test_sparse_transform=True)
 
 
