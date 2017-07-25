@@ -38,7 +38,6 @@ def dirichlet_entropy(alpha):
     return log_beta - (len(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
             - np.dot((alpha - 1), asp.special.digamma(alpha))
 
-
 def wishart_entropy(df, v):
     k = float(v.shape[0])
     assert v.shape[0] == v.shape[1]
@@ -51,9 +50,29 @@ def wishart_entropy(df, v):
         0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) + \
         0.5 * df * k
 
+# Expectations
+
+# If \Sigma ~ Wishart(v, df), return E[log |\Sigma|]
+def e_log_det_wishart(df, v):
+    k = float(v.shape[0])
+    assert v.shape[0] == v.shape[1]
+    s, log_det_v = np.linalg.slogdet(v)
+    assert s > 0
+    return multivariate_digamma(0.5 * df, k) + \
+           k * np.log(2) + log_det_v
+
+# If \Sigma ~ Wishart(v, df), return E[log(diag(\Sigma ^ -1))]
+def e_log_inv_wishart_diag(df, v):
+    k = float(v.shape[0])
+    assert v.shape[0] == v.shape[1]
+    v_inv_diag = np.diag(np.linalg.inv(v))
+    return np.log(v_inv_diag) - \
+           asp.special.digamma(0.5 * (df - k + 1)) - np.log(2)
+
 
 # Priors
 
+# TODO: perhaps rename these expected_*_prior
 def mvn_prior(prior_mean, prior_info, e_obs, cov_obs):
     obs_diff = e_obs - prior_mean
     return -0.5 * (np.dot(obs_diff, np.matmul(prior_info, obs_diff)) + \
@@ -69,3 +88,25 @@ def dirichlet_prior(alpha, log_e_obs):
     assert np.shape(alpha) == np.shape(log_e_obs), \
             'shape of alpha and log_e_obs do not match'
     return np.dot(alpha - 1, log_e_obs)
+
+# If \Sigma^{-1} ~ Wishart(v, df), return the LKJ prior
+# proportional to (lkj_param - 1) * \log |\Sigma|
+def expected_ljk_prior(lkj_param, df, v):
+    e_log_r = -1 * e_log_det_wishart(df, v) - \
+              np.sum(e_log_inv_wishart_diag(df, v))
+    return (lkj_param - 1) * e_log_r
+
+
+# The is the expected ljk prior on \Sigma where q(\Sigma^{-1}) ~ Wishart(df, v)
+# def expected_ljk_prior(lkj_param, df, v):
+#     k = float(v.shape[0])
+#     assert v.shape[0] == v.shape[1]
+#     s, log_det_v = np.linalg.slogdet(v)
+#     assert s > 0
+#     v_inv_diag = np.diag(np.linalg.inv(v))
+#
+#     e_log_r = -1. * log_det_v - multivariate_digamma(0.5 * df, k) - \
+#               np.sum(np.log(0.5 * v_inv_diag)) - \
+#               k * asp.special.digamma(0.5 * (df - k + 1))
+#
+#     return (lkj_param - 1.) * e_log_r

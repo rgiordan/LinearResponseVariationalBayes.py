@@ -4,8 +4,10 @@ import autograd.numpy as np
 from autograd import grad, jacobian, hessian
 from VariationalBayes.ExponentialFamilies import \
     univariate_normal_entropy, multivariate_normal_entropy, gamma_entropy, \
-    dirichlet_entropy, wishart_entropy
+    dirichlet_entropy, wishart_entropy, e_log_det_wishart, \
+    e_log_inv_wishart_diag, expected_ljk_prior
 import unittest
+import numpy.testing as np_test
 import scipy as sp
 
 class TestEntropy(unittest.TestCase):
@@ -14,7 +16,8 @@ class TestEntropy(unittest.TestCase):
         info_par = 1.5
         num_draws = 10000
         norm_dist = sp.stats.norm(loc=mean_par, scale=np.sqrt(1 / info_par))
-        self.assertAlmostEqual(norm_dist.entropy(), univariate_normal_entropy(info_par))
+        self.assertAlmostEqual(
+            norm_dist.entropy(), univariate_normal_entropy(info_par))
 
     def test_mvn_entropy(self):
         mean_par = np.array([1., 2.])
@@ -42,6 +45,51 @@ class TestEntropy(unittest.TestCase):
         wishart_dist = sp.stats.wishart(df=df, scale=v)
         self.assertAlmostEqual(
             wishart_dist.entropy(), wishart_entropy(df, v))
+
+class TestMoments(unittest.TestCase):
+    def test_wishart_moments(self):
+        num_draws = 100000
+        df = 4.3
+        v = np.diag(np.array([2., 3.])) + np.full((2, 2), 0.1)
+        wishart_dist = sp.stats.wishart(df=df, scale=v)
+        wishart_draws = wishart_dist.rvs(num_draws)
+        log_det_draws = np.linalg.slogdet(wishart_draws)[1]
+        moment_tolerance = 3.0 * np.std(log_det_draws) / np.sqrt(num_draws)
+        print('Wishart e log det test tolerance: ', moment_tolerance)
+        np_test.assert_allclose(
+            np.mean(log_det_draws), e_log_det_wishart(df, v),
+            atol=moment_tolerance)
+
+        # Test the log inverse diagonals
+        wishart_inv_draws = \
+            [ np.linalg.inv(wishart_draws[n, :, :]) for n in range(num_draws) ]
+        wishart_log_diag = \
+            np.log([ np.diag(mat) for mat in wishart_inv_draws ])
+        diag_mean = np.mean(wishart_log_diag, axis=0)
+        diag_sd = np.std(wishart_log_diag, axis=0)
+        moment_tolerance = 3.0 * np.max(diag_sd) / np.sqrt(num_draws)
+        print('Wishart e log diag test tolerance: ', moment_tolerance)
+        np_test.assert_allclose(
+            diag_mean, e_log_inv_wishart_diag(df, v),
+            atol=moment_tolerance)
+
+        # Test the LKJ prior
+        lkj_param = 5.5
+        def get_r_matrix(mat):
+            mat_diag = np.diag(1. / np.sqrt(np.diag(mat)))
+            return np.matmul(mat_diag, np.matmul(mat, mat_diag))
+
+        wishart_log_det_r_draws = \
+            np.array([ np.linalg.slogdet(get_r_matrix(mat))[1] \
+                       for mat in wishart_inv_draws ]) * (lkj_param - 1)
+
+        moment_tolerance = \
+            3.0 * np.std(wishart_log_det_r_draws) / np.sqrt(num_draws)
+        print('Wishart lkj prior test tolerance: ', moment_tolerance)
+        np_test.assert_allclose(
+            np.mean(wishart_log_det_r_draws),
+            expected_ljk_prior(lkj_param, df, v),
+            atol=moment_tolerance)
 
 
 if __name__ == '__main__':

@@ -32,10 +32,7 @@ class WishartParam(object):
     def e(self):
         return self.df.get() * self.v.get()
     def e_log_det(self):
-        s, log_det_v = np.slogdet(self.v.get())
-        assert s > 0
-        return multivariate_digamma(0.5 * self.df.get(), self.__size) + \
-               self.__size * np.log(2) + log_det_v
+        return e_log_det_wishart(self.df.get(), self.v.get())
 
     def set_free(self, free_val):
         self.params.set_free(free_val)
