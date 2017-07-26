@@ -11,6 +11,21 @@ from scipy import sparse
 
 import time
 
+
+class Logger(object):
+    def __init__(self, print_every=1):
+        self.print_every = print_every
+        self.initialize()
+
+    def initialize(self):
+        self.iter = 0
+
+    def log(self, value):
+        if self.iter % self.print_every == 0:
+            print('Iter ', self.iter, ' value: ', value)
+        self.iter += 1
+
+
 # par should be a Parameter type.
 # fun should be a function that takes no arguments but which is
 # bound to par, i.e. which evaluates to a float that depends on the
@@ -28,11 +43,13 @@ class Objective(object):
         self.fun_vector_hessian = autograd.hessian(self.fun_vector)
         self.fun_vector_hvp = autograd.hessian_vector_product(self.fun_vector)
 
+        self.logger = Logger()
+
     def fun_free(self, free_val, verbose=False):
         self.par.set_free(free_val)
         val = self.fun()
         if verbose:
-            print('Value: ', val)
+            self.logger.log(val)
         return val
 
     def fun_vector(self, vec_val):

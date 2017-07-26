@@ -80,11 +80,35 @@
 \end_layout
 
 \begin_layout Standard
+\begin_inset FormulaMacro
+\newcommand{\var}{\mathrm{Var}}
+{\mathrm{Var}}
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
 \rho_{ij}=\log\left(\frac{p_{ij}}{1-p_{ij}}\right) & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)\\
 \log p\left(y_{ij}\vert p_{ij}\right) & =\log\left(\frac{p_{ij}}{1-p_{ij}}\right)y_{ij}+\log\left(1-p_{ij}\right)\\
- & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)y_{ij}+\log\left(1-\frac{\exp\left(\rho_{ij}\right)}{1-\exp\left(\rho_{ij}\right)}\right)
+ & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)y_{ij}+\log\left(1-\frac{\exp\left(\rho_{ij}\right)}{1-\exp\left(\rho_{ij}\right)}\right)\\
+ & =\alpha_{i}\left(\theta_{j}-\beta_{i}\right)y_{ij}+\log\left(\frac{1}{1-\exp\left(\rho_{ij}\right)}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Note that
+\begin_inset Formula 
+\begin{align*}
+\var\left(XY\right) & =\mbe\left[X^{2}\right]\mbe\left[Y^{2}\right]-\mbe\left[X\right]^{2}\mbe\left[Y\right]^{2}\\
+ & =\mbe\left[X^{2}\right]\mbe\left[Y^{2}\right]-\mbe\left[X\right]^{2}\mbe\left[Y^{2}\right]+\mbe\left[X\right]^{2}\mbe\left[Y^{2}\right]-\mbe\left[X\right]^{2}\mbe\left[Y\right]^{2}\\
+ & =\var\left(X\right)\mbe\left[Y^{2}\right]+\var\left(Y\right)\mbe\left[X^{2}\right]
 \end{align*}
 
 \end_inset
@@ -94,11 +118,14 @@
 
 \begin_layout Standard
 We need
+\end_layout
+
+\begin_layout Standard
 \begin_inset Formula 
 \begin{align*}
 \mbe_{q}\left[\rho_{ij}\right] & =\mbe_{q}\left[\alpha_{i}\right]\left(\mbe_{q}\left[\theta_{j}\right]-\mbe_{q}\left[\beta_{i}\right]\right)\\
-\mathrm{Var}_{q}\left(\rho_{ij}\right) & =\mbe_{q}\left[\alpha_{i}^{2}\right]\mathrm{Var}\left(\theta_{j}-\beta_{i}\right)\\
- & =\left(\mathrm{Var}_{q}\left(\alpha_{i}\right)+\mbe_{q}\left[\alpha_{i}\right]^{2}\right)\left(\mathrm{Var}\left(\theta_{j}\right)+\mathrm{Var}\left(\beta_{i}\right)\right)
+\mathrm{Var}_{q}\left(\rho_{ij}\right) & =\mbe_{q}\left[\alpha_{i}^{2}\right]\mathrm{Var}\left(\theta_{j}-\beta_{i}\right)+\var\left(\alpha_{i}\right)\mbe\left[\left(\theta_{j}-\beta_{i}\right)^{2}\right]\\
+ & =\mbe_{q}\left[\alpha_{i}^{2}\right]\left(\mathrm{Var}\left(\theta_{j}\right)+\var\left(\beta_{i}\right)\right)+\var\left(\alpha_{i}\right)\left(\mbe\left[\theta_{j}^{2}\right]-2\mbe\left[\theta_{j}\right]\mbe\left[\beta_{i}\right]+\mbe\left[\beta_{i}^{2}\right]\right)
 \end{align*}
 
 \end_inset
@@ -117,10 +144,6 @@ Also in general
 \end_inset
 
 
-\end_layout
-
-\begin_layout Standard
-but here it's more complicated.
 \end_layout
 
 \end_body
