@@ -104,18 +104,3 @@ def expected_ljk_prior(lkj_param, df, v):
     e_log_r = -1 * e_log_det_wishart(df, v) - \
               np.sum(e_log_inv_wishart_diag(df, v))
     return (lkj_param - 1) * e_log_r
-
-
-# The is the expected ljk prior on \Sigma where q(\Sigma^{-1}) ~ Wishart(df, v)
-# def expected_ljk_prior(lkj_param, df, v):
-#     k = float(v.shape[0])
-#     assert v.shape[0] == v.shape[1]
-#     s, log_det_v = np.linalg.slogdet(v)
-#     assert s > 0
-#     v_inv_diag = np.diag(np.linalg.inv(v))
-#
-#     e_log_r = -1. * log_det_v - multivariate_digamma(0.5 * df, k) - \
-#               np.sum(np.log(0.5 * v_inv_diag)) - \
-#               k * asp.special.digamma(0.5 * (df - k + 1))
-#
-#     return (lkj_param - 1.) * e_log_r
