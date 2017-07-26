@@ -98,12 +98,29 @@ We need
 \begin{align*}
 \mbe_{q}\left[\rho_{ij}\right] & =\mbe_{q}\left[\alpha_{i}\right]\left(\mbe_{q}\left[\theta_{j}\right]-\mbe_{q}\left[\beta_{i}\right]\right)\\
 \mathrm{Var}_{q}\left(\rho_{ij}\right) & =\mbe_{q}\left[\alpha_{i}^{2}\right]\mathrm{Var}\left(\theta_{j}-\beta_{i}\right)\\
- & =\left(\mathrm{Var}_{q}\left(\alpha_{i}\right)+\mbe_{q}\left[\alpha_{i}\right]^{2}\right)\left(\mathrm{Var}\left(\theta_{j}\right)-\beta_{i}\right)
+ & =\left(\mathrm{Var}_{q}\left(\alpha_{i}\right)+\mbe_{q}\left[\alpha_{i}\right]^{2}\right)\left(\mathrm{Var}\left(\theta_{j}\right)+\mathrm{Var}\left(\beta_{i}\right)\right)
 \end{align*}
 
 \end_inset
 
 
+\end_layout
+
+\begin_layout Standard
+Also in general
+\begin_inset Formula 
+\begin{align*}
+\mbe\left[\log P\left(x\vert\mu,\Sigma\right)\right] & =\mbe\left[-\frac{1}{2}\left(x^{T}\Sigma^{-1}x-2x^{T}\Sigma^{-1}\mu+\mu^{T}\Sigma^{-1}\mu\right)+\frac{1}{2}\log\left|\Sigma^{-1}\right|+C\right]\\
+ & =-\frac{1}{2}\left(\mathrm{tr}\left(\mbe\left[\Sigma^{-1}\right]\mbe\left[xx^{T}\right]\right)-2\mbe\left[x\right]^{T}\mbe\left[\Sigma^{-1}\right]\mbe\left[\mu\right]+\mathrm{tr}\left(\mbe\left[\Sigma^{-1}\right]\mbe\left[\mu\mu^{T}\right]\right)\right)+\frac{1}{2}\mbe\left[\log\left|\Sigma^{-1}\right|\right]+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+but here it's more complicated.
 \end_layout
 
 \end_body

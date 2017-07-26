@@ -106,5 +106,22 @@ We need
 
 \end_layout
 
+\begin_layout Standard
+Also in general
+\begin_inset Formula 
+\begin{align*}
+\mbe\left[\log P\left(x\vert\mu,\Sigma\right)\right] & =\mbe\left[-\frac{1}{2}\left(x^{T}\Sigma^{-1}x-2x^{T}\Sigma^{-1}\mu+\mu^{T}\Sigma^{-1}\mu\right)+\frac{1}{2}\log\left|\Sigma^{-1}\right|+C\right]\\
+ & =-\frac{1}{2}\left(\mathrm{tr}\left(\mbe\left[\Sigma^{-1}\right]\mbe\left[xx^{T}\right]\right)-2\mbe\left[x\right]^{T}\mbe\left[\Sigma^{-1}\right]\mbe\left[\mu\right]+\mathrm{tr}\left(\mbe\left[\Sigma^{-1}\right]\mbe\left[\mu\mu^{T}\right]\right)\right)+\frac{1}{2}\mbe\left[\log\left|\Sigma^{-1}\right|\right]+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+but here it's more complicated, since
+\end_layout
+
 \end_body
 \end_document

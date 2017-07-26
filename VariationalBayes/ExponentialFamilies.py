@@ -90,6 +90,9 @@ def uvn_prior(prior_mean, prior_info, e_obs, var_obs):
 def gamma_prior(prior_shape, prior_rate, e_obs, e_log_obs):
     return (prior_shape - 1) * e_log_obs - prior_rate * e_obs
 
+def exponential_prior(lambda_par, e_obs):
+    return -1 * lambda_par * e_obs
+
 def dirichlet_prior(alpha, log_e_obs):
     assert np.shape(alpha) == np.shape(log_e_obs), \
             'shape of alpha and log_e_obs do not match'

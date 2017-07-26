@@ -6,8 +6,7 @@ import autograd.scipy as asp
 
 # from VariationalBayes.Parameters import \
 #     free_to_vector_jac_offset, free_to_vector_hess_offset
-from VariationalBayes.ExponentialFamilies import \
-    multivariate_gammaln, multivariate_digamma
+import VariationalBayes.ExponentialFamilies as ef
 
 from scipy.sparse import block_diag
 
@@ -21,7 +20,7 @@ class WishartParam(object):
         self.params = par_dict.ModelParamsDict(name='params')
         self.params.push_param(par.ScalarParam('df', lb=min_df))
         self.params.push_param(
-            mat_par.PosDefMatrixParam(name + '_mat', diag_lb=diag_lb))
+            mat_par.PosDefMatrixParam('v', diag_lb=diag_lb))
 
     def __str__(self):
         return self.name + ':\n' + str(self.params)
@@ -31,9 +30,24 @@ class WishartParam(object):
         return self.params.dictval()
 
     def e(self):
-        return self.df.get() * self.v.get()
+        return self.params['df'].get() * self.params['v'].get()
     def e_log_det(self):
-        return e_log_det_wishart(self.df.get(), self.v.get())
+        return ef.e_log_det_wishart(self.params['df'].get(),
+                                    self.params['v'].get())
+    def e_inv(self):
+        return self.params['df'].get() * np.linalg.inv(self.params['v'].get())
+
+    def entropy(self):
+        return ef.wishart_entropy(self.params['df'].get(),
+                                  self.params['v'].get())
+
+    # This is the expected log lkj prior on the inverse of the
+    # Wishart-distributed parameter.  E.g. if this object contains the
+    # parameters of a Wishart distribution on an information matrix, this
+    # returns the expected LKJ prior on the covariance matrix.
+    def e_log_lkj_inv_prior(self, lkj_param):
+        return ef.expected_ljk_prior(
+            lkj_param, self.params['df'].get(), self.params['v'].get())
 
     def set_free(self, free_val):
         self.params.set_free(free_val)

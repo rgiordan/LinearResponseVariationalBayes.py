@@ -24,11 +24,14 @@ class MVNParam(object):
         return { 'mean': self.mean.dictval(), 'info': self.info.dictval() }
     def e(self):
         return self.mean.get()
+    def cov(self):
+        return np.linalg.inv(self.info.get())
     def e_outer(self):
         mean = self.mean.get()
-        info = self.info.get()
-        e_outer = np.outer(mean, mean) + np.linalg.inv(info)
+        e_outer = np.outer(mean, mean) + self.cov()
         return 0.5 * (e_outer + e_outer.transpose())
+    def entropy(self):
+        return ef.multivariate_normal_entropy(self.info.get())
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
@@ -101,6 +104,8 @@ class UVNParam(object):
         return ef.get_var_lognormal(self.mean.get(), 1. / self.info.get())
     def e2_exp(self):
         return self.e_exp() ** 2 + self.var_exp()
+    def entropy(self):
+        return ef.univariate_normal_entropy(self.info.get())
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
@@ -172,6 +177,8 @@ class UVNParamVector(object):
         return ef.get_var_lognormal(self.mean.get(), 1. / self.info.get())
     def e2_exp(self):
         return self.e_exp() ** 2 + self.var_exp()
+    def entropy(self):
+        return np.sum(ef.univariate_normal_entropy(self.info.get()))
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
