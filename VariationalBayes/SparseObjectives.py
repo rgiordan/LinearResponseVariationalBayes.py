@@ -64,7 +64,8 @@ class Objective(object):
 # when the local grad and / or hessian are sparse.
 class SparseObjective(object):
     def __init__(self, par, fun,
-                 global_par_name='global', local_par_name='local',
+                 global_par_name='global',
+                 local_par_name='local',
                  fun_vector_local_grad=None,
                  fun_vector_local_hessian=None):
 
