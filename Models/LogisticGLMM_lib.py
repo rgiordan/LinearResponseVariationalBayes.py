@@ -108,8 +108,8 @@ class LogisticGLMM(object):
             ef.gamma_entropy(tau_shape, tau_rate)
 
     def get_kl(self):
-        return -1 * (self.get_log_lik() + self.get_entropy())
-
+        return -1 * (
+            self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
 
 
     # def ExpectedLogPrior(self, free_par_vec, prior_par_vec):
