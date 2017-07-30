@@ -112,6 +112,45 @@ class LogisticGLMM(object):
             self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
 
 
+class MomentWrapper(object):
+    def __init__(self, glmm_par):
+        self.glmm_par = copy.deepcopy(glmm_par)
+        K = glmm_par['beta'].mean.size()
+        NG =  glmm_par['u'].mean.size()
+        self.moment_par = vb.ModelParamsDict('Moment Parameters')
+        self.moment_par.push_param(vb.VectorParam('e_beta', K))
+        self.moment_par.push_param(
+            vb.PosDefMatrixParam('e_beta_outer', K))
+        self.moment_par.push_param(vb.ScalarParam('e_mu'))
+        self.moment_par.push_param(vb.ScalarParam('e_mu2'))
+        self.moment_par.push_param(vb.ScalarParam('e_tau'))
+        self.moment_par.push_param(vb.ScalarParam('e_log_tau'))
+        self.moment_par.push_param(vb.VectorParam('e_u', NG))
+        self.moment_par.push_param(vb.VectorParam('e_u2', NG))
+
+    def set_moments(self):
+        self.moment_par['e_beta'].set(self.glmm_par['beta'].e())
+        self.moment_par['e_beta_outer'].set(self.glmm_par['beta'].e_outer())
+        self.moment_par['e_mu'].set(self.glmm_par['mu'].e())
+        self.moment_par['e_mu2'].set(self.glmm_par['mu'].e_outer())
+        self.moment_par['e_tau'].set(self.glmm_par['tau'].e())
+        self.moment_par['e_log_tau'].set(self.glmm_par['tau'].e_log())
+        self.moment_par['e_u'].set(self.glmm_par['u'].e())
+        self.moment_par['e_u2'].set((self.glmm_par['u'].e_outer()))
+
+    # Return a posterior moment of interest as a function of unconstrained parameters.
+    def get_moments(self, free_par_vec):
+        self.glmm_par.set_free(free_par_vec)
+        self.set_moments()
+        return self.moment_par.get_vector()
+
+    def get_moment_parameters(self, free_par_vec):
+        self.glmm_par.set_free(free_par_vec)
+        self.set_moments()
+        return self.moment_par
+
+
+
     # def ExpectedLogPrior(self, free_par_vec, prior_par_vec):
     #     # Encode the glmm parameters first and the prior second.
     #     self.__glmm_par_ad.set_free(free_par_vec)
