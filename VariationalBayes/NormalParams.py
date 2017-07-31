@@ -222,6 +222,8 @@ class UVNParamVector(object):
         return self.__free_size
     def vector_size(self):
         return self.__vector_size
+    def size(self):
+        return self.mean.size()
 
 # Array of multivariate normals
 # for now each row is a draw from a MVN with diagonal constant variance ...

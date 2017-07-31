@@ -36,6 +36,9 @@ class LogisticGLMM(object):
         self.y_g_vec = y_g_vec
         self.set_draws(num_draws)
 
+        assert np.min(y_g_vec) == 0
+        assert np.max(y_g_vec) == self.glmm_par['u'].size() - 1
+
     def set_draws(self, num_draws):
         self.std_draws = modeling.get_standard_draws(num_draws)
 
@@ -64,24 +67,18 @@ class LogisticGLMM(object):
 
         return  e_log_p_beta + e_log_p_mu + e_log_p_tau
 
-    def get_z_mean(self):
-        e_beta = self.glmm_par['beta'].e()
-        e_u = self.glmm_par['u'].e()[self.y_g_vec]
-
-        return e_u + np.matmul(self.x_mat, e_beta)
-
     def get_log_lik(self):
         e_beta = self.glmm_par['beta'].e()
         cov_beta = self.glmm_par['beta'].cov()
-        e_u = self.glmm_par['u'].e()[self.y_g_vec]
-        var_u = self.glmm_par['u'].var()[self.y_g_vec]
+        e_u = self.glmm_par['u'].e()
+        var_u = self.glmm_par['u'].var()
 
         log_lik = 0.
 
         # Log likelihood from data.
-        z_mean = e_u + np.matmul(self.x_mat, e_beta)
+        z_mean = e_u[self.y_g_vec] + np.matmul(self.x_mat, e_beta)
         z_sd = np.sqrt(
-            var_u + np.einsum('nk,kj,nj->n',
+            var_u[self.y_g_vec] + np.einsum('nk,kj,nj->n',
                               self.x_mat, cov_beta, self.x_mat))
 
         log_lik += modeling.get_e_logistic_term(
