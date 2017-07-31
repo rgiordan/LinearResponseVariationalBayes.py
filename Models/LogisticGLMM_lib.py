@@ -64,6 +64,11 @@ class LogisticGLMM(object):
 
         return  e_log_p_beta + e_log_p_mu + e_log_p_tau
 
+    def get_z_mean(self):
+        e_beta = self.glmm_par['beta'].e()
+        e_u = self.glmm_par['u'].e()[self.y_g_vec]
+
+        return e_u + np.matmul(self.x_mat, e_beta)
 
     def get_log_lik(self):
         e_beta = self.glmm_par['beta'].e()
