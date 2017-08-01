@@ -7,6 +7,7 @@ import autograd.numpy as np
 import autograd.numpy.random as npr
 import autograd.scipy as sp
 import scipy as osp
+import numpy as onp
 
 import copy
 
@@ -27,20 +28,58 @@ def simulate_data(N, NG, true_beta, true_mu, true_tau):
     return x_mat, y_g_vec, y_vec, true_rho, true_u
 
 
+def get_e_logistic_term_guass_hermite(
+    z_mean, z_sd, gh_x, gh_w, aggregate_all=True):
+
+    assert z_mean.shape == z_sd.shape
+    draws_axis = z_sd.ndim
+    z_vals = \
+        np.sqrt(2) * np.expand_dims(z_sd, axis=draws_axis) * gh_x + \
+        np.expand_dims(z_mean, axis=draws_axis)
+
+    # By dividing by the number of standard draws after summing,
+    # we add the sample means for all the observations.
+    # Note that
+    # log(1 - p) = log(1 / (1 + exp(z))) = -log(1 + exp(z))
+    logit_term = gh_w * np.log1p(np.exp(z_vals)) / np.sqrt(np.pi)
+    if aggregate_all:
+        return np.sum(logit_term)
+    else:
+        return np.sum(logit_term, axis=draws_axis)
+
+
+def get_default_prior_params(K):
+    prior_par = vb.ModelParamsDict('Prior Parameters')
+    prior_par.push_param(
+        vb.VectorParam('beta_prior_mean', K, val=np.zeros(K)))
+    prior_par.push_param(
+        vb.PosDefMatrixParam('beta_prior_info', K, val=0.01 * np.eye(K)))
+
+    prior_par.push_param(vb.ScalarParam('mu_prior_mean', val=0))
+    prior_par.push_param(vb.ScalarParam('mu_prior_info', val=0.5))
+
+    prior_par.push_param(vb.ScalarParam('tau_prior_alpha', val=3.0))
+    prior_par.push_param(vb.ScalarParam('tau_prior_beta', val=10.0))
+
+    return prior_par
+
+
 class LogisticGLMM(object):
-    def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_draws):
+    def __init__(
+        self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points):
+
         self.glmm_par = copy.deepcopy(glmm_par)
         self.prior_par = copy.deepcopy(prior_par)
         self.x_mat = x_mat
         self.y_vec = y_vec
         self.y_g_vec = y_g_vec
-        self.set_draws(num_draws)
+        self.set_gh_points(num_gh_points)
 
         assert np.min(y_g_vec) == 0
         assert np.max(y_g_vec) == self.glmm_par['u'].size() - 1
 
-    def set_draws(self, num_draws):
-        self.std_draws = modeling.get_standard_draws(num_draws)
+    def set_gh_points(self, num_gh_points):
+        self.gh_x, self.gh_w = onp.polynomial.hermite.hermgauss(num_gh_points)
 
     def get_e_log_prior(self):
         e_beta = self.glmm_par['beta'].mean.get()
@@ -81,8 +120,10 @@ class LogisticGLMM(object):
             var_u[self.y_g_vec] + np.einsum('nk,kj,nj->n',
                               self.x_mat, cov_beta, self.x_mat))
 
-        log_lik += modeling.get_e_logistic_term(
-            self.y_vec, z_mean, z_sd, self.std_draws)
+        log_lik += \
+            np.sum(self.y_vec * z_mean) - \
+            get_e_logistic_term_guass_hermite(
+                z_mean, z_sd, self.gh_x, self.gh_w, aggregate_all=True)
 
         # Log likelihood from random effect terms.
         e_mu = self.glmm_par['mu'].e()
