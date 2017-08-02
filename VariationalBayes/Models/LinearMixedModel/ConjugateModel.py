@@ -3,8 +3,8 @@ from VariationalBayes import \
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.ExponentialFamilies import \
-    UnivariateNormalEntropy, MultivariateNormalEntropy, \
-    GammaEntropy, MVNPrior, UVNPrior, GammaPrior
+    univariate_normal_entropy, multivariate_normal_entropy, \
+    gamma_entropy, mvn_prior, uvn_prior, gamma_prior
 
 from autograd import grad, hessian, jacobian, hessian_vector_product
 import autograd.numpy as np
@@ -138,19 +138,19 @@ def get_e_log_prior(moment_par, prior_par):
     var_mu = e_mu2 - e_mu**2
 
     return \
-        MVNPrior(prior_mean=prior_par['beta_mean'].get(),
+        mvn_prior(prior_mean=prior_par['beta_mean'].get(),
                  prior_info=prior_par['beta_info'].get(),
                  e_obs=e_beta,
                  cov_obs=cov_beta) + \
-        UVNPrior(prior_mean=prior_par['mu_mean'].get(),
+        uvn_prior(prior_mean=prior_par['mu_mean'].get(),
                  prior_info=prior_par['mu_info'].get(),
                  e_obs=e_mu,
                  var_obs=var_mu) + \
-        GammaPrior(prior_shape=prior_par['mu_info_shape'].get(),
+        gamma_prior(prior_shape=prior_par['mu_info_shape'].get(),
                    prior_rate=prior_par['mu_info_rate'].get(),
                    e_obs=e_mu_info,
                    e_log_obs=e_log_mu_info) + \
-        GammaPrior(prior_shape=prior_par['y_info_shape'].get(),
+        gamma_prior(prior_shape=prior_par['y_info_shape'].get(),
                    prior_rate=prior_par['y_info_rate'].get(),
                    e_obs=e_y_info,
                    e_log_obs=e_log_y_info)
@@ -267,12 +267,12 @@ def get_elbo_model_term(data_cache, moment_par, prior_par, sufficient=True):
 
 
 def get_entropy(lmm_par):
-    return MultivariateNormalEntropy(lmm_par['beta'].info.get()) + \
-           UnivariateNormalEntropy(lmm_par['mu'].info.get()) + \
-           UnivariateNormalEntropy(lmm_par['u'].info.get()) + \
-           GammaEntropy(shape=lmm_par['y_info'].shape.get(),
+    return multivariate_normal_entropy(lmm_par['beta'].info.get()) + \
+           univariate_normal_entropy(lmm_par['mu'].info.get()) + \
+           univariate_normal_entropy(lmm_par['u'].info.get()) + \
+           gamma_entropy(shape=lmm_par['y_info'].shape.get(),
                         rate=lmm_par['y_info'].rate.get()) + \
-           GammaEntropy(shape=lmm_par['mu_info'].shape.get(),
+           gamma_entropy(shape=lmm_par['mu_info'].shape.get(),
                         rate=lmm_par['mu_info'].rate.get())
 
 
@@ -301,7 +301,7 @@ def get_entropy_from_moments(moment_par, lmm_par_guess):
 
     def get_gamma_entropy_from_moments(e, e_log, shape_guess):
         shape_est, rate_est = get_gamma_par_from_moments(e, e_log, shape_guess)
-        return GammaEntropy(shape_est, rate_est)
+        return gamma_entropy(shape_est, rate_est)
 
     y_info_entropy = get_gamma_entropy_from_moments(
         e=moment_par['e_y_info'].get(),
@@ -309,7 +309,7 @@ def get_entropy_from_moments(moment_par, lmm_par_guess):
         shape_guess=lmm_par_guess['y_info'].shape.get())
 
     print y_info_entropy
-    print GammaEntropy(
+    print gamma_entropy(
         shape=lmm_par_guess['y_info'].shape.get(),
         rate=lmm_par_guess['y_info'].rate.get())
 
@@ -319,7 +319,7 @@ def get_entropy_from_moments(moment_par, lmm_par_guess):
         shape_guess=lmm_par_guess['mu_info'].shape.get())
 
     print mu_info_entropy
-    print GammaEntropy(
+    print gamma_entropy(
         shape=lmm_par_guess['mu_info'].shape.get(),
         rate=lmm_par_guess['mu_info'].rate.get())
 
@@ -337,9 +337,9 @@ def get_entropy_from_moments(moment_par, lmm_par_guess):
     return \
         y_info_entropy + \
         mu_info_entropy + \
-        MultivariateNormalEntropy(beta_info) + \
-        UnivariateNormalEntropy(mu_info) + \
-        UnivariateNormalEntropy(u_info)
+        multivariate_normal_entropy(beta_info) + \
+        univariate_normal_entropy(mu_info) + \
+        univariate_normal_entropy(u_info)
 
 
 
