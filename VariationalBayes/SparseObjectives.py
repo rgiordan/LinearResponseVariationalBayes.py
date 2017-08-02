@@ -16,13 +16,23 @@ class Logger(object):
     def __init__(self, print_every=1):
         self.print_every = print_every
         self.initialize()
+        self.print_x_diff = True
 
     def initialize(self):
         self.iter = 0
+        self.last_x = None
 
-    def log(self, value):
+    def log(self, value, x):
+        if self.last_x is None:
+            x_diff = float('inf')
+        else:
+            x_diff = np.max(np.abs(x - self.last_x))
+
+        self.last_x = x
         if self.iter % self.print_every == 0:
             print('Iter ', self.iter, ' value: ', value)
+            if self.print_x_diff:
+                print('\tx_diff: ', x_diff)
         self.iter += 1
 
 
@@ -49,7 +59,7 @@ class Objective(object):
         self.par.set_free(free_val)
         val = self.fun()
         if verbose:
-            self.logger.log(val)
+            self.logger.log(val, free_val)
         return val
 
     def fun_vector(self, vec_val):
