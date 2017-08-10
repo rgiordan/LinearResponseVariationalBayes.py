@@ -18,11 +18,14 @@ RecursiveUnpackParameter <- function(par, level=0, id_name="par") {
 }
 
 
+# Useful for constructing readable python commands using R variables.
+`%_%` <- function(x, y) { paste(x, y, sep="")}
+
 InitializePython <- function(git_repo_loc=Sys.getenv("GIT_REPO_LOC")) {
-  `%_%` <- function(x, y) { paste(x, y, sep="") }
   py_run_string("import sys")
+  py_run_string("import pickle")
   for (py_lib in c("LinearResponseVariationalBayes.py",
-                   "LinearResponseVariationalBayes.py/Models",
+                   "LinearResponseVariationalBayes.py/Models/LogisticGLMM/",
                    "autograd")) {
     py_run_string("sys.path.append('" %_% file.path(git_repo_loc, py_lib) %_% "')")
   }
