@@ -12,15 +12,20 @@ library(gridExtra)
 
 library(jsonlite)
 
+library(reticulate)
+use_python("/usr/bin/python3")
+
+
 project_directory <- file.path(
   Sys.getenv("GIT_REPO_LOC"),
-  "LinearResponseVariationalBayes.py/Models/LogisticGLMM_R_code")
+  "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-analysis_name <- "criteo_subsampled"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -32,18 +37,25 @@ stan_draws_file <- file.path(
 
 stan_results <- LoadIntoEnvironment(stan_draws_file)
 
-# TODO: just pickle this; there is no longer any need to go through JSON.
-python_filename <- file.path(
-  data_directory, paste(analysis_name, "_python_vb_results.json", sep=""))
-json_file <- file(python_filename, "r")
-json_dat <- fromJSON(readLines(json_file))
-close(json_file)
-
-
+# Load the python pickled data.
 InitializePython()
 py_main <- reticulate::import_main()
-vb_opt_par <- py_main$logit_glmm$get_glmm_parameters()
+python_filename <- file.path(
+  data_directory, paste(analysis_name, "_python_vb_results.pkl", sep=""))
+reticulate::py_run_string(
+"
+pkl_file = open('" %_% python_filename %_% "', 'rb')
+vb_results = pickle.load(pkl_file)
+pkl_file.close()
+")
 
+vb_results <- py_main$vb_results
+
+class(vb_results$elbo_hess)
+class(vb_results$elbo_hess[1])
+vb_results$elbo_hess[1]
+
+dim(vb_results$elbo_hess)
 
 #############################
 # Indices
@@ -63,13 +75,18 @@ vb_opt_par <- py_main$logit_glmm$get_glmm_parameters()
 
 # It would be better to group the beta_loc and beta_info parameters into single
 # prior parameters all at once at the beginning.
-
+  
+#log_prior_hess <- t(vb_results$log_prior_hess)
 log_prior_hess <- t(vb_results$log_prior_hess)
+elbo_hess <- vb_results$elbo_hess
+moment_jac <- t(vb_results$moment_jac)
 
-prior_sens <- -1 * lrvb_results$jac %*% Matrix::solve(lrvb_results$elbo_hess, log_prior_hess)
+prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
 
 # Re-scaling for normalized sensitivities.
-draws_mat <- t(vb_results$draws_mat)
+moment_par <- py_main$logit_glmm$MomentWrapper(vb_results$glmm_par_opt)
+
+draws_mat <- PackMCMCSamplesIntoMoments(extract(stan_results$stan_sim), vb_results$glmm_par_opt)
 lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_results$lrvb_cov))
 mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
 
