@@ -11,6 +11,22 @@ import numpy as onp
 
 import copy
 
+def get_glmm_parameters(
+    K, NG,
+    mu_info_min=0.0, tau_alpha_min=0.0, tau_beta_min=0.0,
+    beta_diag_min=0.0, u_info_min=0.0):
+
+    glmm_par = vb.ModelParamsDict('GLMM Parameters')
+    glmm_par.push_param(
+        vb.UVNParam('mu', min_info=mu_info_min))
+    glmm_par.push_param(
+        vb.GammaParam('tau', min_shape=tau_alpha_min, min_rate=tau_beta_min))
+    glmm_par.push_param(vb.MVNParam('beta', K, min_info=beta_diag_min))
+    glmm_par.push_param(vb.UVNParamVector('u', NG, min_info=u_info_min))
+
+    return glmm_par
+
+
 
 def simulate_data(N, NG, true_beta, true_mu, true_tau):
     def Logistic(u):
@@ -171,7 +187,11 @@ class MomentWrapper(object):
         self.moment_par.push_param(vb.VectorParam('e_u', NG))
         self.moment_par.push_param(vb.VectorParam('e_u2', NG))
 
-    def set_moments(self):
+    def __str__(self):
+        return str(self.moment_par)
+
+    def set_moments(self, free_par_vec):
+        self.glmm_par.set_free(free_par_vec)
         self.moment_par['e_beta'].set(self.glmm_par['beta'].e())
         self.moment_par['e_beta_outer'].set(self.glmm_par['beta'].e_outer())
         self.moment_par['e_mu'].set(self.glmm_par['mu'].e())
@@ -182,15 +202,9 @@ class MomentWrapper(object):
         self.moment_par['e_u2'].set((self.glmm_par['u'].e_outer()))
 
     # Return a posterior moment of interest as a function of unconstrained parameters.
-    def get_moments(self, free_par_vec):
-        self.glmm_par.set_free(free_par_vec)
-        self.set_moments()
+    def get_moment_vector(self, free_par_vec):
+        self.set_moments(free_par_vec)
         return self.moment_par.get_vector()
-
-    def get_moment_parameters(self, free_par_vec):
-        self.glmm_par.set_free(free_par_vec)
-        self.set_moments()
-        return self.moment_par
 
 
 
