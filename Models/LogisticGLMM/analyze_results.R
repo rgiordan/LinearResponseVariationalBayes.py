@@ -51,12 +51,6 @@ pkl_file.close()
 
 vb_results <- py_main$vb_results
 
-class(vb_results$elbo_hess)
-class(vb_results$elbo_hess[1])
-vb_results$elbo_hess[1]
-
-dim(vb_results$elbo_hess)
-
 #############################
 # Indices
 
@@ -70,28 +64,61 @@ dim(vb_results$elbo_hess)
 #                            vp_indices$tau_alpha, vp_indices$tau_beta))
 # global_mask[global_indices] <- TRUE
 
+##############
+# Check covariance
+
+elbo_hess <- vb_results$elbo_hess
+moment_jac <- vb_results$moment_jac
+
+lrvb_cov <- vb_results$lrvb_cov
+min(diag(lrvb_cov))
+max(diag(lrvb_cov))
+
+elbo_hess_ev <- eigen(elbo_hess)$values
+min(elbo_hess_ev)
+max(elbo_hess_ev)
+
+
+###############################
+# MCMC draws
+
+
 #################################
 # Parametric sensitivity analysis
 
 # It would be better to group the beta_loc and beta_info parameters into single
 # prior parameters all at once at the beginning.
   
-#log_prior_hess <- t(vb_results$log_prior_hess)
 log_prior_hess <- t(vb_results$log_prior_hess)
-elbo_hess <- vb_results$elbo_hess
-moment_jac <- t(vb_results$moment_jac)
 
 prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
 
-# Re-scaling for normalized sensitivities.
-moment_par <- py_main$logit_glmm$MomentWrapper(vb_results$glmm_par_opt)
+glmm_par <- py_main$logit_glmm$get_glmm_parameters(
+  K=stan_results$stan_dat$K, NG=stan_results$stan_dat$NG)
+glmm_par$set_free(vb_results$glmm_par_free)
+stopifnot(max(abs(glmm_par$get_vector() - vb_results$glmm_par_vector)) < 1e-8)
+moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+moment_par$set_moments(vb_results$glmm_par_free)
 
-draws_mat <- PackMCMCSamplesIntoMoments(extract(stan_results$stan_sim), vb_results$glmm_par_opt)
-lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_results$lrvb_cov))
+# Get MCMC draws in the same format a the VB moments
+mcmc_extract <- extract(stan_results$stan_sim)
+draws_mat <- PackMCMCSamplesIntoMoments(extract(stan_results$stan_sim), glmm_par)
+mcmc_cov <- cov(t(draws_mat))
 mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
 
+#plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
+#plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
+
+lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_cov))
+stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
+
+
+
+stop()
+
+
 # Get the MCMC covariance-based results
-log_prior_grad_mat <- vb_results$log_prior_grad_mat
+log_prior_grad_mat <- stan_results$log_prior_grad_mat
 log_prior_grad_mat <- log_prior_grad_mat - rep(colMeans(log_prior_grad_mat), each=nrow(log_prior_grad_mat))
 draws_mat <- draws_mat - rowMeans(draws_mat)
 prior_sens_mcmc <- draws_mat %*% log_prior_grad_mat / nrow(log_prior_grad_mat)

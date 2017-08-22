@@ -51,13 +51,10 @@ PackMCMCSamplesIntoMoments <- function(mcmc_sample, glmm_par, py_main=reticulate
     u <- array(mcmc_sample$u[draw, ])
     
     mcmc_param_dict$e_beta$set(beta)
-    mcmc_param_dict$e_beta_outer$set(beta %*% t(beta))
     mcmc_param_dict$e_mu$set(mu)
-    mcmc_param_dict$e_mu2$set(mu^2)
     mcmc_param_dict$e_tau$set(tau)
     mcmc_param_dict$e_log_tau$set(log(tau))
     mcmc_param_dict$e_u$set(u)
-    mcmc_param_dict$e_u2$set(u^2)
     draws_mat[, draw] <- mcmc_moment_par$moment_par$get_vector()
   }
   close(pb)
