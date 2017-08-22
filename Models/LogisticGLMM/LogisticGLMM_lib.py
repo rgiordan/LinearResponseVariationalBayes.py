@@ -167,7 +167,7 @@ class LogisticGLMM(object):
             ef.gamma_entropy(tau_shape, tau_rate)
 
     def get_kl(self):
-        return -1 * (
+        return -1 * np.squeeze(
             self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
 
 
@@ -178,14 +178,14 @@ class MomentWrapper(object):
         NG =  glmm_par['u'].mean.size()
         self.moment_par = vb.ModelParamsDict('Moment Parameters')
         self.moment_par.push_param(vb.VectorParam('e_beta', K))
-        self.moment_par.push_param(
-            vb.PosDefMatrixParam('e_beta_outer', K))
+        #self.moment_par.push_param(
+        #    vb.PosDefMatrixParam('e_beta_outer', K))
         self.moment_par.push_param(vb.ScalarParam('e_mu'))
-        self.moment_par.push_param(vb.ScalarParam('e_mu2'))
+        #self.moment_par.push_param(vb.ScalarParam('e_mu2'))
         self.moment_par.push_param(vb.ScalarParam('e_tau'))
         self.moment_par.push_param(vb.ScalarParam('e_log_tau'))
         self.moment_par.push_param(vb.VectorParam('e_u', NG))
-        self.moment_par.push_param(vb.VectorParam('e_u2', NG))
+        #self.moment_par.push_param(vb.VectorParam('e_u2', NG))
 
     def __str__(self):
         return str(self.moment_par)
@@ -193,13 +193,13 @@ class MomentWrapper(object):
     def set_moments(self, free_par_vec):
         self.glmm_par.set_free(free_par_vec)
         self.moment_par['e_beta'].set(self.glmm_par['beta'].e())
-        self.moment_par['e_beta_outer'].set(self.glmm_par['beta'].e_outer())
+        #self.moment_par['e_beta_outer'].set(self.glmm_par['beta'].e_outer())
         self.moment_par['e_mu'].set(self.glmm_par['mu'].e())
-        self.moment_par['e_mu2'].set(self.glmm_par['mu'].e_outer())
+        #self.moment_par['e_mu2'].set(self.glmm_par['mu'].e_outer())
         self.moment_par['e_tau'].set(self.glmm_par['tau'].e())
         self.moment_par['e_log_tau'].set(self.glmm_par['tau'].e_log())
         self.moment_par['e_u'].set(self.glmm_par['u'].e())
-        self.moment_par['e_u2'].set((self.glmm_par['u'].e_outer()))
+        #self.moment_par['e_u2'].set((self.glmm_par['u'].e_outer()))
 
     # Return a posterior moment of interest as a function of unconstrained parameters.
     def get_moment_vector(self, free_par_vec):
