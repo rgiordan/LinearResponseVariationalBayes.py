@@ -2,36 +2,84 @@ library(dplyr)
 library(ggplot2)
 library(reshape2)
 library(jsonlite)
+library(mvtnorm)
+library(boot) # for inv.logit
 
 library(lme4)
 library(rstan)
 
-criteo_dir <- file.path(
-    Sys.getenv("GIT_REPO_LOC"), "criteo/criteo_conversion_logs/")
-clean_data_filename <- file.path(criteo_dir, "data_clean.Rdata")
-
-load(clean_data_filename)
-
-sample_groups <- unique(d_clean$V11)[1:100]
-d_sub <- d_clean[d_clean$V11 %in% sample_groups, ]
-d_sub$c <- 1
-nrow(d_sub)
-
-analysis_name <- "criteo_subsampled"
 
 ########################
 # Run stan
 
 project_directory <- file.path(
-    Sys.getenv("GIT_REPO_LOC"),
-    "LinearResponseVariationalBayes.py/Models/LogisticGLMM_R_code")
+  Sys.getenv("GIT_REPO_LOC"),
+  "LinearResponseVariationalBayes.py/Models/LogisticGLMM_R_code")
 data_directory <- file.path(project_directory, "data/")
 
-y <- as.integer(d_sub$conversion)
-regressors <- paste("V", c(4, 5, 7, 9, 10), sep="")
-x <- as.matrix(d_sub[regressors])
-y_g_orig <- factor(d_sub$V11)
-y_g <- as.integer(y_g_orig) - 1
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
+
+
+if (analysis_name == "simulated_data_small") {
+  n_obs_per_group <- 10
+  k_reg <- 5
+  n_groups <- 100
+  n_obs <- n_groups * n_obs_per_group
+  
+  set.seed(42)
+  true_params <- list()
+  true_params$n_obs <- n_obs
+  true_params$k_reg <- k_reg
+  true_params$n_groups <- n_groups
+  true_params$tau <- 1
+  true_params$mu <- -3.5
+  true_params$beta <- 1:k_reg
+
+  true_params$u <- list()
+  for (g in 1:n_groups) {
+    true_params$u[[g]] <- rnorm(1, true_params$mu, 1 / sqrt(true_params$tau))
+  }
+  
+  # Select correlated regressors to induce posterior correlation in beta.
+  x_cov <- (matrix(0.5, k_reg, k_reg) + diag(k_reg)) / 2.5
+  x <- rmvnorm(n_obs, sigma=x_cov)
+  
+  # y_g is expected to be zero-indexed.
+  y_g <- as.integer(rep(1:n_groups, each=n_obs_per_group) - 1)
+  true_offsets <- x %*% true_params$beta
+  for (n in 1:n_obs) {
+    # C++ is zero indexed but R is one indexed
+    true_offsets[n] <- true_offsets[n] + true_params$u[[y_g[n] + 1]]
+  }
+  true_probs <- inv.logit(true_offsets)
+  print(summary(true_probs))
+  y <- rbinom(n=n_obs, size=1, prob=true_probs)
+  
+  iters <- 10000
+} else if (analysis_name == "criteo_subsampled") { 
+  
+  criteo_dir <- file.path(
+    Sys.getenv("GIT_REPO_LOC"), "criteo/criteo_conversion_logs/")
+  clean_data_filename <- file.path(criteo_dir, "data_clean.Rdata")
+  
+  load(clean_data_filename)
+  
+  sample_groups <- unique(d_clean$V11)[1:100]
+  d_sub <- d_clean[d_clean$V11 %in% sample_groups, ]
+  d_sub$c <- 1
+
+  y <- as.integer(d_sub$conversion)
+  regressors <- paste("V", c(4, 5, 7, 9, 10), sep="")
+  x <- as.matrix(d_sub[regressors])
+  y_g_orig <- factor(d_sub$V11)
+  y_g <- as.integer(y_g_orig) - 1
+  
+  iters <- 20000
+} else {
+  stop("Unknown analysis name.")
+}
+
 
 k_reg <- ncol(x)
 
@@ -55,18 +103,23 @@ stan_dat <- list(NG = max(y_g) + 1,
 
 ##############
 # frequentist glmm
+glmm_df <- tibble(y=y, y_g=as.character(y_g))
+for (col in 1:ncol(x)) {
+  glmm_df[paste("x", col, sep=".")] <- x[col]
+}
+glmm_formula_string <- sprintf("y ~ %s + (1|y_g)", paste("x", 1:5, sep=".", collapse=" + "))
 
 glmer_time <- Sys.time()
-glmm_res <- glmer(conversion ~ V4 + V5 + V7 + V9 + V10 + (1|V11),
-                  data=data.frame(d_sub), family="binomial", verbose=FALSE)
+glmm_res <- glmer(formula(glmm_formula_string),
+                  data=glmm_df, family="binomial", verbose=FALSE)
 glmer_time <- Sys.time() - glmer_time
 
 glmm_summary <- summary(glmm_res)
-u <- data.frame(ranef(glmm_res)$V11)
+u <- data.frame(ranef(glmm_res)$y_g)
 names(u) <- "u"
-u$V11 <- rownames(u)
+u$y_g <- rownames(u)
 
-u_df <- inner_join(u, d_sub[, "V11"], by="V11")
+u_df <- inner_join(u, glmm_df[, "y_g"], by="y_g")
 mean(u_df$u)
 mean(u$u[y_g + 1])
 
@@ -120,7 +173,6 @@ seed <- 42
 chains <- 1
 cores <- 4
 
-iters <- 20000
 
 # Draw the draws and save.
 mcmc_time <- Sys.time()
