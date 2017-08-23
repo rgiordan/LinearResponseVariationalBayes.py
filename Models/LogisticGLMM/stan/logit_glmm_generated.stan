@@ -21,6 +21,10 @@ parameters {
   real <lower=0> tau;  // The information of the random effect.
   vector[NG] u;        // The actual random effects.
 }
+transformed parameters {
+  real log_tau;
+  log_tau = log(tau);
+}
 model {
   // priors
   tau ~ gamma(tau_prior_alpha, tau_prior_beta);

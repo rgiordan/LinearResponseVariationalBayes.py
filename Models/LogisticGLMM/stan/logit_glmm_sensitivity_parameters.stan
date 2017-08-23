@@ -21,4 +21,8 @@ parameters {
   real tau_prior_alpha; // <lower=0>
   real tau_prior_beta; // <lower=0>
 }
+transformed parameters {
+  real log_tau;
+  log_tau = log(tau);
+}
 model { target += 0; }

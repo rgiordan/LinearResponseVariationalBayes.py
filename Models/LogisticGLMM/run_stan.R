@@ -59,7 +59,7 @@ if (analysis_name == "simulated_data_small") {
   print(summary(true_probs))
   y <- rbinom(n=n_obs, size=1, prob=true_probs)
   
-  iters <- 10000
+  iters <- 3000 # We actually need more than this -- use this for debugging.
 } else if (analysis_name == "criteo_subsampled") { 
   
   criteo_dir <- file.path(
@@ -92,6 +92,7 @@ stan_dat <- list(NG = max(y_g) + 1,
                  y_group = y_g,
                  y = y,
                  x = x,
+
                  # Priors
                  beta_prior_mean = rep(0, k_reg),
                  beta_prior_info = 0.1 * diag(k_reg),
@@ -206,9 +207,28 @@ map_time <- bfgs_map_time
 stopifnot(cores == 1) # rstansensitivity only supports one core for now.
 draws_mat <- extract(stan_sim, permute=FALSE)[,1,]
 mcmc_sens_time <- Sys.time()
-sens_result <- GetStanSensitivityFromModelFit(
-  stan_sim, draws_mat, stan_sensitivity_model)
+sens_result <- GetStanSensitivityFromModelFit(stan_sim, draws_mat, stan_sensitivity_model)
 mcmc_sens_time <- Sys.time()- mcmc_sens_time
+
+
+# sens_par_list <- stan_sensitivity_model$sens_par_list
+# sampling_result <- stan_sim
+# model_sens_fit <- stan_sensitivity_model$model_sens_fit
+# sens_param_names <- stan_sensitivity_model$sens_param_names
+# 
+# par_list <- get_inits(sampling_result, iter = 1)[[1]]
+# for (par in ls(par_list)) {
+#   if (length(dim(sens_par_list[[par]])) >= 2) {
+#     sens_par_list[[par]] <- array(unlist(par_list[[par]]), 
+#                                   dim(par_list[[par]]))
+#   }
+#   else {
+#     sens_par_list[[par]] <- as.numeric(par_list[[par]])
+#   }
+# }
+# 
+# sens_par_list$log_tau <- NULL
+# pars_free <- unconstrain_pars(model_sens_fit, sens_par_list)
 
 
 # Save the results to an RData file for further post-processing.
