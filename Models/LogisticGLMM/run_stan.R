@@ -4,6 +4,7 @@ library(reshape2)
 library(jsonlite)
 library(mvtnorm)
 library(boot) # for inv.logit
+library(rstansensitivity)
 
 library(lme4)
 library(rstan)
@@ -12,9 +13,11 @@ library(rstan)
 ########################
 # Run stan
 
+rstan_options(auto_write=TRUE)
+
 project_directory <- file.path(
   Sys.getenv("GIT_REPO_LOC"),
-  "LinearResponseVariationalBayes.py/Models/LogisticGLMM_R_code")
+  "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
 #analysis_name <- "criteo_subsampled"
@@ -91,13 +94,9 @@ stan_dat <- list(NG = max(y_g) + 1,
                  x = x,
                  # Priors
                  beta_prior_mean = rep(0, k_reg),
-                 beta_prior_var = 10. * diag(k_reg),
+                 beta_prior_info = 0.1 * diag(k_reg),
                  mu_prior_mean = 0.0,
-                 mu_prior_var = 100.,
-                 mu_prior_mean_c = 0.0,
-                 mu_prior_var_c = 200.,
-                 mu_prior_t = 1,
-                 mu_prior_epsilon = 0,
+                 mu_prior_info = 0.01,
                  tau_prior_alpha = 3.0,
                  tau_prior_beta = 3.0)
 
@@ -105,9 +104,10 @@ stan_dat <- list(NG = max(y_g) + 1,
 # frequentist glmm
 glmm_df <- tibble(y=y, y_g=as.character(y_g))
 for (col in 1:ncol(x)) {
-  glmm_df[paste("x", col, sep=".")] <- x[col]
+  glmm_df[paste("x", col, sep=".")] <- x[, col]
 }
-glmm_formula_string <- sprintf("y ~ %s + (1|y_g)", paste("x", 1:5, sep=".", collapse=" + "))
+regressors <- paste("x", 1:5, sep=".")
+glmm_formula_string <- sprintf("y ~ %s + (1|y_g)", paste(regressors, collapse=" + "))
 
 glmer_time <- Sys.time()
 glmm_res <- glmer(formula(glmm_formula_string),
@@ -160,10 +160,13 @@ if (file.exists(model_file_rdata)) {
 } else {
   # Run this to force re-compilation of the model.
   print("Compiling Stan model.")
-  model_file <- file.path(
-      stan_directory, paste(stan_model_name, "stan", sep="."))
+  # In the stan directory run
+  # $GIT_REPO_LOC/StanSensitivity/python/generate_models.py --base_model=logit_glmm.stan
+  model_file <- file.path(stan_directory, paste(stan_model_name, "_generated.stan", sep=""))
   model <- stan_model(model_file)
-  save(model, file=model_file_rdata)
+  stan_sensitivity_model <- GetStanSensitivityModel(
+    file.path(stan_directory, "logit_glmm"), stan_dat)
+  save(model, stan_sensitivity_model, file=model_file_rdata)
 }
 
 
@@ -171,23 +174,23 @@ if (file.exists(model_file_rdata)) {
 # the prior sensitivity in the MCMC noise.
 seed <- 42
 chains <- 1
-cores <- 4
+cores <- 1 # Use one core for the sensitivity analysis.
 
 
-# Draw the draws and save.
+# MCMC draws.
 mcmc_time <- Sys.time()
 stan_dat$mu_prior_epsilon <- 0
 stan_sim <- sampling(
-    model, data=stan_dat, seed=seed, iter=iters, chains=chains, cores=cores)
+  model, data=stan_dat, seed=seed, iter=iters, chains=chains, cores=cores)
 mcmc_time <- Sys.time() - mcmc_time
 
-# Sample with advi
+# ADVI.
 advi_time <- Sys.time()
 stan_advi <- vb(model, data=stan_dat,  algorithm="meanfield",
                 output_samples=iters)
 advi_time <- Sys.time() - advi_time
 
-# Get a MAP estimate
+# Get a MAP estimate.
 bfgs_map_time <- Sys.time()
 stan_map_bfgs <- optimizing(
     model, data=stan_dat, algorithm="BFGS", hessian=TRUE,
@@ -198,10 +201,21 @@ bfgs_map_time <- bfgs_map_time - Sys.time()
 stan_map <- stan_map_bfgs
 map_time <- bfgs_map_time
 
-# Save the fit to an RData file.
+
+# Get the sensitivity results.
+stopifnot(cores == 1) # rstansensitivity only supports one core for now.
+draws_mat <- extract(stan_sim, permute=FALSE)[,1,]
+mcmc_sens_time <- Sys.time()
+sens_result <- GetStanSensitivityFromModelFit(
+  stan_sim, draws_mat, stan_sensitivity_model)
+mcmc_sens_time <- Sys.time()- mcmc_sens_time
+
+
+# Save the results to an RData file for further post-processing.
 stan_draws_file <- file.path(
     data_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
 save(stan_sim, mcmc_time, stan_dat,
+     sens_result, stan_sensitivity_model, mcmc_sens_time,
      stan_advi, advi_time,
      stan_map, map_time,
      chains, cores,

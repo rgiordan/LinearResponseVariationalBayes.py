@@ -4,6 +4,7 @@ library(lme4)
 library(dplyr)
 library(reshape2)
 library(trust)
+library(tidyr)
 
 library(LRVBUtils)
 
@@ -78,10 +79,8 @@ elbo_hess_ev <- eigen(elbo_hess)$values
 min(elbo_hess_ev)
 max(elbo_hess_ev)
 
-
-###############################
-# MCMC draws
-
+lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_cov))
+stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
 
 #################################
 # Parametric sensitivity analysis
@@ -101,37 +100,69 @@ moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
 moment_par$set_moments(vb_results$glmm_par_free)
 
 # Get MCMC draws in the same format a the VB moments
-mcmc_extract <- extract(stan_results$stan_sim)
-draws_mat <- PackMCMCSamplesIntoMoments(extract(stan_results$stan_sim), glmm_par)
+mcmc_extract <- rstan::extract(stan_results$stan_sim)
+draws_mat <- PackMCMCSamplesIntoMoments(mcmc_extract, glmm_par)
 mcmc_cov <- cov(t(draws_mat))
 mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
 
-#plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
-#plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
+plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
+plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
 
-lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_cov))
-stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
+vb_moments <-
+  RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
+  rename(par=par_1) %>%
+  mutate(metric="mean", method="mfvb")
+
+# Get the MCMC means in the same format as VB.
+mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+mcmc_moment_par$moment_par$set_vector(array(rowMeans(draws_mat)))
+mcmc_moments <-
+  RecursiveUnpackParameter(mcmc_moment_par$moment_par$dictval()) %>%
+  rename(par=par_1) %>%
+  mutate(metric="mean", method="mcmc")
+
+moment_df <-
+  rbind(vb_moments, mcmc_moments) %>%
+  dcast(par + metric + component ~ method, value.var="val")
+
+# ggplot(moment_df) + 
+#   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+#   geom_abline(aes(intercept=0, slope=1))
 
 
+################################################
+# Get the indices of prior parameters
 
-stop()
+prior_par <- py_main$logit_glmm$get_default_prior_params(K=stan_results$stan_dat$K)
+prior_par$set_vector(array(1:prior_par$vector_size()))
+
+prior_index_df <-
+  RecursiveUnpackParameter(prior_par$dictval()) %>%
+  rename(par=par_1, component_2=par_2, index=val) %>%
+  mutate(component_1=component, component_2=as.integer(component_2), index=as.integer(index))
+
+matrix_ud_index <- function(i, j) {
+  matrix_ud_index_ordered <- function(i, j) {
+    as.integer((j - 1) + i * (i - 1) / 2 + 1)
+  }
+  ifelse(i > j, matrix_ud_index_ordered(i, j), matrix_ud_index_ordered(j, i))  
+}
+
+# Make the "component" column of matrix prior parameters into a linearized index
+prior_index_df <- prior_index_df %>%
+  mutate(component_ud=matrix_ud_index(component_1, component_2)) %>%
+  mutate(component=case_when(!is.na(component_2) ~ matrix_ud_index(component_1, component_2),
+                             TRUE ~ component))
 
 
 # Get the MCMC covariance-based results
-log_prior_grad_mat <- stan_results$log_prior_grad_mat
+
+log_prior_grad_mat <- t(stan_results$sens_result$grad_mat)
 log_prior_grad_mat <- log_prior_grad_mat - rep(colMeans(log_prior_grad_mat), each=nrow(log_prior_grad_mat))
 draws_mat <- draws_mat - rowMeans(draws_mat)
 prior_sens_mcmc <- draws_mat %*% log_prior_grad_mat / nrow(log_prior_grad_mat)
 num_mcmc_draws <- nrow(log_prior_grad_mat)
 
-# Keep a subset of the rows to simulate having made fewer MCMC draws.  For this subset, calculate
-# standard deviations.  Just set keep_rows large to calculate standard deviations for all draws.
-# keep_rows <- min(c(nrow(log_prior_grad_mat), 50000))
-# draws_mat_small <- draws_mat[, 1:keep_rows]
-# log_prior_grad_mat_small <- log_prior_grad_mat[1:keep_rows, ]
-
-# mcmc_sd_scale_small <- sqrt(diag(cov(t(draws_mat_small)))) 
-# prior_sens_mcmc_small <- draws_mat_small  %*% log_prior_grad_mat_small / keep_rows
 prior_sens_mcmc_squares <- (draws_mat ^ 2)  %*% (log_prior_grad_mat ^ 2) / num_mcmc_draws
 prior_sens_mcmc_sd <- sqrt(prior_sens_mcmc_squares - prior_sens_mcmc ^ 2) / sqrt(num_mcmc_draws)
 
@@ -140,25 +171,49 @@ prior_sens_mcmc_norm <- draws_mat_norm  %*% log_prior_grad_mat / num_mcmc_draws
 prior_sens_mcmc_norm_squares <- (draws_mat_norm ^ 2)  %*% (log_prior_grad_mat ^ 2) / num_mcmc_draws
 prior_sens_mcmc_norm_sd <- sqrt(prior_sens_mcmc_norm_squares - prior_sens_mcmc_norm ^ 2) / sqrt(num_mcmc_draws)
 
+# We need to map the stan sensitivity to the VB prior parameters.  "Too few values" is ok.
+stan_prior_par_df <-
+  tibble(par=rownames(stan_results$sens_result$sens_mat),
+         stan_index=1:nrow(stan_results$sens_result$sens_mat)) %>%
+  separate(par, into=c("par", "component_1", "component_2"), sep="\\.") %>%
+  mutate(component_1=as.integer(component_1), component_2=as.integer(component_2)) %>%
+  inner_join(prior_index_df, by=c("component_1", "component_2", "par"))
+stopifnot(nrow(stan_prior_par_df) == nrow(prior_index_df))
+
+
+
+# Put into a dataframe
+sens_mat <- 
+stopifnot(max(prior_index_df$index) == ncol(sens_mat))
+
+
+
+
+
+stop()
+
+
 # Unpack the results into dataframes  Note that all
 # the sensitivities have already been calculated at this point, but this is slow due to a lot of
 # R munging that I have never bothered to tidy up.
-prior_sens_df <- rbind(
-  UnpackPriorSensitivityMatrix(prior_sens / lrvb_sd_scale, pp_indices, method="lrvb_norm"),
-  UnpackPriorSensitivityMatrix(prior_sens_mcmc / mcmc_sd_scale, pp_indices, method="mcmc_norm"))
+# prior_sens_df <- rbind(
+#   UnpackPriorSensitivityMatrix(prior_sens / lrvb_sd_scale, pp_indices, method="lrvb_norm"),
+#   UnpackPriorSensitivityMatrix(prior_sens_mcmc / mcmc_sd_scale, pp_indices, method="mcmc_norm"))
 
-prior_sens_sd_df <- UnpackPriorSensitivityMatrix(prior_sens_mcmc_norm_sd, pp_indices, method="mcmc_norm_sd")
+# prior_sens_sd_df <- UnpackPriorSensitivityMatrix(prior_sens_mcmc_norm_sd, pp_indices, method="mcmc_norm_sd")
 
-# Aggregate across different prior components.  This analysis treats each prior component
-# separately, but it's easier to graph and understand if when we change one component of beta_loc or
-# beta_info we change all of them.
-prior_sens_agg <- prior_sens_df %>%
-  filter(k2 == -1 | k1 == k2) %>% # Remove the off-diagonal beta_info sensitivities.
-  ungroup() %>% group_by(par, component, group, method, metric, prior_par) %>%
-  summarize(val=sum(val))
-
-prior_sens_cast <- dcast(
-  prior_sens_agg, par + component + group + prior_par + metric ~ method, value.var="val")
+# # Aggregate across different prior components.  This analysis treats each prior component
+# # separately, but it's easier to graph and understand if when we change one component of beta_loc or
+# # beta_info we change all of them.
+# prior_sens_agg <- prior_sens_df %>%
+#   filter(k2 == -1 | k1 == k2) %>% # Remove the off-diagonal beta_info sensitivities.
+#   ungroup() %>% group_by(par, component, group, method, metric, prior_par) %>%
+#   summarize(val=sum(val))
+# 
+# prior_sens_cast <- dcast(
+#   prior_sens_agg, par + component + group + prior_par + metric ~ method, value.var="val")
+# 
+# 
 
 
 
