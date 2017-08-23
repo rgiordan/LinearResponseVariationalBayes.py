@@ -111,9 +111,12 @@ draws_mat <- as.matrix(stan_results$stan_sim)
 param_names <- colnames(draws_mat)
 stan_vec <- draws_mat[1, ]
 
-ConvertMomentParametersToDF <- function(moment_par) {
-  RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
-    rename(par=par_1)
+ConvertMomentVectorToDF <- function(moment_vector, glmm_par) {
+  local_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  local_moment_par$moment_par$set_vector(array(moment_vector))
+  return(
+    RecursiveUnpackParameter(local_moment_par$moment_par$dictval()) %>%
+      rename(par=par_1))
 }
 
 ConvertStanVectorToDF <- function(
@@ -139,33 +142,70 @@ ConvertStanVectorToDF <- function(
   mcmc_param_dict$e_log_tau$set(log(tau))
   mcmc_param_dict$e_u$set(array(u))
 
-  return(ConvertMomentParametersToDF(mcmc_moment_par))
+  return(ConvertMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
 }
 
 
 ##################
 
+GetMFVBCovVector <- function(glmm_par) {
+  cov_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  cov_param_dict <- cov_moment_par$moment_par$param_dict
+  cov_moment_par$moment_par$set_vector(array(Inf, cov_moment_par$moment_par$vector_size()))
+  
+  beta_cov <- solve(glmm_par$param_dict$beta$info$get())
+  cov_param_dict$e_beta$set(array(diag(beta_cov)))
+
+  cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$info$get())
+  
+  tau_alpha <- glmm_par$param_dict$tau$shape$get()
+  tau_beta <- glmm_par$param_dict$tau$rate$get()
+  tau_var <- tau_alpha / (tau_beta ^ 2)
+  cov_param_dict$e_tau$set(tau_var)
+
+  log_tau_var <- trigamma(tau_alpha)
+  cov_param_dict$e_log_tau$set(log_tau_var)
+
+  u_var <- 1.0 / glmm_par$param_dict$u$info$get()
+  cov_param_dict$e_u$set(array(u_var))
+  
+  return(cov_moment_par$moment_par$get_vector())
+}
+
+
 draws_mat <- as.matrix(stan_results$stan_sim)
 
 moment_par$set_moments(vb_results$glmm_par_free)
-moment_par$moment_par$dictval()
+vb_mean_vec <- moment_par$moment_par$get_vector()
 
-mean_results <-
+mfvb_sd_vec <- sqrt(GetMFVBCovVector(glmm_par))
+mcmc_sd_vec <- sqrt(diag(cov(draws_mat)))
+lrvb_sd_vec <- sqrt(diag(lrvb_cov))
+
+results <-
   rbind(
-    ConvertMomentParametersToDF(moment_par) %>%
-      mutate(method="mfvb", metric="mean"),
-    ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), glmm_par=glmm_par) %>%
-      mutate(method="mcmc", metric="mean")
+    ConvertMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
+    ConvertMomentVectorToDF(mfvb_sd_vec, glmm_par) %>% mutate(method="mfvb", metric="sd"),
+    ConvertMomentVectorToDF(lrvb_sd_vec, glmm_par) %>% mutate(method="lrvb", metric="sd"),
+    ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), glmm_par) %>%
+      mutate(method="mcmc", metric="mean"),
+    ConvertStanVectorToDF(mcmc_sd_vec, colnames(draws_mat), glmm_par) %>%
+      mutate(method="mcmc", metric="sd")
   ) %>%
   dcast(par + metric + component ~ method, value.var="val")
 
 if (FALSE) {
-  ggplot(mean_results) +
+  ggplot(filter(results, metric == "mean")) +
     geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+
+  ggplot(filter(results, metric == "sd")) +
+    geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+    geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
     geom_abline(aes(intercept=0, slope=1))
 }
 
-mcmc_cov <- cov(draws_mat)
+
 
 
 # draws_mat <- PackMCMCSamplesIntoMoments(mcmc_extract, glmm_par)
