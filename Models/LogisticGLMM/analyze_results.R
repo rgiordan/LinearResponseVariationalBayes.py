@@ -99,9 +99,76 @@ stopifnot(max(abs(glmm_par$get_vector() - vb_results$glmm_par_vector)) < 1e-8)
 moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
 moment_par$set_moments(vb_results$glmm_par_free)
 
+
+###################
+# Convert a stan vector to a data frame
+
 # Get MCMC draws in the same format a the VB moments
 mcmc_extract <- rstan::extract(stan_results$stan_sim)
-draws_mat <- PackMCMCSamplesIntoMoments(mcmc_extract, glmm_par)
+
+colnames(as.data.frame(mcmc_extract))
+draws_mat <- as.matrix(stan_results$stan_sim)
+param_names <- colnames(draws_mat)
+stan_vec <- draws_mat[1, ]
+
+ConvertMomentParametersToDF <- function(moment_par) {
+  RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
+    rename(par=par_1)
+}
+
+ConvertStanVectorToDF <- function(
+    stan_vec, param_names, glmm_par, py_main=reticulate::import_main()) {
+
+  k <- glmm_par$param_dict$beta$dim()
+  ng <- glmm_par$param_dict$u$size()
+
+  beta_colnames <- sprintf("beta[%d]", 1:k)
+  u_colnames <- sprintf("u[%d]", 1:ng)
+  
+  beta <- stan_vec[beta_colnames]
+  mu <- stan_vec["mu"]
+  tau <- stan_vec["tau"]
+  u <- stan_vec[u_colnames]
+  
+  mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  mcmc_param_dict <- mcmc_moment_par$moment_par$param_dict
+  
+  mcmc_param_dict$e_beta$set(array(beta))
+  mcmc_param_dict$e_mu$set(mu)
+  mcmc_param_dict$e_tau$set(tau)
+  mcmc_param_dict$e_log_tau$set(log(tau))
+  mcmc_param_dict$e_u$set(array(u))
+
+  return(ConvertMomentParametersToDF(mcmc_moment_par))
+}
+
+
+##################
+
+draws_mat <- as.matrix(stan_results$stan_sim)
+
+moment_par$set_moments(vb_results$glmm_par_free)
+moment_par$moment_par$dictval()
+
+mean_results <-
+  rbind(
+    ConvertMomentParametersToDF(moment_par) %>%
+      mutate(method="mfvb", metric="mean"),
+    ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), glmm_par=glmm_par) %>%
+      mutate(method="mcmc", metric="mean")
+  ) %>%
+  dcast(par + metric + component ~ method, value.var="val")
+
+if (FALSE) {
+  ggplot(mean_results) +
+    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+}
+
+mcmc_cov <- cov(draws_mat)
+
+
+# draws_mat <- PackMCMCSamplesIntoMoments(mcmc_extract, glmm_par)
 mcmc_cov <- cov(t(draws_mat))
 mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
 
@@ -125,9 +192,6 @@ moment_df <-
   rbind(vb_moments, mcmc_moments) %>%
   dcast(par + metric + component ~ method, value.var="val")
 
-# ggplot(moment_df) + 
-#   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-#   geom_abline(aes(intercept=0, slope=1))
 
 
 ################################################
