@@ -131,6 +131,7 @@ ConvertStanVectorToDF <- function(
   beta <- stan_vec[beta_colnames]
   mu <- stan_vec["mu"]
   tau <- stan_vec["tau"]
+  log_tau <- stan_vec["log_tau"]
   u <- stan_vec[u_colnames]
   
   mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
@@ -139,7 +140,7 @@ ConvertStanVectorToDF <- function(
   mcmc_param_dict$e_beta$set(array(beta))
   mcmc_param_dict$e_mu$set(mu)
   mcmc_param_dict$e_tau$set(tau)
-  mcmc_param_dict$e_log_tau$set(log(tau))
+  mcmc_param_dict$e_log_tau$set(log_tau)
   mcmc_param_dict$e_u$set(array(u))
 
   return(ConvertMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
@@ -212,25 +213,25 @@ if (FALSE) {
 mcmc_cov <- cov(t(draws_mat))
 mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
 
-plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
-plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
+# plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
+# plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
 
-vb_moments <-
-  RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
-  rename(par=par_1) %>%
-  mutate(metric="mean", method="mfvb")
-
-# Get the MCMC means in the same format as VB.
-mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-mcmc_moment_par$moment_par$set_vector(array(rowMeans(draws_mat)))
-mcmc_moments <-
-  RecursiveUnpackParameter(mcmc_moment_par$moment_par$dictval()) %>%
-  rename(par=par_1) %>%
-  mutate(metric="mean", method="mcmc")
-
-moment_df <-
-  rbind(vb_moments, mcmc_moments) %>%
-  dcast(par + metric + component ~ method, value.var="val")
+# vb_moments <-
+#   RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
+#   rename(par=par_1) %>%
+#   mutate(metric="mean", method="mfvb")
+# 
+# # Get the MCMC means in the same format as VB.
+# mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+# mcmc_moment_par$moment_par$set_vector(array(rowMeans(draws_mat)))
+# mcmc_moments <-
+#   RecursiveUnpackParameter(mcmc_moment_par$moment_par$dictval()) %>%
+#   rename(par=par_1) %>%
+#   mutate(metric="mean", method="mcmc")
+# 
+# moment_df <-
+#   rbind(vb_moments, mcmc_moments) %>%
+#   dcast(par + metric + component ~ method, value.var="val")
 
 
 

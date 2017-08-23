@@ -85,11 +85,6 @@ parameters {
 
 }
 
-transformed parameters {
-  real log_tau;
-  log_tau = log(tau);
-}
-
 model {
   // priors
   tau ~ gamma(tau_prior_alpha, tau_prior_beta);
