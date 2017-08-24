@@ -101,78 +101,7 @@ moment_par$set_moments(vb_results$glmm_par_free)
 
 
 ###################
-# Convert a stan vector to a data frame
-
-# Get MCMC draws in the same format a the VB moments
-mcmc_extract <- rstan::extract(stan_results$stan_sim)
-
-colnames(as.data.frame(mcmc_extract))
-draws_mat <- as.matrix(stan_results$stan_sim)
-param_names <- colnames(draws_mat)
-stan_vec <- draws_mat[1, ]
-
-ConvertMomentVectorToDF <- function(moment_vector, glmm_par) {
-  local_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-  local_moment_par$moment_par$set_vector(array(moment_vector))
-  return(
-    RecursiveUnpackParameter(local_moment_par$moment_par$dictval()) %>%
-      rename(par=par_1))
-}
-
-ConvertStanVectorToDF <- function(
-    stan_vec, param_names, glmm_par, py_main=reticulate::import_main()) {
-
-  k <- glmm_par$param_dict$beta$dim()
-  ng <- glmm_par$param_dict$u$size()
-
-  beta_colnames <- sprintf("beta[%d]", 1:k)
-  u_colnames <- sprintf("u[%d]", 1:ng)
-  
-  beta <- stan_vec[beta_colnames]
-  mu <- stan_vec["mu"]
-  tau <- stan_vec["tau"]
-  log_tau <- stan_vec["log_tau"]
-  u <- stan_vec[u_colnames]
-  
-  mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-  mcmc_param_dict <- mcmc_moment_par$moment_par$param_dict
-  
-  mcmc_param_dict$e_beta$set(array(beta))
-  mcmc_param_dict$e_mu$set(mu)
-  mcmc_param_dict$e_tau$set(tau)
-  mcmc_param_dict$e_log_tau$set(log_tau)
-  mcmc_param_dict$e_u$set(array(u))
-
-  return(ConvertMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
-}
-
-
-##################
-
-GetMFVBCovVector <- function(glmm_par) {
-  cov_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-  cov_param_dict <- cov_moment_par$moment_par$param_dict
-  cov_moment_par$moment_par$set_vector(array(Inf, cov_moment_par$moment_par$vector_size()))
-  
-  beta_cov <- solve(glmm_par$param_dict$beta$info$get())
-  cov_param_dict$e_beta$set(array(diag(beta_cov)))
-
-  cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$info$get())
-  
-  tau_alpha <- glmm_par$param_dict$tau$shape$get()
-  tau_beta <- glmm_par$param_dict$tau$rate$get()
-  tau_var <- tau_alpha / (tau_beta ^ 2)
-  cov_param_dict$e_tau$set(tau_var)
-
-  log_tau_var <- trigamma(tau_alpha)
-  cov_param_dict$e_log_tau$set(log_tau_var)
-
-  u_var <- 1.0 / glmm_par$param_dict$u$info$get()
-  cov_param_dict$e_u$set(array(u_var))
-  
-  return(cov_moment_par$moment_par$get_vector())
-}
-
+# Make a dataframe out of the mean and covariance results.
 
 draws_mat <- as.matrix(stan_results$stan_sim)
 
@@ -183,17 +112,36 @@ mfvb_sd_vec <- sqrt(GetMFVBCovVector(glmm_par))
 mcmc_sd_vec <- sqrt(diag(cov(draws_mat)))
 lrvb_sd_vec <- sqrt(diag(lrvb_cov))
 
+
+# The MAP estimate
+stan_map <- stan_results$stan_map 
+
+
+# Get the MAP standard deviation based on the negative inverse Hessian
+# at the MAP, with the same names as the draws matrix.
+# If we wanted the sds of log(tau), we'd need the delta method.
+# For tidiness, let's just leave it as NA.
+inv_hess_diag <- -diag(solve(stan_map$hessian))
+names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
+
 results <-
   rbind(
-    ConvertMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
-    ConvertMomentVectorToDF(mfvb_sd_vec, glmm_par) %>% mutate(method="mfvb", metric="sd"),
-    ConvertMomentVectorToDF(lrvb_sd_vec, glmm_par) %>% mutate(method="lrvb", metric="sd"),
+    ConvertPythonMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
+    ConvertPythonMomentVectorToDF(mfvb_sd_vec, glmm_par) %>% mutate(method="mfvb", metric="sd"),
+    ConvertPythonMomentVectorToDF(lrvb_sd_vec, glmm_par) %>% mutate(method="lrvb", metric="sd"),
+    
     ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), glmm_par) %>%
       mutate(method="mcmc", metric="mean"),
     ConvertStanVectorToDF(mcmc_sd_vec, colnames(draws_mat), glmm_par) %>%
-      mutate(method="mcmc", metric="sd")
+      mutate(method="mcmc", metric="sd"),
+
+    ConvertStanVectorToDF(stan_map$par, names(stan_map$par), glmm_par) %>%
+      mutate(method="map", metric="mean"),
+    ConvertStanVectorToDF(sqrt(inv_hess_diag), names(inv_hess_diag$par), glmm_par) %>%
+      mutate(method="map", metric="sd")
   ) %>%
   dcast(par + metric + component ~ method, value.var="val")
+
 
 if (FALSE) {
   ggplot(filter(results, metric == "mean")) +
@@ -204,13 +152,24 @@ if (FALSE) {
     geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
     geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
     geom_abline(aes(intercept=0, slope=1))
+
+  ggplot(filter(results, metric == "mean")) +
+    geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
+  ggplot(filter(results, metric == "sd")) +
+    geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
 }
 
 
 
 ################################################
-# Get the indices of prior parameters
+# Prior sensitivity.
 
+# The Stan sensitivity and VB sensitivity from Python are stored in a different
+# order.  We need to map one to the other, which we do using the prior_index_df dataframe.
 prior_par <- py_main$logit_glmm$get_default_prior_params(K=stan_results$stan_dat$K)
 prior_par$set_vector(array(1:prior_par$vector_size()))
 
@@ -232,38 +191,39 @@ prior_index_df <- prior_index_df %>%
   mutate(component=case_when(!is.na(component_2) ~ matrix_ud_index(component_1, component_2),
                              TRUE ~ component))
 
-
-# We need to map the stan sensitivity to the VB prior parameters.
 # "Too few values" warnings are ok.
-stan_prior_par_df <-
+prior_index_df <-
   tibble(par=rownames(stan_results$sens_result$sens_mat),
          stan_index=1:nrow(stan_results$sens_result$sens_mat)) %>%
   separate(par, into=c("par", "component_1", "component_2"), sep="\\.") %>%
   mutate(component_1=as.integer(component_1), component_2=as.integer(component_2)) %>%
   inner_join(prior_index_df, by=c("component_1", "component_2", "par"))
-stopifnot(nrow(stan_prior_par_df) == nrow(prior_index_df))
 
+
+### Extract the MCMC sensitivity.
 
 mcmc_sens_mat <- stan_results$sens_result$sens_mat
 mcmc_sens_list <- list()
-for (prior_ind in unique(stan_prior_par_df$stan_index)) {
+for (prior_ind in unique(prior_index_df$stan_index)) {
   mcmc_sens_list[[length(mcmc_sens_list) + 1]] <-
     ConvertStanVectorToDF(mcmc_sens_mat[prior_ind, ], rownames(mcmc_sens_mat), glmm_par) %>%
       mutate(method="mcmc", metric="prior_sensitivity", stan_index=prior_ind)
 }
 mcmc_sens_df <- do.call(rbind, mcmc_sens_list) %>%
-  inner_join(stan_prior_par_df, by="stan_index", suffix=c("", "_prior"))
+  inner_join(prior_index_df, by="stan_index", suffix=c("", "_prior"))
 
+
+### Extract the VB sensitivity.
 
 vb_sens_list <- list()
-for (prior_ind in unique(stan_prior_par_df$vb_index)) {
+for (prior_ind in unique(prior_index_df$vb_index)) {
   vb_sens_list[[length(vb_sens_list) + 1]] <-
-    ConvertMomentVectorToDF(vb_prior_sens[, prior_ind], glmm_par) %>%
+    ConvertPythonMomentVectorToDF(vb_prior_sens[, prior_ind], glmm_par) %>%
     mutate(method="lrvb", metric="prior_sensitivity", vb_index=prior_ind)
 }
 vb_sens_df <-
   do.call(rbind, vb_sens_list) %>%
-  inner_join(stan_prior_par_df, by="vb_index", suffix=c("", "_prior"))
+  inner_join(prior_index_df, by="vb_index", suffix=c("", "_prior"))
 
 
 # Group together diagonal and off-diagonal elements of the sensitivity
@@ -288,115 +248,12 @@ sens_df_cast <-
         par + component + metric + par_prior ~ method,
         value.var="val")
 
-
 if (FALSE) {
   ggplot(sens_df_cast) + 
     geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
     geom_abline(aes(slope=1, intercept=0))
 }
 
-
-
-
-
-stop()
-
-
-# Unpack the results into dataframes  Note that all
-# the sensitivities have already been calculated at this point, but this is slow due to a lot of
-# R munging that I have never bothered to tidy up.
-# vb_prior_sens_df <- rbind(
-#   UnpackPriorSensitivityMatrix(vb_prior_sens / lrvb_sd_scale, pp_indices, method="lrvb_norm"),
-#   UnpackPriorSensitivityMatrix(vb_prior_sens_mcmc / mcmc_sd_scale, pp_indices, method="mcmc_norm"))
-
-# vb_prior_sens_sd_df <- UnpackPriorSensitivityMatrix(vb_prior_sens_mcmc_norm_sd, pp_indices, method="mcmc_norm_sd")
-
-# # Aggregate across different prior components.  This analysis treats each prior component
-# # separately, but it's easier to graph and understand if when we change one component of beta_loc or
-# # beta_info we change all of them.
-# vb_prior_sens_agg <- vb_prior_sens_df %>%
-#   filter(k2 == -1 | k1 == k2) %>% # Remove the off-diagonal beta_info sensitivities.
-#   ungroup() %>% group_by(par, component, group, method, metric, prior_par) %>%
-#   summarize(val=sum(val))
-# 
-# vb_prior_sens_cast <- dcast(
-#   vb_prior_sens_agg, par + component + group + prior_par + metric ~ method, value.var="val")
-# 
-# 
-
-
-
-
-#############################
-# Unpack the results.
-
-StanParToMomentParams <- function(par, bracket=TRUE) {
-  par_mp <- GetMomentParametersFromVector(mp_opt, rep(NaN, mp_opt$encoded_size), unconstrained=TRUE)
-  if (bracket) {
-    beta <- par[sprintf("beta[%d]", 1:vp_opt$k_reg)]
-    u <- par[sprintf("u[%d]", 1:vp_opt$n_groups)]
-  } else {
-    beta <- par[sprintf("beta.%d", 1:vp_opt$k_reg)]
-    u <- par[sprintf("u.%d", 1:vp_opt$n_groups)]
-  }
-  mu <- par["mu"]
-  tau <- par["tau"]
-  par_mp$beta_e_vec <- beta
-  par_mp$beta_e_outer <- beta %*% t(beta)
-  par_mp$mu_e <- mu
-  par_mp$mu_e2 <- mu^2
-  par_mp$tau_e <- tau
-  par_mp$tau_e_log <- log(tau)
-  for (g in 1:(vp_opt$n_groups)) {
-    par_mp$u[[g]]$u_e <- u[g]
-    par_mp$u[[g]]$u_e2 <- u[g]^2
-  }
-  return(par_mp)  
-}
-
-# The MAP estimate
-stan_map <- vb_results$stan_results$stan_map 
-map_mp <- StanParToMomentParams(stan_map$par)
-inv_hess_diag <- -diag(solve(stan_map$hessian))
-map_sd_mp <- StanParToMomentParams(sqrt(inv_hess_diag), bracket=FALSE)
-# If we wanted the sds of the squares or log, we'd need a delta method.  Not needed, though.
-map_sd_mp$beta_e_outer[] <- NaN
-map_sd_mp$tau_e_log <- NaN
-map_sd_mp$mu_e2 <- NaN
-for (g in 1:(vp_opt$n_groups)) {
-  map_sd_mp$u[[g]]$u_e2 <- NaN
-}
-
-map_results <- rbind(
-  SummarizeVBResults(map_mp, "map", "mean"),
-  SummarizeVBResults(map_sd_mp, "map", "sd"))
-
-# The truth
-true_params <- vb_results$stan_results$true_params
-true_mp <- GetMomentParametersFromVector(mp_opt, rep(NaN, mp_opt$encoded_size), unconstrained=TRUE)
-true_mp$beta_e_vec <- true_params$beta
-true_mp$beta_e_outer <- true_params$beta %*% t(true_params$beta)
-true_mp$mu_e <- true_params$mu
-true_mp$mu_e2 <- true_params$mu^2
-true_mp$tau_e <- true_params$tau
-true_mp$tau_e_log <- log(true_params$tau)
-for (g in 1:(vp_opt$n_groups)) {
-  true_mp$u[[g]]$u_e <- true_params$u[[g]]
-  true_mp$u[[g]]$u_e2 <- true_params$u[[g]]^2
-}
-
-# MCMC and VB
-mcmc_sample <- extract(vb_results$stan_results$stan_sim)
-lrvb_cov <- vb_results$lrvb_results$lrvb_cov
-mfvb_cov <- GetCovariance(vp_opt)
-vp_mom <- GetMomentParametersFromNaturalParameters(vp_opt)
-lrvb_sd <- GetMomentParametersFromVector(vp_mom, sqrt(diag(lrvb_cov)), FALSE)
-mfvb_sd <- GetMomentParametersFromVector(vp_mom, sqrt(diag(mfvb_cov)), FALSE)
-
-results <-
-  rbind(SummarizeResults(mcmc_sample, vp_mom, mfvb_sd, lrvb_sd),
-        SummarizeVBResults(true_mp, "truth", "mean"),
-        map_results)
 
 if (save_results) {
   mcmc_time <- as.numeric(vb_results$stan_results$mcmc_time, units="secs")
