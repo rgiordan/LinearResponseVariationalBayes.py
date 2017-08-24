@@ -124,7 +124,7 @@ stan_map <- stan_results$stan_map
 inv_hess_diag <- -diag(solve(stan_map$hessian))
 names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
 
-results <-
+results_posterior <-
   rbind(
     ConvertPythonMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
     ConvertPythonMomentVectorToDF(mfvb_sd_vec, glmm_par) %>% mutate(method="mfvb", metric="sd"),
@@ -139,8 +139,9 @@ results <-
       mutate(method="map", metric="mean"),
     ConvertStanVectorToDF(sqrt(inv_hess_diag), names(inv_hess_diag$par), glmm_par) %>%
       mutate(method="map", metric="sd")
-  ) %>%
-  dcast(par + metric + component ~ method, value.var="val")
+  )
+
+results <- dcast(results_posterior, par + metric + component ~ method, value.var="val")
 
 
 if (FALSE) {
@@ -226,14 +227,42 @@ vb_sens_df <-
   inner_join(prior_index_df, by="vb_index", suffix=c("", "_prior"))
 
 
+# Get standard deviations for normalizing the sensitivities
+results_sd <-
+  filter(results_posterior, metric == "sd", method %in% c("lrvb", "mcmc")) %>%
+  select(par, component, method, val) %>%
+  rename(post_sd=val)
+
+sens_df <-
+  rbind(vb_sens_df, mcmc_sens_df) %>%
+  select(-vb_index, -stan_index) %>%
+  rename(component_1_prior=component_1, component_2_prior=component_2)
+
+sens_df_norm <-
+  inner_join(sens_df, results_sd, by=c("par", "component", "method")) %>%
+  mutate(metric="prior_sensitivity_norm", val=val / post_sd) %>%
+  select(-post_sd)
+
+# Sanity check
+if (FALSE) {
+  foo <- rbind(sens_df, sens_df_norm) %>%
+    dcast(par + component + par_prior + component_prior +
+            component_1_prior + component_2_prior + method ~ metric,
+          value.var="val")
+  ggplot(foo) + 
+    geom_point(aes(prior_sensitivity, prior_sensitivity_norm, color=par)) +
+    geom_abline(aes(slope=1, intercept=0))
+}
+
 # Group together diagonal and off-diagonal elements of the sensitivity
 # to the information matrix.  Note that NA values do not trip a case_when():
 # > case_when(NA ~ 0, TRUE ~ 1)
 # > 1
-sens_df <-
-  rbind(vb_sens_df, mcmc_sens_df) %>%
-  select(-vb_index, -stan_index) %>%
-  rename(component_1_prior=component_1, component_2_prior=component_2) %>%
+# Note that we can add up the normalized sensitivity of a single posterior component
+# to several prior components because the denominator -- the posterior standard deviation --
+# is the same for each prior component.
+sensitivity_results <-
+  rbind(sens_df, sens_df_norm) %>%
   mutate(diag_prior=case_when(is.na(component_2_prior) | is.na(component_1_prior) ~ FALSE,
                               TRUE ~ component_1_prior == component_2_prior)) %>%
   mutate(par_prior=case_when(diag_prior ~ paste(par_prior, "diag", sep="_"),
@@ -241,15 +270,19 @@ sens_df <-
   group_by(par, component, method, metric, par_prior) %>%
   summarize(val=sum(val), n=n())
 
-unique(sens_df[c("par_prior", "n")]) # Sanity check
+unique(sensitivity_results[c("par_prior", "n")]) # Sanity check
 
 sens_df_cast <-
-  dcast(sens_df,
+  dcast(sensitivity_results,
         par + component + metric + par_prior ~ method,
         value.var="val")
 
 if (FALSE) {
-  ggplot(sens_df_cast) + 
+  ggplot(filter(sens_df_cast, metric=="prior_sensitivity")) + 
+    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
+    geom_abline(aes(slope=1, intercept=0))
+  
+  ggplot(filter(sens_df_cast, metric=="prior_sensitivity_norm")) + 
     geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
     geom_abline(aes(slope=1, intercept=0))
 }
@@ -259,14 +292,23 @@ if (save_results) {
   mcmc_time <- as.numeric(vb_results$stan_results$mcmc_time, units="secs")
   vb_time <- as.numeric(vb_results$fit_time, units="secs")
   hess_time <- as.numeric(vb_results$hess_time, units="secs")
-  num_mcmc_draws <- nrow(as.matrix(vb_results$stan_results$stan_sim))
-  num_logit_sims <- vb_results$num_mc_draws
-  num_obs <- vb_results$stan_results$stan_dat$N
-  beta_dim <- vb_results$stan_results$stan_dat$K
-  elbo_hess_sparsity <- Matrix(abs(lrvb_results$elbo_hess) > 1e-8)
-  save(results, vb_prior_sens_cast, mp_opt,
-       mcmc_time, vb_time, num_mcmc_draws, num_mc_draws, hess_time,
-       pp, num_logit_sims, num_obs, beta_dim,
+  num_mcmc_draws <- nrow(as.matrix(stan_results$stan_sim))
+  num_gh_points <- vb_results$num_gh_points
+  
+  # Prior parameters
+  pp <- stan_results$stan_dat
+  pp$y_group <- NULL
+  pp$y <- NULL
+  pp$x <- NULL
+
+  num_obs <- stan_results$stan_dat$N
+  beta_dim <- stan_results$stan_dat$K
+  elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
+  save(results,
+       sens_df_cast,
+       mcmc_time, vb_time,
+       num_mcmc_draws, num_gh_points, hess_time,
+       pp, num_obs, beta_dim,
        elbo_hess_sparsity,
        file=results_file)
 }
