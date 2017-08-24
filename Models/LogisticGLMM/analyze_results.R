@@ -90,7 +90,7 @@ stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
   
 log_prior_hess <- t(vb_results$log_prior_hess)
 
-prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
+vb_prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
 
 glmm_par <- py_main$logit_glmm$get_glmm_parameters(
   K=stan_results$stan_dat$K, NG=stan_results$stan_dat$NG)
@@ -208,33 +208,6 @@ if (FALSE) {
 
 
 
-
-# draws_mat <- PackMCMCSamplesIntoMoments(mcmc_extract, glmm_par)
-mcmc_cov <- cov(t(draws_mat))
-mcmc_sd_scale <- sqrt(diag(cov(t(draws_mat)))) 
-
-# plot(diag(mcmc_cov), diag(lrvb_cov)); abline(0, 1)
-# plot(rowMeans(draws_mat), moment_par$moment_par$get_vector()); abline(0, 1)
-
-# vb_moments <-
-#   RecursiveUnpackParameter(moment_par$moment_par$dictval()) %>%
-#   rename(par=par_1) %>%
-#   mutate(metric="mean", method="mfvb")
-# 
-# # Get the MCMC means in the same format as VB.
-# mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-# mcmc_moment_par$moment_par$set_vector(array(rowMeans(draws_mat)))
-# mcmc_moments <-
-#   RecursiveUnpackParameter(mcmc_moment_par$moment_par$dictval()) %>%
-#   rename(par=par_1) %>%
-#   mutate(metric="mean", method="mcmc")
-# 
-# moment_df <-
-#   rbind(vb_moments, mcmc_moments) %>%
-#   dcast(par + metric + component ~ method, value.var="val")
-
-
-
 ################################################
 # Get the indices of prior parameters
 
@@ -243,8 +216,8 @@ prior_par$set_vector(array(1:prior_par$vector_size()))
 
 prior_index_df <-
   RecursiveUnpackParameter(prior_par$dictval()) %>%
-  rename(par=par_1, component_2=par_2, index=val) %>%
-  mutate(component_1=component, component_2=as.integer(component_2), index=as.integer(index))
+  rename(par=par_1, component_2=par_2, vb_index=val) %>%
+  mutate(component_1=component, component_2=as.integer(component_2), vb_index=as.integer(vb_index))
 
 matrix_ud_index <- function(i, j) {
   matrix_ud_index_ordered <- function(i, j) {
@@ -260,23 +233,8 @@ prior_index_df <- prior_index_df %>%
                              TRUE ~ component))
 
 
-# Get the MCMC covariance-based results
-
-log_prior_grad_mat <- t(stan_results$sens_result$grad_mat)
-log_prior_grad_mat <- log_prior_grad_mat - rep(colMeans(log_prior_grad_mat), each=nrow(log_prior_grad_mat))
-draws_mat <- draws_mat - rowMeans(draws_mat)
-prior_sens_mcmc <- draws_mat %*% log_prior_grad_mat / nrow(log_prior_grad_mat)
-num_mcmc_draws <- nrow(log_prior_grad_mat)
-
-prior_sens_mcmc_squares <- (draws_mat ^ 2)  %*% (log_prior_grad_mat ^ 2) / num_mcmc_draws
-prior_sens_mcmc_sd <- sqrt(prior_sens_mcmc_squares - prior_sens_mcmc ^ 2) / sqrt(num_mcmc_draws)
-
-draws_mat_norm <- draws_mat / mcmc_sd_scale
-prior_sens_mcmc_norm <- draws_mat_norm  %*% log_prior_grad_mat / num_mcmc_draws
-prior_sens_mcmc_norm_squares <- (draws_mat_norm ^ 2)  %*% (log_prior_grad_mat ^ 2) / num_mcmc_draws
-prior_sens_mcmc_norm_sd <- sqrt(prior_sens_mcmc_norm_squares - prior_sens_mcmc_norm ^ 2) / sqrt(num_mcmc_draws)
-
-# We need to map the stan sensitivity to the VB prior parameters.  "Too few values" is ok.
+# We need to map the stan sensitivity to the VB prior parameters.
+# "Too few values" warnings are ok.
 stan_prior_par_df <-
   tibble(par=rownames(stan_results$sens_result$sens_mat),
          stan_index=1:nrow(stan_results$sens_result$sens_mat)) %>%
@@ -286,10 +244,56 @@ stan_prior_par_df <-
 stopifnot(nrow(stan_prior_par_df) == nrow(prior_index_df))
 
 
+mcmc_sens_mat <- stan_results$sens_result$sens_mat
+mcmc_sens_list <- list()
+for (prior_ind in unique(stan_prior_par_df$stan_index)) {
+  mcmc_sens_list[[length(mcmc_sens_list) + 1]] <-
+    ConvertStanVectorToDF(mcmc_sens_mat[prior_ind, ], rownames(mcmc_sens_mat), glmm_par) %>%
+      mutate(method="mcmc", metric="prior_sensitivity", stan_index=prior_ind)
+}
+mcmc_sens_df <- do.call(rbind, mcmc_sens_list) %>%
+  inner_join(stan_prior_par_df, by="stan_index", suffix=c("", "_prior"))
 
-# Put into a dataframe
-sens_mat <- 
-stopifnot(max(prior_index_df$index) == ncol(sens_mat))
+
+vb_sens_list <- list()
+for (prior_ind in unique(stan_prior_par_df$vb_index)) {
+  vb_sens_list[[length(vb_sens_list) + 1]] <-
+    ConvertMomentVectorToDF(vb_prior_sens[, prior_ind], glmm_par) %>%
+    mutate(method="lrvb", metric="prior_sensitivity", vb_index=prior_ind)
+}
+vb_sens_df <-
+  do.call(rbind, vb_sens_list) %>%
+  inner_join(stan_prior_par_df, by="vb_index", suffix=c("", "_prior"))
+
+
+# Group together diagonal and off-diagonal elements of the sensitivity
+# to the information matrix.  Note that NA values do not trip a case_when():
+# > case_when(NA ~ 0, TRUE ~ 1)
+# > 1
+sens_df <-
+  rbind(vb_sens_df, mcmc_sens_df) %>%
+  select(-vb_index, -stan_index) %>%
+  rename(component_1_prior=component_1, component_2_prior=component_2) %>%
+  mutate(diag_prior=case_when(is.na(component_2_prior) | is.na(component_1_prior) ~ FALSE,
+                              TRUE ~ component_1_prior == component_2_prior)) %>%
+  mutate(par_prior=case_when(diag_prior ~ paste(par_prior, "diag", sep="_"),
+                             TRUE ~ par_prior)) %>%
+  group_by(par, component, method, metric, par_prior) %>%
+  summarize(val=sum(val), n=n())
+
+unique(sens_df[c("par_prior", "n")]) # Sanity check
+
+sens_df_cast <-
+  dcast(sens_df,
+        par + component + metric + par_prior ~ method,
+        value.var="val")
+
+
+if (FALSE) {
+  ggplot(sens_df_cast) + 
+    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
+    geom_abline(aes(slope=1, intercept=0))
+}
 
 
 
@@ -301,22 +305,22 @@ stop()
 # Unpack the results into dataframes  Note that all
 # the sensitivities have already been calculated at this point, but this is slow due to a lot of
 # R munging that I have never bothered to tidy up.
-# prior_sens_df <- rbind(
-#   UnpackPriorSensitivityMatrix(prior_sens / lrvb_sd_scale, pp_indices, method="lrvb_norm"),
-#   UnpackPriorSensitivityMatrix(prior_sens_mcmc / mcmc_sd_scale, pp_indices, method="mcmc_norm"))
+# vb_prior_sens_df <- rbind(
+#   UnpackPriorSensitivityMatrix(vb_prior_sens / lrvb_sd_scale, pp_indices, method="lrvb_norm"),
+#   UnpackPriorSensitivityMatrix(vb_prior_sens_mcmc / mcmc_sd_scale, pp_indices, method="mcmc_norm"))
 
-# prior_sens_sd_df <- UnpackPriorSensitivityMatrix(prior_sens_mcmc_norm_sd, pp_indices, method="mcmc_norm_sd")
+# vb_prior_sens_sd_df <- UnpackPriorSensitivityMatrix(vb_prior_sens_mcmc_norm_sd, pp_indices, method="mcmc_norm_sd")
 
 # # Aggregate across different prior components.  This analysis treats each prior component
 # # separately, but it's easier to graph and understand if when we change one component of beta_loc or
 # # beta_info we change all of them.
-# prior_sens_agg <- prior_sens_df %>%
+# vb_prior_sens_agg <- vb_prior_sens_df %>%
 #   filter(k2 == -1 | k1 == k2) %>% # Remove the off-diagonal beta_info sensitivities.
 #   ungroup() %>% group_by(par, component, group, method, metric, prior_par) %>%
 #   summarize(val=sum(val))
 # 
-# prior_sens_cast <- dcast(
-#   prior_sens_agg, par + component + group + prior_par + metric ~ method, value.var="val")
+# vb_prior_sens_cast <- dcast(
+#   vb_prior_sens_agg, par + component + group + prior_par + metric ~ method, value.var="val")
 # 
 # 
 
@@ -403,7 +407,7 @@ if (save_results) {
   num_obs <- vb_results$stan_results$stan_dat$N
   beta_dim <- vb_results$stan_results$stan_dat$K
   elbo_hess_sparsity <- Matrix(abs(lrvb_results$elbo_hess) > 1e-8)
-  save(results, prior_sens_cast, mp_opt,
+  save(results, vb_prior_sens_cast, mp_opt,
        mcmc_time, vb_time, num_mcmc_draws, num_mc_draws, hess_time,
        pp, num_logit_sims, num_obs, beta_dim,
        elbo_hess_sparsity,
@@ -482,7 +486,7 @@ ggplot(
 
 # Sensitivity
 
-ggplot(filter(prior_sens_cast, par != "u")) +
+ggplot(filter(vb_prior_sens_cast, par != "u")) +
   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=par)) +
   geom_abline(aes(intercept=0, slope=1))
 
@@ -490,7 +494,7 @@ ggplot(filter(prior_sens_cast, par != "u")) +
 # Note: mcmc_norm_sd is not here because it doens't work with the aggregation.
 
 # Compare LRVB with the MCMC standard deviations
-ggplot(filter(prior_sens_cast, par=="u")) +
+ggplot(filter(vb_prior_sens_cast, par=="u")) +
   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=prior_par)) +
   geom_errorbar(aes(x=lrvb_norm,
                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
@@ -499,7 +503,7 @@ ggplot(filter(prior_sens_cast, par=="u")) +
   geom_abline(aes(intercept=0, slope=1))
 
 # Compare MCMC with its own estimated standard deviations.
-ggplot(filter(prior_sens_cast, par=="u")) +
+ggplot(filter(vb_prior_sens_cast, par=="u")) +
   geom_point(aes(x=mcmc_norm, y=mcmc_norm, color=prior_par)) +
   geom_errorbar(aes(x=mcmc_norm,
                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
@@ -507,7 +511,7 @@ ggplot(filter(prior_sens_cast, par=="u")) +
                     color=prior_par)) +
   geom_abline(aes(intercept=0, slope=1))
 
-ggplot(filter(prior_sens_cast, par=="u")) +
+ggplot(filter(vb_prior_sens_cast, par=="u")) +
   geom_point(aes(x=mcmc_norm, y=mcmc_norm_small, color=prior_par)) +
   geom_errorbar(aes(x=mcmc_norm,
                     ymin=mcmc_norm_small - 2 * mcmc_norm_small_sd,
@@ -515,7 +519,7 @@ ggplot(filter(prior_sens_cast, par=="u")) +
                     color=prior_par)) +
   geom_abline(aes(intercept=0, slope=1))
 
-ggplot(filter(prior_sens_cast, par=="u")) +
+ggplot(filter(vb_prior_sens_cast, par=="u")) +
   geom_point(aes(x=mcmc, y=mcmc_small, color=prior_par)) +
   geom_errorbar(aes(x=mcmc_norm,
                     ymin=mcmc_small - 2 * mcmc_small_sd,
