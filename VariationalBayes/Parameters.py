@@ -179,9 +179,9 @@ class VectorParam(object):
     def set(self, val):
         if val.size != self.size():
             raise ValueError('Wrong size for vector ' + self.name)
-        if any(val < self.__lb):
+        if (np.array(val < self.__lb)).any():
             raise ValueError('Value beneath lower bound.')
-        if any(val > self.__ub):
+        if (np.array(val > self.__ub)).any():
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
@@ -253,9 +253,9 @@ class ArrayParam(object):
     def set(self, val):
         if val.shape != self.shape():
             raise ValueError('Wrong size for array ' + self.name)
-        if (val < self.__lb).any():
+        if (np.array(val < self.__lb)).any():
             raise ValueError('Value beneath lower bound.')
-        if (val > self.__ub).any():
+        if (np.array(val > self.__ub)).any():
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
