@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -321,107 +321,107 @@ stop("Graphs follow -- not executing.")
 
 # Overall
 
-ggplot(
-  filter(results, metric == "mean") %>%
-    dcast(par + component + group ~ method, value.var="val") %>%
-    mutate(is_u = par == "u")) +
-  geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-  geom_abline(aes(intercept=0, slope=1)) +
-  facet_grid(~ is_u)
-
-ggplot(
-  filter(results, metric == "sd") %>%
-    dcast(par + component + group ~ method, value.var="val") %>%
-    mutate(is_u = par == "u")) +
-  geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-  geom_abline(aes(intercept=0, slope=1)) +
-  facet_grid(~ is_u) +
-  ggtitle("Posterior standard deviations")
-
-ggplot(
-  filter(results, metric == "sd", par != "u") %>%
-    dcast(par + component + group ~ method, value.var="val")
-) +
-  geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-  expand_limits(x=0, y=0) +
-  xlab("MCMC (ground truth)") + ylab("VB") +
-  scale_color_discrete(guide=guide_legend(title="Method")) +
-  geom_abline(aes(intercept=0, slope=1))
-
-ggplot(
-  filter(results, metric == "sd", par == "mu") %>%
-    dcast(par + component + group ~ method, value.var="val")
-) +
-  geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-  geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-  expand_limits(x=0, y=0) +
-  xlab("MCMC (ground truth)") + ylab("VB") +
-  scale_color_discrete(guide=guide_legend(title="Method")) +
-  geom_abline(aes(intercept=0, slope=1))
-
-
-ggplot(
-  filter(results, metric == "sd", par != "u") %>%
-    dcast(par + component + group ~ method, value.var="val")
-) +
-  geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
-  expand_limits(x=0, y=0) +
-  xlab("MCMC (ground truth)") + ylab("MAP") +
-  scale_color_discrete(guide=guide_legend(title="Method")) +
-  geom_abline(aes(intercept=0, slope=1))
-
-ggplot(
-  filter(results, metric == "mean") %>%
-    dcast(par + component + group ~ method, value.var="val") %>%
-    mutate(is_u = par == "u")) +
-  geom_point(aes(x=truth, y=mcmc, shape=par, color="mcmc"), size=3) +
-  geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
-  geom_point(aes(x=truth, y=map, shape=par, color="map"), size=3) +
-  geom_abline(aes(intercept=0, slope=1)) +
-  facet_grid(~ is_u)
-
-
-# Sensitivity
-
-ggplot(filter(vb_prior_sens_cast, par != "u")) +
-  geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=par)) +
-  geom_abline(aes(intercept=0, slope=1))
-
-
-# Note: mcmc_norm_sd is not here because it doens't work with the aggregation.
-
-# Compare LRVB with the MCMC standard deviations
-ggplot(filter(vb_prior_sens_cast, par=="u")) +
-  geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=prior_par)) +
-  geom_errorbar(aes(x=lrvb_norm,
-                    ymin=mcmc_norm - 2 * mcmc_norm_sd,
-                    ymax=mcmc_norm + 2 * mcmc_norm_sd,
-                    color=prior_par)) +
-  geom_abline(aes(intercept=0, slope=1))
-
-# Compare MCMC with its own estimated standard deviations.
-ggplot(filter(vb_prior_sens_cast, par=="u")) +
-  geom_point(aes(x=mcmc_norm, y=mcmc_norm, color=prior_par)) +
-  geom_errorbar(aes(x=mcmc_norm,
-                    ymin=mcmc_norm - 2 * mcmc_norm_sd,
-                    ymax=mcmc_norm + 2 * mcmc_norm_sd,
-                    color=prior_par)) +
-  geom_abline(aes(intercept=0, slope=1))
-
-ggplot(filter(vb_prior_sens_cast, par=="u")) +
-  geom_point(aes(x=mcmc_norm, y=mcmc_norm_small, color=prior_par)) +
-  geom_errorbar(aes(x=mcmc_norm,
-                    ymin=mcmc_norm_small - 2 * mcmc_norm_small_sd,
-                    ymax=mcmc_norm_small + 2 * mcmc_norm_small_sd,
-                    color=prior_par)) +
-  geom_abline(aes(intercept=0, slope=1))
-
-ggplot(filter(vb_prior_sens_cast, par=="u")) +
-  geom_point(aes(x=mcmc, y=mcmc_small, color=prior_par)) +
-  geom_errorbar(aes(x=mcmc_norm,
-                    ymin=mcmc_small - 2 * mcmc_small_sd,
-                    ymax=mcmc_small + 2 * mcmc_small_sd,
-                    color=prior_par)) +
-  geom_abline(aes(intercept=0, slope=1))
+# ggplot(
+#   filter(results, metric == "mean") %>%
+#     dcast(par + component + group ~ method, value.var="val") %>%
+#     mutate(is_u = par == "u")) +
+#   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+#   geom_abline(aes(intercept=0, slope=1)) +
+#   facet_grid(~ is_u)
+# 
+# ggplot(
+#   filter(results, metric == "sd") %>%
+#     dcast(par + component + group ~ method, value.var="val") %>%
+#     mutate(is_u = par == "u")) +
+#   geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
+#   geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
+#   geom_abline(aes(intercept=0, slope=1)) +
+#   facet_grid(~ is_u) +
+#   ggtitle("Posterior standard deviations")
+# 
+# ggplot(
+#   filter(results, metric == "sd", par != "u") %>%
+#     dcast(par + component + group ~ method, value.var="val")
+# ) +
+#   geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+#   geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
+#   expand_limits(x=0, y=0) +
+#   xlab("MCMC (ground truth)") + ylab("VB") +
+#   scale_color_discrete(guide=guide_legend(title="Method")) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# ggplot(
+#   filter(results, metric == "sd", par == "mu") %>%
+#     dcast(par + component + group ~ method, value.var="val")
+# ) +
+#   geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+#   geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
+#   expand_limits(x=0, y=0) +
+#   xlab("MCMC (ground truth)") + ylab("VB") +
+#   scale_color_discrete(guide=guide_legend(title="Method")) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# 
+# ggplot(
+#   filter(results, metric == "sd", par != "u") %>%
+#     dcast(par + component + group ~ method, value.var="val")
+# ) +
+#   geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
+#   expand_limits(x=0, y=0) +
+#   xlab("MCMC (ground truth)") + ylab("MAP") +
+#   scale_color_discrete(guide=guide_legend(title="Method")) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# ggplot(
+#   filter(results, metric == "mean") %>%
+#     dcast(par + component + group ~ method, value.var="val") %>%
+#     mutate(is_u = par == "u")) +
+#   geom_point(aes(x=truth, y=mcmc, shape=par, color="mcmc"), size=3) +
+#   geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
+#   geom_point(aes(x=truth, y=map, shape=par, color="map"), size=3) +
+#   geom_abline(aes(intercept=0, slope=1)) +
+#   facet_grid(~ is_u)
+# 
+# 
+# # Sensitivity
+# 
+# ggplot(filter(vb_prior_sens_cast, par != "u")) +
+#   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=par)) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# 
+# # Note: mcmc_norm_sd is not here because it doens't work with the aggregation.
+# 
+# # Compare LRVB with the MCMC standard deviations
+# ggplot(filter(vb_prior_sens_cast, par=="u")) +
+#   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=prior_par)) +
+#   geom_errorbar(aes(x=lrvb_norm,
+#                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
+#                     ymax=mcmc_norm + 2 * mcmc_norm_sd,
+#                     color=prior_par)) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# # Compare MCMC with its own estimated standard deviations.
+# ggplot(filter(vb_prior_sens_cast, par=="u")) +
+#   geom_point(aes(x=mcmc_norm, y=mcmc_norm, color=prior_par)) +
+#   geom_errorbar(aes(x=mcmc_norm,
+#                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
+#                     ymax=mcmc_norm + 2 * mcmc_norm_sd,
+#                     color=prior_par)) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# ggplot(filter(vb_prior_sens_cast, par=="u")) +
+#   geom_point(aes(x=mcmc_norm, y=mcmc_norm_small, color=prior_par)) +
+#   geom_errorbar(aes(x=mcmc_norm,
+#                     ymin=mcmc_norm_small - 2 * mcmc_norm_small_sd,
+#                     ymax=mcmc_norm_small + 2 * mcmc_norm_small_sd,
+#                     color=prior_par)) +
+#   geom_abline(aes(intercept=0, slope=1))
+# 
+# ggplot(filter(vb_prior_sens_cast, par=="u")) +
+#   geom_point(aes(x=mcmc, y=mcmc_small, color=prior_par)) +
+#   geom_errorbar(aes(x=mcmc_norm,
+#                     ymin=mcmc_small - 2 * mcmc_small_sd,
+#                     ymax=mcmc_small + 2 * mcmc_small_sd,
+#                     color=prior_par)) +
+#   geom_abline(aes(intercept=0, slope=1))
