@@ -27,7 +27,6 @@ def get_glmm_parameters(
     return glmm_par
 
 
-
 def simulate_data(N, NG, true_beta, true_mu, true_tau):
     def Logistic(u):
         return np.exp(u) / (1 + np.exp(u))
@@ -120,7 +119,7 @@ class LogisticGLMM(object):
         e_log_p_tau = ef.gamma_prior(
             tau_prior_shape, tau_prior_rate, e_tau, e_log_tau)
 
-        return  e_log_p_beta + e_log_p_mu + e_log_p_tau
+        return e_log_p_beta + e_log_p_mu + e_log_p_tau
 
     def get_log_lik(self):
         e_beta = self.glmm_par['beta'].e()

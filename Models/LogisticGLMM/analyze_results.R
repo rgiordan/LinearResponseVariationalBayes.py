@@ -75,10 +75,6 @@ lrvb_cov <- vb_results$lrvb_cov
 min(diag(lrvb_cov))
 max(diag(lrvb_cov))
 
-elbo_hess_ev <- eigen(elbo_hess)$values
-min(elbo_hess_ev)
-max(elbo_hess_ev)
-
 lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_cov))
 stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
 
@@ -142,28 +138,6 @@ results_posterior <-
   )
 
 results <- dcast(results_posterior, par + metric + component ~ method, value.var="val")
-
-
-if (FALSE) {
-  ggplot(filter(results, metric == "mean")) +
-    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-
-  ggplot(filter(results, metric == "sd")) +
-    geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-    geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-
-  ggplot(filter(results, metric == "mean")) +
-    geom_point(aes(x=mcmc, y=map, color=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-  
-  ggplot(filter(results, metric == "sd")) +
-    geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-  
-}
-
 
 
 ################################################
@@ -277,17 +251,6 @@ sens_df_cast <-
         par + component + metric + par_prior ~ method,
         value.var="val")
 
-if (FALSE) {
-  ggplot(filter(sens_df_cast, metric=="prior_sensitivity")) + 
-    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
-    geom_abline(aes(slope=1, intercept=0))
-  
-  ggplot(filter(sens_df_cast, metric=="prior_sensitivity_norm")) + 
-    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
-    geom_abline(aes(slope=1, intercept=0))
-}
-
-
 if (save_results) {
   mcmc_time <- as.numeric(vb_results$stan_results$mcmc_time, units="secs")
   vb_time <- as.numeric(vb_results$fit_time, units="secs")
@@ -318,6 +281,43 @@ if (save_results) {
 # Graphs and analysis
 
 stop("Graphs follow -- not executing.")
+
+
+if (FALSE) {
+  ggplot(filter(results, metric == "mean")) +
+    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
+  ggplot(filter(results, metric == "sd")) +
+    geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+    geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
+  ggplot(filter(results, metric == "mean")) +
+    geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
+  ggplot(filter(results, metric == "sd")) +
+    geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
+    geom_abline(aes(intercept=0, slope=1))
+  
+}
+
+
+if (FALSE) {
+  ggplot(filter(sens_df_cast, metric=="prior_sensitivity")) + 
+    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
+    geom_abline(aes(slope=1, intercept=0))
+  
+  ggplot(filter(sens_df_cast, metric=="prior_sensitivity_norm")) + 
+    geom_point(aes(x=mcmc, y=lrvb, color=par_prior, shape=par), size=2) +
+    geom_abline(aes(slope=1, intercept=0))
+}
+
+
+
+
+
 
 # Overall
 

@@ -61,23 +61,7 @@ if (analysis_name == "simulated_data_small") {
   
   iters <- 3000 # We actually need more than this -- use this for debugging.
 } else if (analysis_name == "criteo_subsampled") { 
-  
-  criteo_dir <- file.path(
-    Sys.getenv("GIT_REPO_LOC"), "criteo/criteo_conversion_logs/")
-  clean_data_filename <- file.path(criteo_dir, "data_clean.Rdata")
-  
-  load(clean_data_filename)
-  
-  sample_groups <- unique(d_clean$V11)[1:100]
-  d_sub <- d_clean[d_clean$V11 %in% sample_groups, ]
-  d_sub$c <- 1
-
-  y <- as.integer(d_sub$conversion)
-  regressors <- paste("V", c(4, 5, 7, 9, 10), sep="")
-  x <- as.matrix(d_sub[regressors])
-  y_g_orig <- factor(d_sub$V11)
-  y_g <- as.integer(y_g_orig) - 1
-  
+  load(file.path(data_directory, "criteo_data_for_paper.Rdata"))
   iters <- 5000
 } else {
   stop("Unknown analysis name.")
