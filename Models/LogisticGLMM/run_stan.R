@@ -20,8 +20,8 @@ project_directory <- file.path(
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 
 if (analysis_name == "simulated_data_small") {
@@ -78,7 +78,7 @@ if (analysis_name == "simulated_data_small") {
   y_g_orig <- factor(d_sub$V11)
   y_g <- as.integer(y_g_orig) - 1
   
-  iters <- 20000
+  iters <- 5000
 } else {
   stop("Unknown analysis name.")
 }
@@ -205,30 +205,10 @@ map_time <- bfgs_map_time
 
 # Get the sensitivity results.
 stopifnot(cores == 1) # rstansensitivity only supports one core for now.
-draws_mat <- extract(stan_sim, permute=FALSE)[,1,]
+draws_mat <- rstan::extract(stan_sim, permute=FALSE)[,1,]
 mcmc_sens_time <- Sys.time()
 sens_result <- GetStanSensitivityFromModelFit(stan_sim, draws_mat, stan_sensitivity_model)
-mcmc_sens_time <- Sys.time()- mcmc_sens_time
-
-
-# sens_par_list <- stan_sensitivity_model$sens_par_list
-# sampling_result <- stan_sim
-# model_sens_fit <- stan_sensitivity_model$model_sens_fit
-# sens_param_names <- stan_sensitivity_model$sens_param_names
-# 
-# par_list <- get_inits(sampling_result, iter = 1)[[1]]
-# for (par in ls(par_list)) {
-#   if (length(dim(sens_par_list[[par]])) >= 2) {
-#     sens_par_list[[par]] <- array(unlist(par_list[[par]]), 
-#                                   dim(par_list[[par]]))
-#   }
-#   else {
-#     sens_par_list[[par]] <- as.numeric(par_list[[par]])
-#   }
-# }
-# 
-# sens_par_list$log_tau <- NULL
-# pars_free <- unconstrain_pars(model_sens_fit, sens_par_list)
+mcmc_sens_time <- Sys.time() - mcmc_sens_time
 
 
 # Save the results to an RData file for further post-processing.
