@@ -198,5 +198,20 @@ The second term gives
 
 \end_layout
 
+\begin_layout Standard
+Nothing special:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+ & \left(\frac{\partial^{2}f}{\partial\eta\partial\eta^{T}}\right)^{-1}\frac{\partial f}{\partial\eta}\\
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
 \end_body
 \end_document

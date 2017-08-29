@@ -178,8 +178,7 @@ f_{ab} & =\frac{\partial^{2}f}{\partial w_{a}\partial w_{b}}
 This simplifies somewhat to
 \begin_inset Formula 
 \begin{align*}
--\sum_{i}\frac{\partial}{\partial\eta_{i}}\left[\sum_{j}H_{kj}\frac{\partial^{2}f}{\partial\eta_{j}\partial w_{a}}\right]\frac{d\eta_{i}}{dw_{b}} & =\sum_{i,j,m}\left[\frac{\partial H_{kj}}{\partial\eta_{i}}\frac{\partial f_{a}}{\partial\eta_{j}}+H_{kj}\frac{\partial^{2}f_{a}}{\partial\eta_{j}\partial\eta_{i}}\right]H_{im}\frac{\partial f_{b}}{\partial\eta_{m}}\\
- & =\sum_{i,j,m}\left[\frac{\partial H_{kj}}{\partial\eta_{i}}\frac{\partial f_{a}}{\partial\eta_{j}}+H_{kj}\left(H^{-1}\right)_{ji}\right]H_{im}\frac{\partial f_{b}}{\partial\eta_{m}}
+-\sum_{i}\frac{\partial}{\partial\eta_{i}}\left[\sum_{j}H_{kj}\frac{\partial^{2}f}{\partial\eta_{j}\partial w_{a}}\right]\frac{d\eta_{i}}{dw_{b}} & =\sum_{i,j,m}\left[\frac{\partial H_{kj}}{\partial\eta_{i}}\frac{\partial f_{a}}{\partial\eta_{j}}+H_{kj}\frac{\partial^{2}f_{a}}{\partial\eta_{j}\partial\eta_{i}}\right]H_{im}\frac{\partial f_{b}}{\partial\eta_{m}}
 \end{align*}
 
 \end_inset
@@ -192,6 +191,21 @@ The second term gives
 \begin_inset Formula 
 \begin{align*}
 -\frac{\partial}{\partial w_{b}}\sum_{j}H_{kj}\frac{\partial^{2}f}{\partial\eta_{j}\partial w_{a}} & =-\sum_{j}\left(\frac{\partial H_{kj}}{\partial w_{b}}\frac{\partial f_{a}}{\partial\eta_{j}}+H_{kj}\frac{\partial f_{ab}}{\partial\eta_{j}}\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Nothing special:
+\end_layout
+
+\begin_layout Standard
+\begin_inset Formula 
+\begin{align*}
+\left(\frac{\partial^{2}f}{\partial\eta\partial\eta^{T}}\right)^{-1}\frac{\partial f}{\partial\eta}\\
 \end{align*}
 
 \end_inset
