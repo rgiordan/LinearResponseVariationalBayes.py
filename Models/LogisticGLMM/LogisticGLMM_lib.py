@@ -90,6 +90,9 @@ class LogisticGLMM(object):
         self.y_g_vec = y_g_vec
         self.set_gh_points(num_gh_points)
 
+        self.use_weights = False
+        self.weights = np.full(self.x_mat.shape[0], 1.0)
+
         assert np.min(y_g_vec) == 0
         assert np.max(y_g_vec) == self.glmm_par['u'].size() - 1
 
@@ -121,13 +124,11 @@ class LogisticGLMM(object):
 
         return e_log_p_beta + e_log_p_mu + e_log_p_tau
 
-    def get_log_lik(self):
+    def get_data_log_lik_terms(self):
         e_beta = self.glmm_par['beta'].e()
         cov_beta = self.glmm_par['beta'].cov()
         e_u = self.glmm_par['u'].e()
         var_u = self.glmm_par['u'].var()
-
-        log_lik = 0.
 
         # Log likelihood from data.
         z_mean = e_u[self.y_g_vec] + np.matmul(self.x_mat, e_beta)
@@ -135,12 +136,21 @@ class LogisticGLMM(object):
             var_u[self.y_g_vec] + np.einsum('nk,kj,nj->n',
                               self.x_mat, cov_beta, self.x_mat))
 
-        log_lik += \
-            np.sum(self.y_vec * z_mean) - \
+        return \
+            self.y_vec * z_mean - \
             get_e_logistic_term_guass_hermite(
-                z_mean, z_sd, self.gh_x, self.gh_w, aggregate_all=True)
+                z_mean, z_sd, self.gh_x, self.gh_w, aggregate_all=False)
+
+    def get_log_lik(self):
+        if self.use_weights:
+            log_lik = np.sum(self.weights * self.get_data_log_lik_terms())
+        else:
+            log_lik = np.sum(self.get_data_log_lik_terms())
 
         # Log likelihood from random effect terms.
+        e_u = self.glmm_par['u'].e()
+        var_u = self.glmm_par['u'].var()
+
         e_mu = self.glmm_par['mu'].e()
         var_mu = self.glmm_par['mu'].var()
         e_tau = self.glmm_par['tau'].e()
