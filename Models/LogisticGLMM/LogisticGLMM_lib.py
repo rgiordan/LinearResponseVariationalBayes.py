@@ -20,7 +20,8 @@ def get_glmm_parameters(
     glmm_par.push_param(vb.UVNParam('mu', min_info=mu_info_min))
     glmm_par.push_param(
         vb.GammaParam('tau', min_shape=tau_alpha_min, min_rate=tau_beta_min))
-    glmm_par.push_param(vb.MVNParam('beta', K, min_info=beta_diag_min))
+    #glmm_par.push_param(vb.MVNParam('beta', K, min_info=beta_diag_min))
+    glmm_par.push_param(vb.UVNParamVector('beta', K, min_info=beta_diag_min))
     glmm_par.push_param(vb.UVNParamVector('u', NG, min_info=u_info_min))
 
     return glmm_par
@@ -101,7 +102,8 @@ class LogisticGLMM(object):
     def get_e_log_prior(self):
         e_beta = self.glmm_par['beta'].mean.get()
         info_beta = self.glmm_par['beta'].info.get()
-        cov_beta = np.linalg.inv(info_beta)
+        #cov_beta = np.linalg.inv(info_beta)
+        cov_beta = np.diag(1. / info_beta)
         beta_prior_info = self.prior_par['beta_prior_info'].get()
         beta_prior_mean = self.prior_par['beta_prior_mean'].get()
         e_log_p_beta = ef.mvn_prior(
@@ -125,7 +127,8 @@ class LogisticGLMM(object):
 
     def get_data_log_lik_terms(self):
         e_beta = self.glmm_par['beta'].e()
-        cov_beta = self.glmm_par['beta'].cov()
+        #cov_beta = self.glmm_par['beta'].cov()
+        cov_beta = np.diag(self.glmm_par['beta'].var())
         e_u = self.glmm_par['u'].e()
         var_u = self.glmm_par['u'].var()
 
@@ -170,9 +173,15 @@ class LogisticGLMM(object):
 
         return \
             ef.univariate_normal_entropy(info_mu) + \
-            ef.multivariate_normal_entropy(info_beta) + \
+            ef.univariate_normal_entropy(info_beta) + \
             ef.univariate_normal_entropy(info_u) + \
             ef.gamma_entropy(tau_shape, tau_rate)
+
+        # return \
+        #     ef.univariate_normal_entropy(info_mu) + \
+        #     ef.multivariate_normal_entropy(info_beta) + \
+        #     ef.univariate_normal_entropy(info_u) + \
+        #     ef.gamma_entropy(tau_shape, tau_rate)
 
     def get_kl(self):
         return -1 * np.squeeze(
