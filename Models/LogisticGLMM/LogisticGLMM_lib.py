@@ -183,9 +183,12 @@ class LogisticGLMM(object):
         #     ef.univariate_normal_entropy(info_u) + \
         #     ef.gamma_entropy(tau_shape, tau_rate)
 
-    def get_kl(self):
-        return -1 * np.squeeze(
+    def get_elbo(self):
+        return np.squeeze(
             self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
+
+    def get_kl(self):
+        return -1 * self.get_elbo()
 
 
 class MomentWrapper(object):
