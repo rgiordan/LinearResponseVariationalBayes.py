@@ -17,8 +17,7 @@ def get_glmm_parameters(
     beta_diag_min=0.0, u_info_min=0.0):
 
     glmm_par = vb.ModelParamsDict('GLMM Parameters')
-    glmm_par.push_param(
-        vb.UVNParam('mu', min_info=mu_info_min))
+    glmm_par.push_param(vb.UVNParam('mu', min_info=mu_info_min))
     glmm_par.push_param(
         vb.GammaParam('tau', min_shape=tau_alpha_min, min_rate=tau_beta_min))
     glmm_par.push_param(vb.MVNParam('beta', K, min_info=beta_diag_min))
