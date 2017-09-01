@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -52,19 +52,6 @@ pkl_file.close()
 
 vb_results <- py_main$vb_results
 
-#############################
-# Indices
-
-# pp_indices <- GetPriorParametersFromVector(pp, as.numeric(1:pp$encoded_size), FALSE)
-# vp_indices <- GetNaturalParametersFromVector(vp_opt, as.numeric(1:vp_opt$encoded_size), FALSE)
-# mp_indices <- GetMomentParametersFromVector(mp_opt, as.numeric(1:mp_opt$encoded_size), FALSE)
-# 
-# global_mask <- rep(FALSE, vp_opt$encoded_size)
-# global_indices <- unique(c(vp_indices$beta_loc, as.numeric(vp_indices$beta_info[]),
-#                            vp_indices$mu_loc, vp_indices$mu_info,
-#                            vp_indices$tau_alpha, vp_indices$tau_beta))
-# global_mask[global_indices] <- TRUE
-
 ##############
 # Check covariance
 
@@ -85,8 +72,8 @@ stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
 # prior parameters all at once at the beginning.
   
 log_prior_hess <- t(vb_results$log_prior_hess)
-
-vb_prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
+vb_prior_sens <- vb_results$vb_prior_sens
+#vb_prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
 
 glmm_par <- py_main$logit_glmm$get_glmm_parameters(
   K=stan_results$stan_dat$K, NG=stan_results$stan_dat$NG)
@@ -217,17 +204,6 @@ sens_df_norm <-
   mutate(metric="prior_sensitivity_norm", val=val / post_sd) %>%
   select(-post_sd)
 
-# Sanity check
-if (FALSE) {
-  foo <- rbind(sens_df, sens_df_norm) %>%
-    dcast(par + component + par_prior + component_prior +
-            component_1_prior + component_2_prior + method ~ metric,
-          value.var="val")
-  ggplot(foo) + 
-    geom_point(aes(prior_sensitivity, prior_sensitivity_norm, color=par)) +
-    geom_abline(aes(slope=1, intercept=0))
-}
-
 # Group together diagonal and off-diagonal elements of the sensitivity
 # to the information matrix.  Note that NA values do not trip a case_when():
 # > case_when(NA ~ 0, TRUE ~ 1)
@@ -266,7 +242,9 @@ if (save_results) {
 
   num_obs <- stan_results$stan_dat$N
   beta_dim <- stan_results$stan_dat$K
-  elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
+  # Doesn't work with sparse elbo_hess
+  #elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
+  elbo_hess_sparsity <- 0.
   save(results,
        sens_df_cast,
        mcmc_time, vb_time,
@@ -314,6 +292,17 @@ if (FALSE) {
     geom_abline(aes(slope=1, intercept=0))
 }
 
+
+# Sanity check
+if (FALSE) {
+  foo <- rbind(sens_df, sens_df_norm) %>%
+    dcast(par + component + par_prior + component_prior +
+            component_1_prior + component_2_prior + method ~ metric,
+          value.var="val")
+  ggplot(foo) + 
+    geom_point(aes(prior_sensitivity, prior_sensitivity_norm, color=par)) +
+    geom_abline(aes(slope=1, intercept=0))
+}
 
 
 

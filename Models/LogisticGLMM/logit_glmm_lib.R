@@ -45,7 +45,7 @@ ConvertPythonMomentVectorToDF <- function(moment_vector, glmm_par) {
 ConvertStanVectorToDF <- function(
     stan_vec, param_names, glmm_par, py_main=reticulate::import_main()) {
 
-  k <- glmm_par$param_dict$beta$dim()
+  k <- glmm_par$param_dict$beta$size()
   ng <- glmm_par$param_dict$u$size()
 
   beta_colnames <- sprintf("beta[%d]", 1:k)
@@ -74,8 +74,8 @@ GetMFVBCovVector <- function(glmm_par) {
   cov_param_dict <- cov_moment_par$moment_par$param_dict
   cov_moment_par$moment_par$set_vector(array(Inf, cov_moment_par$moment_par$vector_size()))
 
-  beta_cov <- solve(glmm_par$param_dict$beta$info$get())
-  cov_param_dict$e_beta$set(array(diag(beta_cov)))
+  beta_cov <- 1 / glmm_par$param_dict$beta$info$get()
+  cov_param_dict$e_beta$set(array(beta_cov))
 
   cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$info$get())
 
