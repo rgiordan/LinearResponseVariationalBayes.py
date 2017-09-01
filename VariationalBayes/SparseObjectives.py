@@ -66,6 +66,9 @@ class Objective(object):
         self.par.set_vector(vec_val)
         return self.fun()
 
+# Note: the function get_sparse_hessian, with the associated template in
+# LogisticGLMM, probably makes this class unnecessary.
+#
 # As before, fun() should evaluate to a float but now should be bound
 # to both global_par and local_par.  fun_grad_local() and fun_hess_local()
 # should take no arguments, be bound to the values of global_par and local_par,

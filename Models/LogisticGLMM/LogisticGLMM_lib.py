@@ -2,7 +2,10 @@
 import VariationalBayes as vb
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as modeling
+from VariationalBayes.SparseObjectives import get_sparse_hessian
+from VariationalBayes.Parameters import convert_vector_to_free_hessian
 
+import autograd
 import autograd.numpy as np
 import autograd.numpy.random as npr
 import autograd.scipy as sp
@@ -274,7 +277,6 @@ def set_group_parameters(glmm_par, group_par, group):
     group_par['u'].mean.set(glmm_par['u'].mean.get()[group])
     group_par['u'].info.set(glmm_par['u'].info.get()[group])
 
-
 def set_global_parameters(glmm_par, global_par):
     global_par['beta'].set_vector(glmm_par['beta'].get_vector())
     global_par['mu'].set_vector(glmm_par['mu'].get_vector())
@@ -297,12 +299,24 @@ class SparseModelObjective(LogisticGLMM):
         self.group_rows = [ self.y_g_vec == g \
                             for g in range(np.max(self.y_g_vec) + 1)]
 
+        # Parameters that are shared across all observations.
         self.global_par = get_global_parameters(K)
         self.global_indices = get_global_parameters(K)
         self.global_indices.set_vector(np.arange(0, self.global_indices.vector_size()))
 
+        # Hessians with respect to the vectorized versions of the observation
+        # and global parameter vectors.
+        self.get_group_vector_hessian = \
+            autograd.hessian(self.get_group_elbo_from_vec)
+        self.get_global_vector_hessian = \
+            autograd.hessian(self.get_global_elbo_from_vec)
+        self.get_vector_grad = \
+            autograd.grad(self.get_elbo_from_vec)
+        self.get_vector_hessian = \
+            autograd.hessian(self.get_elbo_from_vec)
+
     # Set the group parameters from the global parameters and
-    # return a vector of the indices.
+    # return a vector of the indices within the full model.
     def set_group_parameters(self, group):
         set_group_parameters(self.glmm_par, self.group_par, group)
         set_group_parameters(self.glmm_indices, self.group_indices, group)
@@ -391,3 +405,35 @@ class SparseModelObjective(LogisticGLMM):
     def get_global_elbo_from_vec(self, global_par_vec, group):
         self.global_par.set_vector(global_par_vec)
         return self.get_global_elbo()
+
+    def get_elbo_from_vec(self, par_vec):
+        self.glmm_par.set_vector(par_vec)
+        return self.get_elbo()
+
+    def get_sparse_vector_hessian(self, print_every=20):
+        print('Calculating global hessian:')
+        sparse_global_hess = get_sparse_hessian(
+            set_parameters_fun = self.set_global_parameters,
+            get_group_hessian = self.get_global_vector_hessian,
+            group_range = range(1),
+            full_hess_dim = self.glmm_par.vector_size(),
+            print_every = 1)
+
+        print('Calculating local hessian:')
+        NG = np.max(self.y_g_vec) + 1
+        sparse_group_hess = get_sparse_hessian(
+            set_parameters_fun = self.set_group_parameters,
+            get_group_hessian = self.get_group_vector_hessian,
+            group_range = range(NG),
+            full_hess_dim = self.glmm_par.vector_size(),
+            print_every = print_every)
+
+        return sparse_group_hess + sparse_global_hess
+
+    def get_free_hessian(self, vector_hess):
+        vector_grad = self.get_vector_grad(self.glmm_par.get_vector())
+        return convert_vector_to_free_hessian(
+            self.glmm_par,
+            self.glmm_par.get_free(),
+            vector_grad,
+            vector_hess)
