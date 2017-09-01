@@ -219,3 +219,48 @@ class SparseObjective(object):
         # If you don't convert to an array, it returns a matrix type, which
         # seems to cause mysterious problems with scipy.optimize.minimize.
         return np.array(fun_hessian_sparse)
+
+
+# A helper function to get sparse Hessians from models.
+#
+# Args:
+#   - set_parameters_fun: A function taking a single argument (group) and
+#     returning a vector of group parameters and a vector of indices in the
+#     full model.
+#   - get_group_hessian: A function taking a vector of group parameters and
+#     returning a dense hessian for that group.
+#   - group_range: The range of the group variable.
+#   - full_hess_dim: The size of the full Hessian.
+#   - print_every: Every n groups, print a little message.
+#
+# Returns:
+#   - A sparse matrix consisting of the sum of all of the group hessians,
+#     with entries in the appropriate locations for the full model.
+# TODO: formally test this
+def get_sparse_hessian(
+    set_parameters_fun, get_group_hessian, group_range, full_hess_dim,
+    print_every=20):
+
+    hess_vals = [] # These will be the entries of the Hessian
+    hess_rows = [] # These will be the z indices
+    hess_cols = [] # These will be the data indices
+
+    group_vector, full_indices = set_parameters_fun(0)
+    group_hess_dim = len(group_vector)
+
+    for group in group_range:
+        if group % print_every == 0:
+            print('Group {} of {}'.format(group, group_range.stop - 1))
+        group_vector, full_indices = set_parameters_fun(group)
+        row_hess_val = np.squeeze(get_group_hessian(group_vector, group))
+
+        for row in range(group_hess_dim):
+            for col in range(group_hess_dim):
+                if row_hess_val[row, col] != 0:
+                    hess_vals.append(row_hess_val[row, col])
+                    hess_rows.append(int(full_indices[row]))
+                    hess_cols.append(int(full_indices[col]))
+
+    print('Done.')
+    return sp.sparse.csr_matrix(
+        (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
