@@ -243,6 +243,7 @@ if (save_results) {
   pp$x <- NULL
 
   num_obs <- stan_results$stan_dat$N
+  num_groups <- stan_results$stan_dat$NG
   beta_dim <- stan_results$stan_dat$K
   # Doesn't work with sparse elbo_hess
   #elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
@@ -251,7 +252,7 @@ if (save_results) {
        sens_df_cast,
        mcmc_time, vb_time, hess_time, inverse_time,
        num_mcmc_draws, num_gh_points,
-       pp, num_obs, beta_dim,
+       pp, num_obs, num_groups, beta_dim,
        elbo_hess_sparsity,
        file=results_file)
 }
