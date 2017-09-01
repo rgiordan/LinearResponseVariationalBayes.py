@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -92,7 +92,7 @@ moment_par$set_moments(vb_results$glmm_par_free)
 vb_mean_vec <- moment_par$moment_par$get_vector()
 
 mfvb_sd_vec <- sqrt(GetMFVBCovVector(glmm_par))
-mcmc_sd_vec <- sqrt(diag(cov(draws_mat)))
+mcmc_sd_vec <- apply(draws_mat, sd, MARGIN=2)
 lrvb_sd_vec <- sqrt(diag(lrvb_cov))
 
 
@@ -104,8 +104,8 @@ stan_map <- stan_results$stan_map
 # at the MAP, with the same names as the draws matrix.
 # If we wanted the sds of log(tau), we'd need the delta method.
 # For tidiness, let's just leave it as NA.
-inv_hess_diag <- -diag(solve(stan_map$hessian))
-names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
+#inv_hess_diag <- -diag(solve(stan_map$hessian))
+#names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
 
 results_posterior <-
   rbind(
@@ -119,9 +119,10 @@ results_posterior <-
       mutate(method="mcmc", metric="sd"),
 
     ConvertStanVectorToDF(stan_map$par, names(stan_map$par), glmm_par) %>%
-      mutate(method="map", metric="mean"),
-    ConvertStanVectorToDF(sqrt(inv_hess_diag), names(inv_hess_diag$par), glmm_par) %>%
-      mutate(method="map", metric="sd")
+      mutate(method="map", metric="mean")
+    # ,
+    # ConvertStanVectorToDF(sqrt(inv_hess_diag), names(inv_hess_diag$par), glmm_par) %>%
+    #   mutate(method="map", metric="sd")
   )
 
 results <- dcast(results_posterior, par + metric + component ~ method, value.var="val")
@@ -228,9 +229,10 @@ sens_df_cast <-
         value.var="val")
 
 if (save_results) {
-  mcmc_time <- as.numeric(vb_results$stan_results$mcmc_time, units="secs")
-  vb_time <- as.numeric(vb_results$fit_time, units="secs")
+  mcmc_time <- as.numeric(stan_results$mcmc_time, units="secs")
+  vb_time <- as.numeric(vb_results$vb_time, units="secs")
   hess_time <- as.numeric(vb_results$hess_time, units="secs")
+  inverse_time <- as.numeric(vb_results$inverse_time, units="secs")
   num_mcmc_draws <- nrow(as.matrix(stan_results$stan_sim))
   num_gh_points <- vb_results$num_gh_points
   
@@ -247,8 +249,8 @@ if (save_results) {
   elbo_hess_sparsity <- 0.
   save(results,
        sens_df_cast,
-       mcmc_time, vb_time,
-       num_mcmc_draws, num_gh_points, hess_time,
+       mcmc_time, vb_time, hess_time, inverse_time,
+       num_mcmc_draws, num_gh_points,
        pp, num_obs, beta_dim,
        elbo_hess_sparsity,
        file=results_file)
@@ -262,22 +264,40 @@ stop("Graphs follow -- not executing.")
 
 
 if (FALSE) {
-  ggplot(filter(results, metric == "mean")) +
-    geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
+  grid.arrange(
+    ggplot(filter(results, metric == "mean", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+  ,   
+    ggplot(filter(results, metric == "mean", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+  , ncol=2
+  )
+
+  grid.arrange(
+    ggplot(filter(results, metric == "sd", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+      geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+  ,
+    ggplot(filter(results, metric == "sd", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
+      geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+  ,  
+  ncol=2)
   
-  ggplot(filter(results, metric == "sd")) +
-    geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-    geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-  
-  ggplot(filter(results, metric == "mean")) +
-    geom_point(aes(x=mcmc, y=map, color=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
-  
-  ggplot(filter(results, metric == "sd")) +
-    geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
-    geom_abline(aes(intercept=0, slope=1))
+  grid.arrange(
+    ggplot(filter(results, metric == "mean", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    ,   
+    ggplot(filter(results, metric == "mean", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    , ncol=2
+  )
   
 }
 
