@@ -410,7 +410,7 @@ class SparseModelObjective(LogisticGLMM):
         self.glmm_par.set_vector(par_vec)
         return self.get_elbo()
 
-    def get_sparse_vector_hessian(self, print_every=20):
+    def get_sparse_vector_hessian(self, print_every_n):
         print('Calculating global hessian:')
         sparse_global_hess = get_sparse_hessian(
             set_parameters_fun = self.set_global_parameters,
@@ -426,7 +426,7 @@ class SparseModelObjective(LogisticGLMM):
             get_group_hessian = self.get_group_vector_hessian,
             group_range = range(NG),
             full_hess_dim = self.glmm_par.vector_size(),
-            print_every = print_every)
+            print_every = print_every_n)
 
         return sparse_group_hess + sparse_global_hess
 
