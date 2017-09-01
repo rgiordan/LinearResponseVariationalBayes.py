@@ -177,12 +177,6 @@ class LogisticGLMM(object):
             ef.univariate_normal_entropy(info_u) + \
             ef.gamma_entropy(tau_shape, tau_rate)
 
-        # return \
-        #     ef.univariate_normal_entropy(info_mu) + \
-        #     ef.multivariate_normal_entropy(info_beta) + \
-        #     ef.univariate_normal_entropy(info_u) + \
-        #     ef.gamma_entropy(tau_shape, tau_rate)
-
     def get_elbo(self):
         return np.squeeze(
             self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
