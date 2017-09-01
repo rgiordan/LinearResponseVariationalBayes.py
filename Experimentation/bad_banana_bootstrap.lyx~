@@ -1,0 +1,188 @@
+#LyX 2.2 created this file. For more info see http://www.lyx.org/
+\lyxformat 508
+\begin_document
+\begin_header
+\save_transient_properties true
+\origin unavailable
+\textclass article
+\use_default_options true
+\maintain_unincluded_children false
+\language english
+\language_package default
+\inputencoding auto
+\fontencoding global
+\font_roman "default" "default"
+\font_sans "default" "default"
+\font_typewriter "default" "default"
+\font_math "auto" "auto"
+\font_default_family default
+\use_non_tex_fonts false
+\font_sc false
+\font_osf false
+\font_sf_scale 100 100
+\font_tt_scale 100 100
+\graphics default
+\default_output_format default
+\output_sync 0
+\bibtex_command default
+\index_command default
+\paperfontsize default
+\use_hyperref false
+\papersize default
+\use_geometry false
+\use_package amsmath 1
+\use_package amssymb 1
+\use_package cancel 1
+\use_package esint 1
+\use_package mathdots 1
+\use_package mathtools 1
+\use_package mhchem 1
+\use_package stackrel 1
+\use_package stmaryrd 1
+\use_package undertilde 1
+\cite_engine basic
+\cite_engine_type default
+\biblio_style plain
+\use_bibtopic false
+\use_indices false
+\paperorientation portrait
+\suppress_date false
+\justification true
+\use_refstyle 1
+\index Index
+\shortcut idx
+\color #008000
+\end_index
+\secnumdepth 3
+\tocdepth 3
+\paragraph_separation indent
+\paragraph_indentation default
+\quotes_language english
+\papercolumns 1
+\papersides 1
+\paperpagestyle default
+\tracking_changes false
+\output_changes false
+\html_math_output 0
+\html_css_as_file 0
+\html_be_strict false
+\end_header
+
+\begin_body
+
+\begin_layout Standard
+\begin_inset FormulaMacro
+\newcommand{\mbe}{\mathbb{E}}
+{\mathbb{E}}
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+We want something like this
+\begin_inset Formula 
+\begin{align*}
+\log p\left(x\vert\theta\right) & =-\frac{1}{2}\sum_{n}\left(x_{n}-\theta\right)^{T}\Lambda\left(x_{n}-\theta\right)+C\\
+ & =-\frac{n}{2}\left(\mathrm{trace}\left(\Lambda S\right)-2\bar{x}^{T}\Lambda\theta+n\cdot\mathrm{trace}\left(\Lambda\theta\theta^{T}\right)\right)+C\\
+\bar{x} & =\frac{1}{n}\sum_{n}x_{n}\\
+S & =\frac{1}{n}\sum_{n}x_{n}x_{n}^{T}\\
+\log p\left(\theta\right) & =-\frac{1}{2}n_{0}\theta^{T}\theta+C
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Letting
+\begin_inset Formula 
+\begin{align*}
+z & =\exp\left(\theta\right)\\
+\frac{dz}{d\theta} & =\exp\left(\theta\right)=z\\
+\log p\left(z\vert x\right) & =\log p\left(x\vert\theta=\log z\right)+\log p\left(\theta\vert\theta=\log z\right)+\log\frac{d\theta}{dz}\\
+ & =\log p\left(x\vert\theta=\log z\right)+\log p\left(\theta\vert\theta=\log z\right)-\log z
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+However, there's no real need to model it this way – the variational approximati
+on is invariant to coordinate transformations.
+ So you might as well just model 
+\begin_inset Formula $q\left(\theta\right)$
+\end_inset
+
+ and look at the expectation of 
+\begin_inset Formula $z=\exp\left(\theta\right)$
+\end_inset
+
+.
+\end_layout
+
+\begin_layout Standard
+The posterior and variational posterior are given by
+\begin_inset Formula 
+\begin{align*}
+\mu & =\mbe\left[\theta\vert x\right]=\mbe_{q}\left[\theta\vert x\right]=\left(n\Lambda+n_{0}I_{k}\right)^{-1}n\Lambda\bar{x}\\
+\Sigma & =\mathrm{Cov}\left(\theta\vert x\right)=\left(n\Lambda+n_{0}I_{k}\right)^{-1}=\frac{1}{n}\left(I_{k}+\frac{n_{0}}{n}\Lambda^{-1}\right)^{-1}\Lambda^{-1}\\
+\Sigma_{q} & =\mathrm{Cov}_{q}\left(\theta\vert x\right)=\left(n\cdot\mathrm{diag}\left(\Lambda\right)+n_{0}I_{k}\right)^{-1}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+The distribution of 
+\begin_inset Formula $\bar{x}$
+\end_inset
+
+ is
+\begin_inset Formula 
+\begin{align*}
+\mbe\left[\bar{x}\vert\theta^{*}\right] & =\theta^{*}\\
+\mathrm{Cov}\left(\bar{x}\vert\theta^{*}\right) & =\frac{1}{n}\Lambda^{-1}
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Consequently,
+\begin_inset Formula 
+\begin{align*}
+\mbe\left[\mu\vert\theta^{*}\right] & =\left(n\Lambda+n_{0}I_{k}\right)^{-1}n\Lambda\theta^{*}\\
+\mathrm{Cov}\left(\mu\vert\theta^{*}\right) & =\left(n\Lambda+n_{0}I_{k}\right)^{-1}n\Lambda\mathrm{Cov}\left(\bar{x}\vert\theta^{*}\right)\Lambda n\left(n\Lambda+n_{0}I_{k}\right)^{-1}\\
+ & =n\left(n\Lambda+n_{0}I_{k}\right)^{-1}\Lambda\left(n\Lambda+n_{0}I_{k}\right)^{-1}\\
+ & =\frac{1}{n}\left(I_{k}+\frac{n_{0}}{n}\Lambda^{-1}\right)^{-1}\left(I_{k}+\frac{n_{0}}{n}\Lambda^{-1}\right)^{-1}\Lambda^{-1}\\
+ & =\left(I_{k}+\frac{n_{0}}{n}\Lambda^{-1}\right)^{-1}\mathrm{Cov}\left(\theta\vert x\right)
+\end{align*}
+
+\end_inset
+
+
+\end_layout
+
+\begin_layout Standard
+Unfortunately this is still not enough variance even when added to the variation
+al covariance when 
+\begin_inset Formula $I_{k}+\frac{n_{0}}{n}\Lambda^{-1}$
+\end_inset
+
+ is large enough.
+\end_layout
+
+\begin_layout Standard
+
+\end_layout
+
+\end_body
+\end_document

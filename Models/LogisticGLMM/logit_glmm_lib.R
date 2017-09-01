@@ -18,11 +18,14 @@ RecursiveUnpackParameter <- function(par, level=0, id_name="par") {
 }
 
 
+# Useful for constructing readable python commands using R variables.
+`%_%` <- function(x, y) { paste(x, y, sep="")}
+
 InitializePython <- function(git_repo_loc=Sys.getenv("GIT_REPO_LOC")) {
-  `%_%` <- function(x, y) { paste(x, y, sep="") }
   py_run_string("import sys")
+  py_run_string("import pickle")
   for (py_lib in c("LinearResponseVariationalBayes.py",
-                   "LinearResponseVariationalBayes.py/Models",
+                   "LinearResponseVariationalBayes.py/Models/LogisticGLMM/",
                    "autograd")) {
     py_run_string("sys.path.append('" %_% file.path(git_repo_loc, py_lib) %_% "')")
   }
@@ -31,34 +34,61 @@ InitializePython <- function(git_repo_loc=Sys.getenv("GIT_REPO_LOC")) {
 }
 
 
-# Pack MCMC samples as returned by extract() and pack them into a matrix
-# in the same order as the VB moments.
-PackMCMCSamplesIntoMoments <- function(mcmc_sample, glmm_par, py_main=reticulate::import_main()) {
-  mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
-  mcmc_param_dict <- mcmc_moment_par$moment_par$param_dict
-  
-  num_draws <- dim(mcmc_sample$beta)[1]
-  draws_mat <- matrix(NA, nrow=mcmc_moment_par$moment_par$vector_size(), ncol=num_draws)
-  pb <- txtProgressBar(style=3, max=num_draws)
-  for (draw in 1:num_draws) {
-    setTxtProgressBar(pb, draw)
-    beta <- array(mcmc_sample$beta[draw, ])
-    mu <- mcmc_sample$mu[draw]
-    tau <- mcmc_sample$tau[draw]
-    u <- array(mcmc_sample$u[draw, ])
-    
-    mcmc_param_dict$e_beta$set(beta)
-    mcmc_param_dict$e_beta_outer$set(beta %*% t(beta))
-    mcmc_param_dict$e_mu$set(mu)
-    mcmc_param_dict$e_mu2$set(mu^2)
-    mcmc_param_dict$e_tau$set(tau)
-    mcmc_param_dict$e_log_tau$set(log(tau))
-    mcmc_param_dict$e_u$set(u)
-    mcmc_param_dict$e_u2$set(u^2)
-    draws_mat[, draw] <- mcmc_moment_par$moment_par$get_vector()
-  }
-  close(pb)
-  
-  return(draws_mat)
+ConvertPythonMomentVectorToDF <- function(moment_vector, glmm_par) {
+  local_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  local_moment_par$moment_par$set_vector(array(moment_vector))
+  return(
+    RecursiveUnpackParameter(local_moment_par$moment_par$dictval()) %>%
+      rename(par=par_1))
 }
 
+ConvertStanVectorToDF <- function(
+    stan_vec, param_names, glmm_par, py_main=reticulate::import_main()) {
+
+  k <- glmm_par$param_dict$beta$size()
+  ng <- glmm_par$param_dict$u$size()
+
+  beta_colnames <- sprintf("beta[%d]", 1:k)
+  u_colnames <- sprintf("u[%d]", 1:ng)
+
+  beta <- stan_vec[beta_colnames]
+  mu <- stan_vec["mu"]
+  tau <- stan_vec["tau"]
+  log_tau <- stan_vec["log_tau"]
+  u <- stan_vec[u_colnames]
+
+  mcmc_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  mcmc_param_dict <- mcmc_moment_par$moment_par$param_dict
+
+  mcmc_param_dict$e_beta$set(array(beta))
+  mcmc_param_dict$e_mu$set(mu)
+  mcmc_param_dict$e_tau$set(tau)
+  mcmc_param_dict$e_log_tau$set(log_tau)
+  mcmc_param_dict$e_u$set(array(u))
+
+  return(ConvertPythonMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
+}
+
+GetMFVBCovVector <- function(glmm_par) {
+  cov_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  cov_param_dict <- cov_moment_par$moment_par$param_dict
+  cov_moment_par$moment_par$set_vector(array(Inf, cov_moment_par$moment_par$vector_size()))
+
+  beta_cov <- 1 / glmm_par$param_dict$beta$info$get()
+  cov_param_dict$e_beta$set(array(beta_cov))
+
+  cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$info$get())
+
+  tau_alpha <- glmm_par$param_dict$tau$shape$get()
+  tau_beta <- glmm_par$param_dict$tau$rate$get()
+  tau_var <- tau_alpha / (tau_beta ^ 2)
+  cov_param_dict$e_tau$set(tau_var)
+
+  log_tau_var <- trigamma(tau_alpha)
+  cov_param_dict$e_log_tau$set(log_tau_var)
+
+  u_var <- 1.0 / glmm_par$param_dict$u$info$get()
+  cov_param_dict$e_u$set(array(u_var))
+
+  return(cov_moment_par$moment_par$get_vector())
+}

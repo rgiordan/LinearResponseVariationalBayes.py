@@ -92,3 +92,4 @@ ENV/
 **/*.Rdata
 **/*.RData
 **/*.json
+**/*.pkl

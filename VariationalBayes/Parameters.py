@@ -179,9 +179,9 @@ class VectorParam(object):
     def set(self, val):
         if val.size != self.size():
             raise ValueError('Wrong size for vector ' + self.name)
-        if any(val < self.__lb):
+        if (np.array(val < self.__lb)).any():
             raise ValueError('Value beneath lower bound.')
-        if any(val > self.__ub):
+        if (np.array(val > self.__ub)).any():
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
@@ -253,9 +253,9 @@ class ArrayParam(object):
     def set(self, val):
         if val.shape != self.shape():
             raise ValueError('Wrong size for array ' + self.name)
-        if (val < self.__lb).any():
+        if (np.array(val < self.__lb)).any():
             raise ValueError('Value beneath lower bound.')
-        if (val > self.__ub).any():
+        if (np.array(val > self.__ub)).any():
             raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
@@ -359,7 +359,19 @@ def free_to_vector_hess_offset(
 
 # Using sparse jacobians and hessians, convert a hessian with respect
 # to a parameters vector to a hessian with respect to the free parameters.
-def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
+#
+# Args:
+#   - param: A Parameter type (from the Parameters library)
+#   - free_val: The unconstrained "free value" of the parameters.
+#   - vector_grad: The gradient of the objective with respect to the
+#     constrained "vector value" of the parameters
+#   - vector_hess: The (possibly sparse) Hessian of the objective with
+#     respect to the constrained "vector value" of the parameters.
+#
+# Returns:
+#  - The Hessian of the objective with respect to the unconstrained "free"
+#    values of the parameters.
+def convert_vector_to_free_hessian(param, free_val, vector_grad, vector_hess):
     #free_hess = csr_matrix((param.free_size(), param.free_size()))
 
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
@@ -370,7 +382,7 @@ def convert_vector_to_free_hessian(param, free_val, vector_jac, vector_hess):
     free_hess_size = (param.free_size(), param.free_size())
     vec_range = range(param.vector_size())
     free_hess_vals = np.hstack([
-        free_to_vec_hessian[vec_ind].data * vector_jac[vec_ind]
+        free_to_vec_hessian[vec_ind].data * vector_grad[vec_ind]
         for vec_ind in vec_range ])
     free_hess_rows = np.hstack([
         free_to_vec_hessian[vec_ind].row for vec_ind in vec_range ])
