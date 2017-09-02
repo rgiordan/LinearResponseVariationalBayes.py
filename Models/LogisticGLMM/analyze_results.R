@@ -118,8 +118,11 @@ results_posterior <-
     ConvertStanVectorToDF(mcmc_sd_vec, colnames(draws_mat), glmm_par) %>%
       mutate(method="mcmc", metric="sd"),
 
-    ConvertGlmerResultToDF(glmer_results$glmm_list, glmm_par) %>% mutate(method="glmer", metric="mean"),
-
+    ConvertGlmerMeanResultToDF(glmer_results$glmm_list, glmm_par) %>%
+      mutate(method="glmer", metric="mean"),
+    ConvertGlmerSDResultToDF(glmer_results$glmm_list, glmm_par) %>%
+      mutate(method="glmer", metric="sd"),
+    
     ConvertStanVectorToDF(stan_map$par, names(stan_map$par), glmm_par) %>%
       mutate(method="map", metric="mean")
     # ,
@@ -290,7 +293,7 @@ if (FALSE) {
       geom_abline(aes(intercept=0, slope=1))
     ,   
     ggplot(filter(results, metric == "mean", par == "e_u")) +
-      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=1) +
       geom_abline(aes(intercept=0, slope=1)) +
       expand_limits(x=0, y=0)
     , ncol=2
@@ -321,6 +324,20 @@ if (FALSE) {
       geom_abline(aes(intercept=0, slope=1))
   ,  
   ncol=2)
+  
+  # GLMER sds:
+  grid.arrange(
+    ggplot(filter(results, metric == "sd", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    ,   
+    ggplot(filter(results, metric == "sd", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1)) +
+      expand_limits(x=0, y=0)
+    , ncol=2
+  )
+  
 
 }
 

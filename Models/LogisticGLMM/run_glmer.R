@@ -59,11 +59,20 @@ glmm_summary <- summary(glmm_res)
 
 glmm_list <- list()
 glmm_list$beta_mean <- glmm_summary$coefficients[regressors, "Estimate"]
+glmm_list$beta_sd <- glmm_summary$coefficients[regressors, "Std. Error"]
 glmm_list$beta_par <- rownames(glmm_summary$coefficients[regressors, ])
+
 glmm_list$mu_mean <- glmm_summary$coefficients["(Intercept)", "Estimate"]
+glmm_list$mu_sd <- glmm_summary$coefficients["(Intercept)", "Std. Error"]
+
 glmm_list$tau_mean <- 1 / attr(glmm_summary$varcor$y_g, "stddev") ^ 2
+
 # Glmer uses a non-centered model, where stan and vb use a centered model.
+glmm_ranef <- ranef(glmm_res, condVar=TRUE)
 glmm_list$u_map <- as.numeric(ranef(glmm_res)$y_g[, "(Intercept)"]) + glmm_list$mu_mean
+u_post_sd <- sqrt(array(attr(glmm_ranef$y_g, "postVar")))
+glmm_list$u_cond_sd <- u_post_sd
+
 glmm_list$glmm_time <- as.numeric(glmer_time, units="secs")
 
 # Debugging

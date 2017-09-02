@@ -69,7 +69,7 @@ ConvertStanVectorToDF <- function(
   return(ConvertPythonMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
 }
 
-ConvertGlmerResultToDF <- function(
+ConvertGlmerMeanResultToDF <- function(
   glmer_list, glmm_par, py_main=reticulate::import_main()) {
 
   k <- length(glmer_list$beta_mean)
@@ -78,6 +78,7 @@ ConvertGlmerResultToDF <- function(
   beta <- glmer_list$beta_mean
   mu <- glmer_list$mu_mean
   tau <- glmer_list$tau_mean
+  # Transforms of MLEs are the MLEs of transforms.
   log_tau <- log(tau)
   u <- glmer_list$u_map
 
@@ -90,7 +91,38 @@ ConvertGlmerResultToDF <- function(
   glmer_param_dict$e_log_tau$set(log_tau)
   glmer_param_dict$e_u$set(array(u))
 
-  return(ConvertPythonMomentVectorToDF(glmer_moment_par$moment_par$get_vector(), glmm_par))
+  return(ConvertPythonMomentVectorToDF(
+      glmer_moment_par$moment_par$get_vector(), glmm_par))
+}
+
+ConvertGlmerSDResultToDF <- function(
+  glmer_list, glmm_par, py_main=reticulate::import_main()) {
+
+  k <- length(glmer_list$beta_mean)
+  ng <- length(glmer_list$u_map)
+
+  beta <- glmer_list$beta_sd
+  mu <- glmer_list$mu_sd
+
+  # Technically, this is an estimate of the posterior standard deviation
+  # of u conditional on mu, beta, and tau.  Applying the law of total variance
+  # would amount to doing something much like LRVB.
+  u <- glmer_list$u_cond_sd
+
+  glmer_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  glmer_param_dict <- glmer_moment_par$moment_par$param_dict
+
+  glmer_param_dict$e_beta$set(array(beta))
+  glmer_param_dict$e_mu$set(mu)
+  glmer_param_dict$e_u$set(array(u))
+
+  # As far as I know, glmer doesn't report the standard errors of the
+  # random effect variance.
+  glmer_param_dict$e_tau$set(0)
+  glmer_param_dict$e_log_tau$set(0)
+
+  return(ConvertPythonMomentVectorToDF(
+      glmer_moment_par$moment_par$get_vector(), glmm_par))
 }
 
 GetMFVBCovVector <- function(glmm_par) {
