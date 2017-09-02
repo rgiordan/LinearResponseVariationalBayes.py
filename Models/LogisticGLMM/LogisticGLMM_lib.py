@@ -14,6 +14,44 @@ import numpy as onp
 
 import copy
 
+def load_json_data(json_filename):
+    json_file = open(json_filename, 'r')
+    json_dat = json.load(json_file)
+    json_file.close()
+
+    stan_dat = json_dat['stan_dat']
+
+    print(stan_dat.keys())
+    K = stan_dat['K'][0]
+    NObs = stan_dat['N'][0]
+    NG = stan_dat['NG'][0]
+
+    y_g_vec = np.array(stan_dat['y_group'])
+    y_vec = np.array(stan_dat['y'])
+    x_mat = np.array(stan_dat['x'])
+
+    glmm_par = logit_glmm.get_glmm_parameters(K=K, NG=NG)
+
+    # Define a class to contain prior parameters.
+    prior_par = logit_glmm.get_default_prior_params(K)
+    prior_par['beta_prior_mean'].set(np.array(stan_dat['beta_prior_mean']))
+
+    prior_par['beta_prior_info'].set(np.array(stan_dat['beta_prior_info']))
+
+    prior_par['mu_prior_mean'].set(stan_dat['mu_prior_mean'][0])
+    prior_par['mu_prior_info'].set(stan_dat['mu_prior_info'][0])
+
+    prior_par['tau_prior_alpha'].set(stan_dat['tau_prior_alpha'][0])
+    prior_par['tau_prior_beta'].set(stan_dat['tau_prior_beta'][0])
+
+    # An index set to make sure jacobians match the order expected by R.
+    prior_par_indices = copy.deepcopy(prior_par)
+    prior_par_indices.set_name('Prior Indices')
+    prior_par_indices.set_vector(np.array(range(prior_par_indices.vector_size())))
+
+    return y_g_vec, y_vec, x_mat, glmm_par, prior_par
+
+
 def get_glmm_parameters(
     K, NG,
     mu_info_min=0.0, tau_alpha_min=0.0, tau_beta_min=0.0,
