@@ -23,7 +23,7 @@ project_directory <- file.path(
 data_directory <- file.path(project_directory, "data/")
 
 source(file.path(project_directory, "logit_glmm_lib.R"))
-source(file.path(project_directory, "densities_lib.R"))
+# source(file.path(project_directory, "densities_lib.R"))
 
 analysis_name <- "criteo_subsampled"
 #analysis_name <- "simulated_data_small"
@@ -35,8 +35,11 @@ results_file <- file.path(data_directory,
 
 stan_draws_file <- file.path(
   data_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
-
 stan_results <- LoadIntoEnvironment(stan_draws_file)
+
+glmer_file <- file.path(
+  data_directory, paste(analysis_name, "_glmer_results.Rdata", sep=""))
+glmer_results <- LoadIntoEnvironment(glmer_file)
 
 # Load the python pickled data.
 InitializePython()
@@ -66,14 +69,10 @@ lrvb_sd_scale <- sqrt(diag(vb_results$lrvb_cov))
 stopifnot(min(diag(vb_results$lrvb_cov)) > 0)
 
 #################################
-# Parametric sensitivity analysis
+# Extract stuff from the python results
 
-# It would be better to group the beta_loc and beta_info parameters into single
-# prior parameters all at once at the beginning.
-  
 log_prior_hess <- t(vb_results$log_prior_hess)
 vb_prior_sens <- vb_results$vb_prior_sens
-#vb_prior_sens <- -1 * moment_jac %*% Matrix::solve(elbo_hess, log_prior_hess)
 
 glmm_par <- py_main$logit_glmm$get_glmm_parameters(
   K=stan_results$stan_dat$K, NG=stan_results$stan_dat$NG)
@@ -95,11 +94,10 @@ mfvb_sd_vec <- sqrt(GetMFVBCovVector(glmm_par))
 mcmc_sd_vec <- apply(draws_mat, sd, MARGIN=2)
 lrvb_sd_vec <- sqrt(diag(lrvb_cov))
 
-
 # The MAP estimate
 stan_map <- stan_results$stan_map 
 
-
+# This is time-consuming and not necessary for the paper.
 # Get the MAP standard deviation based on the negative inverse Hessian
 # at the MAP, with the same names as the draws matrix.
 # If we wanted the sds of log(tau), we'd need the delta method.
@@ -107,6 +105,8 @@ stan_map <- stan_results$stan_map
 #inv_hess_diag <- -diag(solve(stan_map$hessian))
 #names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
 
+
+# Combine into a single tidy dataframe.
 results_posterior <-
   rbind(
     ConvertPythonMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
@@ -117,6 +117,8 @@ results_posterior <-
       mutate(method="mcmc", metric="mean"),
     ConvertStanVectorToDF(mcmc_sd_vec, colnames(draws_mat), glmm_par) %>%
       mutate(method="mcmc", metric="sd"),
+
+    ConvertGlmerResultToDF(glmer_results$glmm_list, glmm_par) %>% mutate(method="glmer", metric="mean"),
 
     ConvertStanVectorToDF(stan_map$par, names(stan_map$par), glmm_par) %>%
       mutate(method="map", metric="mean")
@@ -155,12 +157,14 @@ prior_index_df <- prior_index_df %>%
                              TRUE ~ component))
 
 # "Too few values" warnings are ok.
-prior_index_df <-
-  tibble(par=rownames(stan_results$sens_result$sens_mat),
-         stan_index=1:nrow(stan_results$sens_result$sens_mat)) %>%
-  separate(par, into=c("par", "component_1", "component_2"), sep="\\.") %>%
-  mutate(component_1=as.integer(component_1), component_2=as.integer(component_2)) %>%
-  inner_join(prior_index_df, by=c("component_1", "component_2", "par"))
+suppressWarnings(
+  prior_index_df <-
+    tibble(par=rownames(stan_results$sens_result$sens_mat),
+           stan_index=1:nrow(stan_results$sens_result$sens_mat)) %>%
+    separate(par, into=c("par", "component_1", "component_2"), sep="\\.") %>%
+    mutate(component_1=as.integer(component_1), component_2=as.integer(component_2)) %>%
+    inner_join(prior_index_df, by=c("component_1", "component_2", "par"))
+)
 
 
 ### Extract the MCMC sensitivity.
@@ -230,6 +234,8 @@ sens_df_cast <-
 
 if (save_results) {
   mcmc_time <- as.numeric(stan_results$mcmc_time, units="secs")
+  map_time <- as.numeric(stan_results$map_time, units="secs")
+  glmer_time <- as.numeric(glmer_results$glmm_list$glmm_time, units="secs")
   vb_time <- as.numeric(vb_results$vb_time, units="secs")
   hess_time <- as.numeric(vb_results$hess_time, units="secs")
   inverse_time <- as.numeric(vb_results$inverse_time, units="secs")
@@ -250,7 +256,7 @@ if (save_results) {
   elbo_hess_sparsity <- 0.
   save(results,
        sens_df_cast,
-       mcmc_time, vb_time, hess_time, inverse_time,
+       mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
        num_mcmc_draws, num_gh_points,
        pp, num_obs, num_groups, beta_dim,
        elbo_hess_sparsity,
@@ -265,6 +271,7 @@ stop("Graphs follow -- not executing.")
 
 
 if (FALSE) {
+  # VB means:
   grid.arrange(
     ggplot(filter(results, metric == "mean", par != "e_u")) +
       geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
@@ -276,6 +283,32 @@ if (FALSE) {
   , ncol=2
   )
 
+  # GLMER means:
+  grid.arrange(
+    ggplot(filter(results, metric == "mean", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    ,   
+    ggplot(filter(results, metric == "mean", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1)) +
+      expand_limits(x=0, y=0)
+    , ncol=2
+  )
+
+  # MAP means:  
+  grid.arrange(
+    ggplot(filter(results, metric == "mean", par != "e_u")) +
+      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    ,   
+    ggplot(filter(results, metric == "mean", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1))
+    , ncol=2
+  )
+  
+  # VB stdevs:
   grid.arrange(
     ggplot(filter(results, metric == "sd", par != "e_u")) +
       geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
@@ -288,18 +321,7 @@ if (FALSE) {
       geom_abline(aes(intercept=0, slope=1))
   ,  
   ncol=2)
-  
-  grid.arrange(
-    ggplot(filter(results, metric == "mean", par != "e_u")) +
-      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
-      geom_abline(aes(intercept=0, slope=1))
-    ,   
-    ggplot(filter(results, metric == "mean", par == "e_u")) +
-      geom_point(aes(x=mcmc, y=map, color=par), size=3) +
-      geom_abline(aes(intercept=0, slope=1))
-    , ncol=2
-  )
-  
+
 }
 
 

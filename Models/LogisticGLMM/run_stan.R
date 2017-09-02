@@ -13,17 +13,17 @@ library(rstan)
 ########################
 # Run stan
 
-rstan_options(auto_write=TRUE)
+rstan_options(auto_write=FALSE)
 
 project_directory <- file.path(
   Sys.getenv("GIT_REPO_LOC"),
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
-
+true_params <- list()
 if (analysis_name == "simulated_data_small") {
   n_obs_per_group <- 10
   k_reg <- 5
@@ -85,38 +85,6 @@ stan_dat <- list(NG = max(y_g) + 1,
                  tau_prior_alpha = 3.0,
                  tau_prior_beta = 3.0)
 
-##############
-# frequentist glmm
-glmm_df <- tibble(y=y, y_g=as.character(y_g))
-for (col in 1:ncol(x)) {
-  glmm_df[paste("x", col, sep=".")] <- x[, col]
-}
-regressors <- paste("x", 1:5, sep=".")
-glmm_formula_string <- sprintf("y ~ %s + (1|y_g)", paste(regressors, collapse=" + "))
-
-glmer_time <- Sys.time()
-glmm_res <- glmer(formula(glmm_formula_string),
-                  data=glmm_df, family="binomial", verbose=FALSE)
-glmer_time <- Sys.time() - glmer_time
-
-glmm_summary <- summary(glmm_res)
-u <- data.frame(ranef(glmm_res)$y_g)
-names(u) <- "u"
-u$y_g <- rownames(u)
-
-u_df <- inner_join(u, glmm_df[, "y_g"], by="y_g")
-mean(u_df$u)
-mean(u$u[y_g + 1])
-
-glmm_list <- list()
-glmm_list$beta_mean <- glmm_summary$coefficients[regressors, "Estimate"]
-glmm_list$beta_par <- rownames(glmm_summary$coefficients[regressors, ])
-glmm_list$mu_mean <- glmm_summary$coefficients["(Intercept)", "Estimate"]
-glmm_list$mu_sd <- attr(glmm_summary$varcor$V11, "stddev")
-glmm_list$u_map <- as.numeric(ranef(glmm_res)$V11[, "(Intercept)"])
-glmm_list$glmm_time <- as.numeric(glmer_time, units="secs")
-
-
 
 ##############
 # Export the data for fitting in Python.
@@ -124,7 +92,7 @@ glmm_list$glmm_time <- as.numeric(glmer_time, units="secs")
 json_filename <- file.path(
     data_directory, paste(analysis_name, "_stan_dat.json", sep=""))
 json_file <- file(json_filename, "w")
-json_list <- toJSON(list(stan_dat=stan_dat, glmm_fit=glmm_list))
+json_list <- toJSON(list(stan_dat=stan_dat))
 write(json_list, file=json_file)
 close(json_file)
 
@@ -198,7 +166,7 @@ mcmc_sens_time <- Sys.time() - mcmc_sens_time
 # Save the results to an RData file for further post-processing.
 stan_draws_file <- file.path(
     data_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
-save(stan_sim, mcmc_time, stan_dat,
+save(stan_sim, mcmc_time, stan_dat, true_params,
      sens_result, stan_sensitivity_model, mcmc_sens_time,
      stan_advi, advi_time,
      stan_map, map_time,

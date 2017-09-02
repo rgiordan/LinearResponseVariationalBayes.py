@@ -69,6 +69,30 @@ ConvertStanVectorToDF <- function(
   return(ConvertPythonMomentVectorToDF(mcmc_moment_par$moment_par$get_vector(), glmm_par))
 }
 
+ConvertGlmerResultToDF <- function(
+  glmer_list, glmm_par, py_main=reticulate::import_main()) {
+
+  k <- length(glmer_list$beta_mean)
+  ng <- length(glmer_list$u_map)
+
+  beta <- glmer_list$beta_mean
+  mu <- glmer_list$mu_mean
+  tau <- glmer_list$tau_mean
+  log_tau <- log(tau)
+  u <- glmer_list$u_map
+
+  glmer_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
+  glmer_param_dict <- glmer_moment_par$moment_par$param_dict
+
+  glmer_param_dict$e_beta$set(array(beta))
+  glmer_param_dict$e_mu$set(mu)
+  glmer_param_dict$e_tau$set(tau)
+  glmer_param_dict$e_log_tau$set(log_tau)
+  glmer_param_dict$e_u$set(array(u))
+
+  return(ConvertPythonMomentVectorToDF(glmer_moment_par$moment_par$get_vector(), glmm_par))
+}
+
 GetMFVBCovVector <- function(glmm_par) {
   cov_moment_par <- py_main$logit_glmm$MomentWrapper(glmm_par)
   cov_param_dict <- cov_moment_par$moment_par$param_dict
