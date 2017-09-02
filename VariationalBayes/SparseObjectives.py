@@ -267,3 +267,16 @@ def get_sparse_hessian(
     print('Done.')
     return sp.sparse.csr_matrix(
         (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
+
+
+# Utilities for pickling and unpickling sparse matrices.
+def pack_csr_matrix(sp_mat):
+    return { 'data': sp_mat.data,
+             'indices': sp_mat.indices,
+             'indptr': sp_mat.indptr,
+             'shape': sp_mat.shape }
+
+def unpack_csr_matrix(sp_mat_dict):
+    return csr_matrix(
+        ( sp_mat_dict['data'], sp_mat_dict['indices'], sp_mat_dict['indptr']),
+        shape = sp_mat_dict['shape'])

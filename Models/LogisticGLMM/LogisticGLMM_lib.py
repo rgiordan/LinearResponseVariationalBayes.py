@@ -12,6 +12,7 @@ import autograd.scipy as sp
 import scipy as osp
 import numpy as onp
 
+import json
 import copy
 
 def load_json_data(json_filename):
@@ -30,10 +31,10 @@ def load_json_data(json_filename):
     y_vec = np.array(stan_dat['y'])
     x_mat = np.array(stan_dat['x'])
 
-    glmm_par = logit_glmm.get_glmm_parameters(K=K, NG=NG)
+    glmm_par = get_glmm_parameters(K=K, NG=NG)
 
     # Define a class to contain prior parameters.
-    prior_par = logit_glmm.get_default_prior_params(K)
+    prior_par = get_default_prior_params(K)
     prior_par['beta_prior_mean'].set(np.array(stan_dat['beta_prior_mean']))
 
     prior_par['beta_prior_info'].set(np.array(stan_dat['beta_prior_info']))
