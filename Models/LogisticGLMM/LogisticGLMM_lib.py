@@ -309,6 +309,8 @@ def get_global_parameters(K):
     return global_par
 
 def set_group_parameters(glmm_par, group_par, groups):
+    # Stupid assert fails with integers.  Why can't an integer just have
+    # len() == 1?
     assert(len(groups) == group_par['u'].size())
     group_par['beta'].set_vector(glmm_par['beta'].get_vector())
     group_par['mu'].set_vector(glmm_par['mu'].get_vector())
@@ -324,9 +326,10 @@ def set_global_parameters(glmm_par, global_par):
 
 
 class SparseModelObjective(LogisticGLMM):
-    def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points):
+    def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec,
+                 num_gh_points, num_groups=1):
         super().__init__(
-            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points, num_groups=1)
+            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points)
 
         self.glmm_indices = copy.deepcopy(self.glmm_par)
         self.glmm_indices.set_vector(np.arange(0, self.glmm_indices.vector_size()))
@@ -376,7 +379,7 @@ class SparseModelObjective(LogisticGLMM):
         all_group_rows = onp.logical_or.reduce([self.group_rows[g] for g in groups])
 
         # Which indices within the groups vector correspond to these rows:
-        y_g_sub = np.hstack([ np.full(np.sum(group_rows[groups[ig]]), ig) \
+        y_g_sub = np.hstack([ np.full(np.sum(self.group_rows[groups[ig]]), ig) \
                               for ig in range(len(groups))])
         return all_group_rows, y_g_sub
 
@@ -421,7 +424,7 @@ class SparseModelObjective(LogisticGLMM):
 
         e_mu = self.global_par['mu'].mean.get()
         info_mu = self.global_par['mu'].info.get()
-        var_mu = 1 / info_mu
+        var_mu = 1. / info_mu
 
         tau_shape = self.global_par['tau'].shape.get()
         tau_rate = self.global_par['tau'].rate.get()
@@ -466,7 +469,7 @@ class SparseModelObjective(LogisticGLMM):
         sparse_global_hess = get_sparse_hessian(
             set_parameters_fun = self.set_global_parameters,
             get_group_hessian = self.get_global_vector_hessian,
-            group_range = range(1),
+            group_range = [0],
             full_hess_dim = self.glmm_par.vector_size(),
             print_every = 1)
 
@@ -475,7 +478,7 @@ class SparseModelObjective(LogisticGLMM):
         sparse_group_hess = get_sparse_hessian(
             set_parameters_fun = self.set_group_parameters,
             get_group_hessian = self.get_group_vector_hessian,
-            group_range = range(NG),
+            group_range = [[g] for g in range(NG)],
             full_hess_dim = self.glmm_par.vector_size(),
             print_every = print_every_n)
 

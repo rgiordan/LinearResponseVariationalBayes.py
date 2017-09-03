@@ -248,12 +248,15 @@ def get_sparse_hessian(
     hess_rows = [] # These will be the z indices
     hess_cols = [] # These will be the data indices
 
-    group_vector, full_indices = set_parameters_fun(0)
+    # Get the dimension using the first element of the group_range.
+    group_vector, full_indices = set_parameters_fun(group_range[0])
     group_hess_dim = len(group_vector)
 
+    group_ind = 0
     for group in group_range:
-        if group % print_every == 0:
-            print('Group {} of {}'.format(group, np.max(group_range) - 1))
+        group_ind += 1
+        if group_ind % print_every == 0:
+            print('Group {} of {}'.format(group_ind, len(group_range) - 1))
         group_vector, full_indices = set_parameters_fun(group)
         row_hess_val = np.squeeze(get_group_hessian(group_vector, group))
 
