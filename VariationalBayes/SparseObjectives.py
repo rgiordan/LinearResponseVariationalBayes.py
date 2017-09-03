@@ -253,7 +253,7 @@ def get_sparse_hessian(
 
     for group in group_range:
         if group % print_every == 0:
-            print('Group {} of {}'.format(group, group_range.stop - 1))
+            print('Group {} of {}'.format(group, np.max(group_range) - 1))
         group_vector, full_indices = set_parameters_fun(group)
         row_hess_val = np.squeeze(get_group_hessian(group_vector, group))
 
@@ -269,6 +269,8 @@ def get_sparse_hessian(
         (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
 
 
+# TODO: test these formally
+
 # Utilities for pickling and unpickling sparse matrices.
 def pack_csr_matrix(sp_mat):
     return { 'data': sp_mat.data,
@@ -277,6 +279,6 @@ def pack_csr_matrix(sp_mat):
              'shape': sp_mat.shape }
 
 def unpack_csr_matrix(sp_mat_dict):
-    return csr_matrix(
+    return sp.sparse.csr_matrix(
         ( sp_mat_dict['data'], sp_mat_dict['indices'], sp_mat_dict['indptr']),
         shape = sp_mat_dict['shape'])

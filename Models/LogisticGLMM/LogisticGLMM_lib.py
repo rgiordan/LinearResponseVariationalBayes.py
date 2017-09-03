@@ -291,12 +291,12 @@ class MomentWrapper(object):
 
 # Since we never use the free version of the observation parameters,
 # we don't need to set the minimum allowable values.
-def get_group_parameters(K):
+def get_group_parameters(K, num_groups=1):
     group_par = vb.ModelParamsDict('Single group GLMM parameters')
     group_par.push_param(vb.UVNParam('mu'))
     group_par.push_param(vb.GammaParam('tau'))
     group_par.push_param(vb.UVNParamVector('beta', K))
-    group_par.push_param(vb.UVNParamVector('u', 1))
+    group_par.push_param(vb.UVNParamVector('u', num_groups))
     return group_par
 
 # Since we never use the free version of the global parameters, we don't need to
@@ -308,13 +308,14 @@ def get_global_parameters(K):
     global_par.push_param(vb.UVNParamVector('beta', K))
     return global_par
 
-def set_group_parameters(glmm_par, group_par, group):
+def set_group_parameters(glmm_par, group_par, groups):
+    assert(len(groups) == group_par['u'].size())
     group_par['beta'].set_vector(glmm_par['beta'].get_vector())
     group_par['mu'].set_vector(glmm_par['mu'].get_vector())
     group_par['tau'].set_vector(glmm_par['tau'].get_vector())
 
-    group_par['u'].mean.set(glmm_par['u'].mean.get()[group])
-    group_par['u'].info.set(glmm_par['u'].info.get()[group])
+    group_par['u'].mean.set(glmm_par['u'].mean.get()[groups])
+    group_par['u'].info.set(glmm_par['u'].info.get()[groups])
 
 def set_global_parameters(glmm_par, global_par):
     global_par['beta'].set_vector(glmm_par['beta'].get_vector())
@@ -324,15 +325,16 @@ def set_global_parameters(glmm_par, global_par):
 
 class SparseModelObjective(LogisticGLMM):
     def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points):
-        super().__init__(glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points)
+        super().__init__(
+            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points, num_groups=1)
 
         self.glmm_indices = copy.deepcopy(self.glmm_par)
         self.glmm_indices.set_vector(np.arange(0, self.glmm_indices.vector_size()))
 
         # Parameters for a single observation.
         K = glmm_par['beta'].size()
-        self.group_par = get_group_parameters(K)
-        self.group_indices = get_group_parameters(K)
+        self.group_par = get_group_parameters(K, num_groups)
+        self.group_indices = get_group_parameters(K, num_groups)
         self.group_indices.set_vector(np.arange(0, self.group_indices.vector_size()))
 
         self.group_rows = [ self.y_g_vec == g \
@@ -366,8 +368,20 @@ class SparseModelObjective(LogisticGLMM):
         set_global_parameters(self.glmm_indices, self.global_indices)
         return self.global_par.get_vector(), self.global_indices.get_vector()
 
+    # For a vector of groups, return the subsest of the data needed to evaluate
+    # the model at those groups, including a y_g vector appropriate to a set
+    # of parameters that only contains parameters for these groups.
+    def get_data_for_groups(self, groups):
+        # Rows in the dataset corresponding to these groups:
+        all_group_rows = onp.logical_or.reduce([self.group_rows[g] for g in groups])
+
+        # Which indices within the groups vector correspond to these rows:
+        y_g_sub = np.hstack([ np.full(np.sum(group_rows[groups[ig]]), ig) \
+                              for ig in range(len(groups))])
+        return all_group_rows, y_g_sub
+
     # Likelihood functions:
-    def get_group_elbo(self, group):
+    def get_group_elbo(self, groups):
         e_beta = self.group_par['beta'].e()
         var_beta = self.group_par['beta'].var()
         e_u = np.array([self.group_par['u'].e()])
@@ -378,9 +392,7 @@ class SparseModelObjective(LogisticGLMM):
         e_mu = self.group_par['mu'].e()
         var_mu = self.group_par['mu'].var()
 
-        assert(len(e_u) == 1)
-        assert(len(var_u) == 1)
-        assert(len(info_u) == 1)
+        all_group_rows, y_g_sub = self.get_data_for_groups(groups)
 
         return \
             np.sum(get_data_log_lik_terms(
@@ -388,9 +400,9 @@ class SparseModelObjective(LogisticGLMM):
                 var_beta=var_beta,
                 e_u=e_u,
                 var_u=var_u,
-                y_g_vec=[0],
-                x_mat=self.x_mat[self.group_rows[group], :],
-                y_vec=self.y_vec[self.group_rows[group]],
+                y_g_vec=y_g_sub,
+                x_mat=self.x_mat[all_group_rows, :],
+                y_vec=self.y_vec[all_group_rows],
                 gh_x=self.gh_x,
                 gh_w=self.gh_w)) + \
             get_re_log_lik(
