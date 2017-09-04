@@ -45,7 +45,8 @@ class TestModel(unittest.TestCase):
         obj_hvp = objective.fun_free_hvp(free_par, obj_grad)
 
         np_test.assert_array_almost_equal(
-            np.matmul(obj_hess, obj_grad), obj_hvp)
+            np.matmul(obj_hess, obj_grad), obj_hvp,
+            err_msg='Hessian vector product equals Hessian')
 
         moment_wrapper = logit_glmm.MomentWrapper(glmm_par)
         moment_wrapper.get_moment_vector(free_par)
@@ -86,8 +87,7 @@ class TestModel(unittest.TestCase):
         ########################
         # Test the objectives.
 
-        # Testing the local objective.
-        print('Testing the groups\' elbo.')
+        # Testing the sparse objective.
         g = 2
         sparse_model.set_global_parameters()
         sparse_model.set_group_parameters([g])
@@ -100,14 +100,16 @@ class TestModel(unittest.TestCase):
             sparse_model.group_par.get_vector(),
             err_msg='Group model parameter equality')
 
+        # Checking that a single group is equal.
         single_group_elbo = single_group_model.get_elbo()
         sparse_elbo = sparse_model.get_global_elbo() + \
             sparse_model.get_group_elbo([g])
 
         np_test.assert_array_almost_equal(
-            single_group_elbo, sparse_elbo, err_msg="Group model elbo equality")
+            single_group_elbo, sparse_elbo,
+            err_msg="Group model elbo equality")
 
-        print('Testing full elbo.')
+        # Checking the full elbo is equal.
         sparse_elbo = sparse_model.get_global_elbo()
         for g in range(NG):
             sparse_model.set_group_parameters([g])
@@ -115,6 +117,32 @@ class TestModel(unittest.TestCase):
 
         elbo = -1 * objective.fun_free(free_par)
         np_test.assert_array_almost_equal(elbo, sparse_elbo)
+
+        # Check that the vector Hessian is equal.
+        model.glmm_par.set_free(free_par)
+        sparse_model.glmm_par.set_free(free_par)
+        sparse_vector_hess = \
+            sparse_model.get_sparse_vector_hessian(print_every_n=1000)
+        sparse_vector_hess_dense = \
+            np.array(sparse_vector_hess.todense())
+        full_vector_hess = \
+            -1 * objective.fun_vector_hessian(
+                sparse_model.glmm_par.get_vector())
+
+        np_test.assert_array_almost_equal(
+            full_vector_hess,
+            sparse_vector_hess_dense,
+            err_msg='Sparse vector Hessian equality')
+
+        # Check that the free Hessian is equal.
+        sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
+        full_hess = -1 * objective.fun_free_hessian(
+            sparse_model.glmm_par.get_free())
+
+        np_test.assert_array_almost_equal(
+            full_hess,
+            np.array(sparse_hess.todense()),
+            err_msg='Sparse free Hessian equality')
 
 
 if __name__ == '__main__':

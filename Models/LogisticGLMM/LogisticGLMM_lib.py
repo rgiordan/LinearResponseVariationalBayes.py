@@ -403,11 +403,12 @@ class SparseModelObjective(LogisticGLMM):
         re_log_lik = get_re_log_lik(self.group_par)
         u_entropy = get_local_entropy(self.group_par)
 
-        return data_log_lik + re_log_lik + u_entropy
+        return np.squeeze(data_log_lik + re_log_lik + u_entropy)
 
     def get_global_elbo(self):
-        return get_global_entropy(self.global_par) + \
-               get_e_log_prior(self.global_par, self.prior_par)
+        return np.squeeze(
+            get_global_entropy(self.global_par) + \
+            get_e_log_prior(self.global_par, self.prior_par))
 
     def get_group_elbo_from_vec(self, group_par_vec, group):
         self.group_par.set_vector(group_par_vec)
