@@ -19,8 +19,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -45,7 +45,8 @@ glmm_formula_string <- sprintf("y ~ %s + (1|y_g)", paste(regressors, collapse=" 
 
 glmer_time <- Sys.time()
 glmm_res <- glmer(formula(glmm_formula_string),
-                  data=glmm_df, family="binomial", verbose=FALSE)
+                  data=glmm_df, family="binomial", verbose=FALSE,
+                  nAGQ=4)
 glmer_time <- Sys.time() - glmer_time
 
 glmm_summary <- summary(glmm_res)
@@ -74,6 +75,7 @@ u_post_sd <- sqrt(array(attr(glmm_ranef$y_g, "postVar")))
 glmm_list$u_cond_sd <- u_post_sd
 
 glmm_list$glmm_time <- as.numeric(glmer_time, units="secs")
+glmm_list$glmm_res <- glmm_res
 
 # Debugging
 # plot(stan_results$true_params$u, glmm_list$u_map); abline(0, 1)

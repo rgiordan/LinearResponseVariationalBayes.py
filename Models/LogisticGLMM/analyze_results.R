@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 # source(file.path(project_directory, "densities_lib.R"))
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -109,9 +109,12 @@ stan_map <- stan_results$stan_map
 # Combine into a single tidy dataframe.
 results_posterior <-
   rbind(
-    ConvertPythonMomentVectorToDF(vb_mean_vec, glmm_par) %>% mutate(method="mfvb", metric="mean"),
-    ConvertPythonMomentVectorToDF(mfvb_sd_vec, glmm_par) %>% mutate(method="mfvb", metric="sd"),
-    ConvertPythonMomentVectorToDF(lrvb_sd_vec, glmm_par) %>% mutate(method="lrvb", metric="sd"),
+    ConvertPythonMomentVectorToDF(vb_mean_vec, glmm_par) %>%
+      mutate(method="mfvb", metric="mean"),
+    ConvertPythonMomentVectorToDF(mfvb_sd_vec, glmm_par) %>%
+      mutate(method="mfvb", metric="sd"),
+    ConvertPythonMomentVectorToDF(lrvb_sd_vec, glmm_par) %>%
+      mutate(method="lrvb", metric="sd"),
     
     ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), glmm_par) %>%
       mutate(method="mcmc", metric="mean"),
@@ -144,7 +147,8 @@ prior_par$set_vector(array(1:prior_par$vector_size()))
 prior_index_df <-
   RecursiveUnpackParameter(prior_par$dictval()) %>%
   rename(par=par_1, component_2=par_2, vb_index=val) %>%
-  mutate(component_1=component, component_2=as.integer(component_2), vb_index=as.integer(vb_index))
+  mutate(component_1=component, component_2=as.integer(component_2),
+         vb_index=as.integer(vb_index))
 
 matrix_ud_index <- function(i, j) {
   matrix_ud_index_ordered <- function(i, j) {
@@ -366,111 +370,26 @@ if (FALSE) {
 
 
 
+# Glmer investigation
 
+# https://cran.r-project.org/web/packages/lme4/vignettes/Theory.pdf
 
-# Overall
+filter(results, metric == "mean", par != "e_u") %>% select(-lrvb, -map)
 
-# ggplot(
-#   filter(results, metric == "mean") %>%
-#     dcast(par + component + group ~ method, value.var="val") %>%
-#     mutate(is_u = par == "u")) +
-#   geom_point(aes(x=mcmc, y=mfvb, color=par), size=3) +
-#   geom_abline(aes(intercept=0, slope=1)) +
-#   facet_grid(~ is_u)
-# 
-# ggplot(
-#   filter(results, metric == "sd") %>%
-#     dcast(par + component + group ~ method, value.var="val") %>%
-#     mutate(is_u = par == "u")) +
-#   geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb"), size=3) +
-#   geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb"), size=3) +
-#   geom_abline(aes(intercept=0, slope=1)) +
-#   facet_grid(~ is_u) +
-#   ggtitle("Posterior standard deviations")
-# 
-# ggplot(
-#   filter(results, metric == "sd", par != "u") %>%
-#     dcast(par + component + group ~ method, value.var="val")
-# ) +
-#   geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-#   geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-#   expand_limits(x=0, y=0) +
-#   xlab("MCMC (ground truth)") + ylab("VB") +
-#   scale_color_discrete(guide=guide_legend(title="Method")) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# ggplot(
-#   filter(results, metric == "sd", par == "mu") %>%
-#     dcast(par + component + group ~ method, value.var="val")
-# ) +
-#   geom_point(aes(x=mcmc, y=mfvb, color="mfvb", shape=par), size=3) +
-#   geom_point(aes(x=mcmc, y=lrvb, color="lrvb", shape=par), size=3) +
-#   expand_limits(x=0, y=0) +
-#   xlab("MCMC (ground truth)") + ylab("VB") +
-#   scale_color_discrete(guide=guide_legend(title="Method")) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# 
-# ggplot(
-#   filter(results, metric == "sd", par != "u") %>%
-#     dcast(par + component + group ~ method, value.var="val")
-# ) +
-#   geom_point(aes(x=mcmc, y=map, color="map", shape=par), size=3) +
-#   expand_limits(x=0, y=0) +
-#   xlab("MCMC (ground truth)") + ylab("MAP") +
-#   scale_color_discrete(guide=guide_legend(title="Method")) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# ggplot(
-#   filter(results, metric == "mean") %>%
-#     dcast(par + component + group ~ method, value.var="val") %>%
-#     mutate(is_u = par == "u")) +
-#   geom_point(aes(x=truth, y=mcmc, shape=par, color="mcmc"), size=3) +
-#   geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
-#   geom_point(aes(x=truth, y=map, shape=par, color="map"), size=3) +
-#   geom_abline(aes(intercept=0, slope=1)) +
-#   facet_grid(~ is_u)
-# 
-# 
-# # Sensitivity
-# 
-# ggplot(filter(vb_prior_sens_cast, par != "u")) +
-#   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=par)) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# 
-# # Note: mcmc_norm_sd is not here because it doens't work with the aggregation.
-# 
-# # Compare LRVB with the MCMC standard deviations
-# ggplot(filter(vb_prior_sens_cast, par=="u")) +
-#   geom_point(aes(x=lrvb_norm, y=mcmc_norm, color=prior_par)) +
-#   geom_errorbar(aes(x=lrvb_norm,
-#                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
-#                     ymax=mcmc_norm + 2 * mcmc_norm_sd,
-#                     color=prior_par)) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# # Compare MCMC with its own estimated standard deviations.
-# ggplot(filter(vb_prior_sens_cast, par=="u")) +
-#   geom_point(aes(x=mcmc_norm, y=mcmc_norm, color=prior_par)) +
-#   geom_errorbar(aes(x=mcmc_norm,
-#                     ymin=mcmc_norm - 2 * mcmc_norm_sd,
-#                     ymax=mcmc_norm + 2 * mcmc_norm_sd,
-#                     color=prior_par)) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# ggplot(filter(vb_prior_sens_cast, par=="u")) +
-#   geom_point(aes(x=mcmc_norm, y=mcmc_norm_small, color=prior_par)) +
-#   geom_errorbar(aes(x=mcmc_norm,
-#                     ymin=mcmc_norm_small - 2 * mcmc_norm_small_sd,
-#                     ymax=mcmc_norm_small + 2 * mcmc_norm_small_sd,
-#                     color=prior_par)) +
-#   geom_abline(aes(intercept=0, slope=1))
-# 
-# ggplot(filter(vb_prior_sens_cast, par=="u")) +
-#   geom_point(aes(x=mcmc, y=mcmc_small, color=prior_par)) +
-#   geom_errorbar(aes(x=mcmc_norm,
-#                     ymin=mcmc_small - 2 * mcmc_small_sd,
-#                     ymax=mcmc_small + 2 * mcmc_small_sd,
-#                     color=prior_par)) +
-#   geom_abline(aes(intercept=0, slope=1))
+# 3 is a good choice for the simulated small
+par_col <- 3 
+
+par = sprintf("u[%d]", par_col)
+u_draws <- rstan::extract(stan_results$stan_sim, pars=par)[[par]]
+#plot(1:length(u_draws), u_draws)
+glmer_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$glmer
+mfvb_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$mfvb
+glmer_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
+mfvb_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
+
+ggplot() +
+  geom_histogram(aes(x=u_draws)) +
+  geom_vline(aes(xintercept=glmer_e_u, color="glmer"), lwd=2) +
+  geom_vline(aes(xintercept=mfvb_e_u, color="mfvb"), lwd=2) +
+  geom_vline(aes(xintercept=mfvb_e_mu, color="mu"))
+  
