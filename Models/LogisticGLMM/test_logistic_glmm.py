@@ -86,44 +86,39 @@ class TestModel(unittest.TestCase):
         ########################
         # Test the objectives.
 
-        # Test the global objective.
-        print('Testing global elbo.')
-        sparse_global_elbo = sparse_model.get_global_elbo()
-        global_elbo = \
-            model.get_entropy(include_u=False) + \
-            model.get_e_log_prior()
-        np_test.assert_array_almost_equal(global_elbo, sparse_global_elbo)
-
         # Testing the local objective.
         print('Testing the groups\' elbo.')
         g = 2
-        group_rows, y_g_select = sparse_model.get_data_for_groups([g])
+        sparse_model.set_global_parameters()
+        sparse_model.set_group_parameters([g])
         single_group_model = logit_glmm.LogisticGLMM(
             sparse_model.group_par, prior_par,
             x_mat[group_rows, :], y_vec[group_rows], y_g_select,
             num_gh_points=4)
-        sparse_model.set_group_parameters([g])
+        np_test.assert_array_almost_equal(
+            single_group_model.glmm_par.get_vector(),
+            sparse_model.group_par.get_vector(),
+            err_msg='Group model parameter equality')
+
         sparse_group_elbo = \
             sparse_model.get_group_elbo([g]) + sparse_model.get_global_elbo()
 
-        single_group_model.glmm_par.set_vector(
-            sparse_model.group_par.get_vector())
+        print(sparse_model.get_group_elbo([g]))
+        print(sparse_model.get_global_elbo())
+
         group_elbo = single_group_model.get_elbo()
 
         np_test.assert_array_almost_equal(
-            single_group_model.glmm_par.get_vector(),
-            sparse_model.group_par.get_vector())
+            group_elbo, sparse_group_elbo, err_msg="Group model elbo equality")
 
-        np_test.assert_array_almost_equal(group_elbo, sparse_group_elbo)
-
-        print('Testing full elbo.')
-        sparse_elbo = sparse_model.get_global_elbo()
-        for g in range(NG):
-            sparse_model.set_group_parameters([g])
-            sparse_elbo += sparse_model.get_group_elbo([g])
-
-        elbo = -1 * objective.fun_free(free_par)
-        np_test.assert_array_almost_equal(elbo, sparse_elbo)
+        # print('Testing full elbo.')
+        # sparse_elbo = sparse_model.get_global_elbo()
+        # for g in range(NG):
+        #     sparse_model.set_group_parameters([g])
+        #     sparse_elbo += sparse_model.get_group_elbo([g])
+        #
+        # elbo = -1 * objective.fun_free(free_par)
+        # np_test.assert_array_almost_equal(elbo, sparse_elbo)
 
 
 if __name__ == '__main__':

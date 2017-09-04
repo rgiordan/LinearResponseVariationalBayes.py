@@ -122,29 +122,85 @@ def get_default_prior_params(K):
 
 
 ####### Modeling functions
-def get_data_log_lik_terms(e_beta, var_beta, e_u, var_u,
-                           x_mat, y_vec, y_g_vec, gh_x, gh_w):
-    # Necessary for indieing by y_g_vec to work right.
-    e_u = np.atleast_1d(e_u)
-    var_u = np.atleast_1d(var_u)
+def get_data_log_lik_terms(glmm_par, x_mat, y_vec, y_g_vec, gh_x, gh_w):
+    e_beta = glmm_par['beta'].e()
+    var_beta = glmm_par['beta'].var()
+
+    # atleast1d is necessary for indexing by y_g_vec to work right.
+    e_u = np.atleast_1d(glmm_par['u'].e())
+    var_u = np.atleast_1d(glmm_par['u'].var())
 
     # Log likelihood from data.
     z_mean = e_u[y_g_vec] + np.squeeze(np.matmul(x_mat, e_beta))
     z_sd = np.sqrt(
         var_u[y_g_vec] +
-        np.squeeze(np.einsum(
-            'nk,k,nk->n', x_mat, var_beta, x_mat)))
+        np.squeeze(np.einsum('nk,k,nk->n', x_mat, var_beta, x_mat)))
     return \
         y_vec * z_mean - \
         get_e_logistic_term_guass_hermite(
             z_mean, z_sd, gh_x, gh_w, aggregate_all=False)
 
 
-def get_re_log_lik(e_mu, var_mu, e_tau, e_log_tau, e_u, var_u):
+def get_re_log_lik(glmm_par):
+    e_mu = glmm_par['mu'].e()
+    var_mu = glmm_par['mu'].var()
+    e_tau = glmm_par['tau'].e()
+    e_log_tau = glmm_par['tau'].e_log()
+    e_u = glmm_par['u'].e()
+    var_u = glmm_par['u'].var()
+
     return -0.5 * e_tau * np.sum(
-        ((e_mu - e_u) ** 2) + var_mu + var_u) + 0.5 * e_log_tau * len(e_u)
+        ((e_mu - e_u) ** 2) + var_mu + var_u) + \
+        0.5 * e_log_tau * glmm_par['u'].size()
+
+def get_global_entropy(glmm_par):
+    info_mu = glmm_par['mu'].info.get()
+    info_beta = glmm_par['beta'].info.get()
+    tau_shape = glmm_par['tau'].shape.get()
+    tau_rate = glmm_par['tau'].rate.get()
+
+    return \
+        ef.univariate_normal_entropy(info_mu) + \
+        ef.univariate_normal_entropy(info_beta) + \
+        ef.gamma_entropy(tau_shape, tau_rate)
+
+def get_local_entropy(glmm_par):
+    info_u = glmm_par['u'].info.get()
+    return ef.univariate_normal_entropy(info_u)
 
 
+def get_e_log_prior(glmm_par, prior_par):
+    e_beta = glmm_par['beta'].mean.get()
+    info_beta = glmm_par['beta'].info.get()
+    #cov_beta = np.linalg.inv(info_beta)
+    cov_beta = np.diag(1. / info_beta)
+    beta_prior_info = prior_par['beta_prior_info'].get()
+    beta_prior_mean = prior_par['beta_prior_mean'].get()
+    e_mu = glmm_par['mu'].mean.get()
+    info_mu = glmm_par['mu'].info.get()
+    var_mu = 1 / info_mu
+    e_tau = glmm_par['tau'].e()
+    e_log_tau = glmm_par['tau'].e_log()
+
+    e_log_p_beta = ef.mvn_prior(
+        prior_mean = prior_par['beta_prior_mean'].get(),
+        prior_info = prior_par['beta_prior_info'].get(),
+        e_obs = e_beta,
+        cov_obs = cov_beta)
+
+    e_log_p_mu = ef.uvn_prior(
+        prior_mean = prior_par['mu_prior_mean'].get(),
+        prior_info = prior_par['mu_prior_info'].get(),
+        e_obs = e_mu,
+        var_obs = var_mu)
+
+    e_log_p_tau = ef.gamma_prior(
+        prior_shape = prior_par['tau_prior_alpha'].get(),
+        prior_rate = prior_par['tau_prior_beta'].get(),
+        e_obs = e_tau,
+        e_log_obs = e_log_tau)
+
+    return e_log_p_beta + e_log_p_mu + e_log_p_tau
 
 
 class LogisticGLMM(object):
@@ -168,51 +224,11 @@ class LogisticGLMM(object):
         self.gh_x, self.gh_w = onp.polynomial.hermite.hermgauss(num_gh_points)
 
     def get_e_log_prior(self):
-        e_beta = self.glmm_par['beta'].mean.get()
-        info_beta = self.glmm_par['beta'].info.get()
-        #cov_beta = np.linalg.inv(info_beta)
-        cov_beta = np.diag(1. / info_beta)
-        beta_prior_info = self.prior_par['beta_prior_info'].get()
-        beta_prior_mean = self.prior_par['beta_prior_mean'].get()
-        e_mu = self.glmm_par['mu'].mean.get()
-        info_mu = self.glmm_par['mu'].info.get()
-        var_mu = 1 / info_mu
-        e_tau = self.glmm_par['tau'].e()
-        e_log_tau = self.glmm_par['tau'].e_log()
-
-        e_log_p_beta = ef.mvn_prior(
-            prior_mean = self.prior_par['beta_prior_mean'].get(),
-            prior_info = self.prior_par['beta_prior_info'].get(),
-            e_obs = e_beta,
-            cov_obs = cov_beta)
-
-        e_log_p_mu = ef.uvn_prior(
-            prior_mean = self.prior_par['mu_prior_mean'].get(),
-            prior_info = self.prior_par['mu_prior_info'].get(),
-            e_obs = e_mu,
-            var_obs = var_mu)
-
-        e_log_p_tau = ef.gamma_prior(
-            prior_shape = self.prior_par['tau_prior_alpha'].get(),
-            prior_rate = self.prior_par['tau_prior_beta'].get(),
-            e_obs = e_tau,
-            e_log_obs = e_log_tau)
-
-        return e_log_p_beta + e_log_p_mu + e_log_p_tau
+        return get_e_log_prior(self.glmm_par, self.prior_par)
 
     def get_data_log_lik_terms(self):
-        e_beta = self.glmm_par['beta'].e()
-        var_beta = self.glmm_par['beta'].var()
-        e_u = self.glmm_par['u'].e()
-        var_u = self.glmm_par['u'].var()
-        e_u = e_u
-        var_u = var_u
-
         return get_data_log_lik_terms(
-            e_beta = e_beta,
-            var_beta = var_beta,
-            e_u = e_u,
-            var_u = var_u,
+            glmm_par = self.glmm_par,
             x_mat = self.x_mat,
             y_vec = self.y_vec,
             y_g_vec = self.y_g_vec,
@@ -226,44 +242,18 @@ class LogisticGLMM(object):
             data_log_lik = np.sum(self.get_data_log_lik_terms())
 
         # Log likelihood from random effect terms.
-        e_mu = self.glmm_par['mu'].e()
-        var_mu = self.glmm_par['mu'].var()
-        e_tau = self.glmm_par['tau'].e()
-        e_log_tau = self.glmm_par['tau'].e_log()
-        e_u = self.glmm_par['u'].e()
-        var_u = self.glmm_par['u'].var()
+        re_log_lik = get_re_log_lik(self.glmm_par)
 
-        re_log_lik = get_re_log_lik(
-            e_mu = e_mu,
-            var_mu = var_mu,
-            e_tau = e_tau,
-            e_log_tau = e_log_tau,
-            e_u = e_u,
-            var_u = var_u)
-
-        return re_log_lik + data_log_lik
-
-    def get_entropy(self, include_u=True):
-        info_mu = self.glmm_par['mu'].info.get()
-        info_beta = self.glmm_par['beta'].info.get()
-        tau_shape = self.glmm_par['tau'].shape.get()
-        tau_rate = self.glmm_par['tau'].rate.get()
-
-        if include_u:
-            info_u = self.glmm_par['u'].info.get()
-            u_entropy = ef.univariate_normal_entropy(info_u)
-        else:
-            u_entropy = 0.0
-
-        return \
-            ef.univariate_normal_entropy(info_mu) + \
-            ef.univariate_normal_entropy(info_beta) + \
-            ef.gamma_entropy(tau_shape, tau_rate) + \
-            u_entropy
+        return re_log_lik
+    def get_entropy(self):
+        return get_global_entropy(self.glmm_par) + \
+               get_local_entropy(self.glmm_par)
 
     def get_elbo(self):
-        return np.squeeze(
-            self.get_log_lik() + self.get_entropy() + self.get_e_log_prior())
+        log_lik = self.get_log_lik()
+        entropy = self.get_entropy()
+        e_log_prior = self.get_e_log_prior()
+        return np.squeeze(log_lik + entropy + e_log_prior)
 
     def get_kl(self):
         return -1 * self.get_elbo()
@@ -400,73 +390,23 @@ class SparseModelObjective(LogisticGLMM):
 
     # Likelihood functions:
     def get_group_elbo(self, groups):
-        e_beta = self.group_par['beta'].e()
-        var_beta = self.group_par['beta'].var()
-        e_u = self.group_par['u'].e()
-        var_u = self.group_par['u'].var()
-        info_u = np.atleast_1d(self.group_par['u'].info.get())
-        e_tau = self.group_par['tau'].e()
-        e_log_tau = self.group_par['tau'].e_log()
-        e_mu = self.group_par['mu'].e()
-        var_mu = self.group_par['mu'].var()
-
         all_group_rows, y_g_sub = self.get_data_for_groups(groups)
 
         data_log_lik = np.sum(get_data_log_lik_terms(
-            e_beta = e_beta,
-            var_beta = var_beta,
-            e_u = e_u,
-            var_u = var_u,
+            glmm_par = self.group_par,
             y_g_vec = y_g_sub,
             x_mat = self.x_mat[all_group_rows, :],
             y_vec = self.y_vec[all_group_rows],
             gh_x = self.gh_x,
             gh_w = self.gh_w))
+        re_log_lik = get_re_log_lik(self.group_par)
+        u_entropy = get_local_entropy(self.group_par)
 
-        re_log_lik = get_re_log_lik(
-            e_mu = e_mu,
-            var_mu = var_mu,
-            e_tau = e_tau,
-            e_log_tau = e_log_tau,
-            e_u = e_u,
-            var_u = var_u)
-
-        return data_log_lik + re_log_lik + ef.univariate_normal_entropy(info_u)
+        return data_log_lik + re_log_lik + u_entropy
 
     def get_global_elbo(self):
-        e_beta = self.global_par['beta'].mean.get()
-        info_beta = self.global_par['beta'].info.get()
-        cov_beta = np.diag(1. / info_beta)
-
-        e_mu = self.global_par['mu'].mean.get()
-        info_mu = self.global_par['mu'].info.get()
-        var_mu = 1. / info_mu
-
-        tau_shape = self.global_par['tau'].shape.get()
-        tau_rate = self.global_par['tau'].rate.get()
-        e_tau = self.global_par['tau'].e()
-        e_log_tau = self.global_par['tau'].e_log()
-
-        e_log_p_beta = ef.mvn_prior(
-            prior_mean=self.prior_par['beta_prior_mean'].get(),
-            prior_info=self.prior_par['beta_prior_info'].get(),
-            e_obs=e_beta, cov_obs=cov_beta)
-
-        e_log_p_mu = ef.uvn_prior(
-            prior_mean=self.prior_par['mu_prior_mean'].get(),
-            prior_info=self.prior_par['mu_prior_info'].get(),
-            e_obs=e_mu, var_obs=var_mu)
-
-        e_log_p_tau = ef.gamma_prior(
-            prior_shape=self.prior_par['tau_prior_alpha'].get(),
-            prior_rate=self.prior_par['tau_prior_beta'].get(),
-            e_obs=e_tau, e_log_obs=e_log_tau)
-
-        return \
-            ef.univariate_normal_entropy(info_mu) + \
-            ef.univariate_normal_entropy(info_beta) + \
-            ef.gamma_entropy(tau_shape, tau_rate) + \
-            e_log_p_beta + e_log_p_mu + e_log_p_tau
+        return get_global_entropy(self.global_par) + \
+               get_e_log_prior(self.global_par, self.prior_par)
 
     def get_group_elbo_from_vec(self, group_par_vec, group):
         self.group_par.set_vector(group_par_vec)
