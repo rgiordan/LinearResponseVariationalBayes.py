@@ -51,7 +51,7 @@ class TestModel(unittest.TestCase):
         moment_wrapper.get_moment_vector(free_par)
 
     def test_sparse_model(self):
-        N = 50
+        N = 17
         K = 2
         NG = 7
 

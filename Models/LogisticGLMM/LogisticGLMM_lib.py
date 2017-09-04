@@ -124,11 +124,16 @@ def get_default_prior_params(K):
 ####### Modeling functions
 def get_data_log_lik_terms(e_beta, var_beta, e_u, var_u,
                            x_mat, y_vec, y_g_vec, gh_x, gh_w):
+    # Necessary for indieing by y_g_vec to work right.
+    e_u = np.atleast_1d(e_u)
+    var_u = np.atleast_1d(var_u)
+
     # Log likelihood from data.
-    z_mean = e_u[y_g_vec] + np.matmul(x_mat, e_beta)
+    z_mean = e_u[y_g_vec] + np.squeeze(np.matmul(x_mat, e_beta))
     z_sd = np.sqrt(
-        var_u[y_g_vec] + np.einsum('nk,k,nk->n',
-                          x_mat, var_beta, x_mat))
+        var_u[y_g_vec] +
+        np.squeeze(np.einsum(
+            'nk,k,nk->n', x_mat, var_beta, x_mat)))
     return \
         y_vec * z_mean - \
         get_e_logistic_term_guass_hermite(
@@ -200,9 +205,9 @@ class LogisticGLMM(object):
         var_beta = self.glmm_par['beta'].var()
         e_u = self.glmm_par['u'].e()
         var_u = self.glmm_par['u'].var()
+        e_u = e_u
+        var_u = var_u
 
-        print('full: ', e_u[self.y_g_vec], var_u[self.y_g_vec])
-        print(type(self.y_g_vec))
         return get_data_log_lik_terms(
             e_beta = e_beta,
             var_beta = var_beta,
@@ -235,8 +240,6 @@ class LogisticGLMM(object):
             e_log_tau = e_log_tau,
             e_u = e_u,
             var_u = var_u)
-
-        print('full log_lik ', data_log_lik, '\n')
 
         return re_log_lik + data_log_lik
 
@@ -399,17 +402,16 @@ class SparseModelObjective(LogisticGLMM):
     def get_group_elbo(self, groups):
         e_beta = self.group_par['beta'].e()
         var_beta = self.group_par['beta'].var()
-        e_u = np.array([self.group_par['u'].e()])
-        var_u = np.array([self.group_par['u'].var()])
-        info_u = np.array([self.group_par['u'].info.get()])
+        e_u = self.group_par['u'].e()
+        var_u = self.group_par['u'].var()
+        info_u = np.atleast_1d(self.group_par['u'].info.get())
         e_tau = self.group_par['tau'].e()
         e_log_tau = self.group_par['tau'].e_log()
         e_mu = self.group_par['mu'].e()
         var_mu = self.group_par['mu'].var()
 
         all_group_rows, y_g_sub = self.get_data_for_groups(groups)
-        print('group: ', e_u[y_g_sub], var_u[y_g_sub])
-        print(type(y_g_sub))
+
         data_log_lik = np.sum(get_data_log_lik_terms(
             e_beta = e_beta,
             var_beta = var_beta,
@@ -428,8 +430,6 @@ class SparseModelObjective(LogisticGLMM):
             e_log_tau = e_log_tau,
             e_u = e_u,
             var_u = var_u)
-
-        print('sparse log_lik ', data_log_lik, '\n')
 
         return data_log_lik + re_log_lik + ef.univariate_normal_entropy(info_u)
 
