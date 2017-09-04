@@ -100,25 +100,21 @@ class TestModel(unittest.TestCase):
             sparse_model.group_par.get_vector(),
             err_msg='Group model parameter equality')
 
-        sparse_group_elbo = \
-            sparse_model.get_group_elbo([g]) + sparse_model.get_global_elbo()
-
-        print(sparse_model.get_group_elbo([g]))
-        print(sparse_model.get_global_elbo())
-
-        group_elbo = single_group_model.get_elbo()
+        single_group_elbo = single_group_model.get_elbo()
+        sparse_elbo = sparse_model.get_global_elbo() + \
+            sparse_model.get_group_elbo([g])
 
         np_test.assert_array_almost_equal(
-            group_elbo, sparse_group_elbo, err_msg="Group model elbo equality")
+            single_group_elbo, sparse_elbo, err_msg="Group model elbo equality")
 
-        # print('Testing full elbo.')
-        # sparse_elbo = sparse_model.get_global_elbo()
-        # for g in range(NG):
-        #     sparse_model.set_group_parameters([g])
-        #     sparse_elbo += sparse_model.get_group_elbo([g])
-        #
-        # elbo = -1 * objective.fun_free(free_par)
-        # np_test.assert_array_almost_equal(elbo, sparse_elbo)
+        print('Testing full elbo.')
+        sparse_elbo = sparse_model.get_global_elbo()
+        for g in range(NG):
+            sparse_model.set_group_parameters([g])
+            sparse_elbo += sparse_model.get_group_elbo([g])
+
+        elbo = -1 * objective.fun_free(free_par)
+        np_test.assert_array_almost_equal(elbo, sparse_elbo)
 
 
 if __name__ == '__main__':

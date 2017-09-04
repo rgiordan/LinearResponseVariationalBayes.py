@@ -244,7 +244,8 @@ class LogisticGLMM(object):
         # Log likelihood from random effect terms.
         re_log_lik = get_re_log_lik(self.glmm_par)
 
-        return re_log_lik
+        return data_log_lik + re_log_lik
+
     def get_entropy(self):
         return get_global_entropy(self.glmm_par) + \
                get_local_entropy(self.glmm_par)
