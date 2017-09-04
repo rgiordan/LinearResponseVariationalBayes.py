@@ -82,7 +82,7 @@ def simulate_data(N, NG, true_beta, true_mu, true_tau):
     true_rho = Logistic(np.matmul(x_mat, true_beta) + true_u[y_g_vec])
     y_vec = np.random.random(NObs) < true_rho
 
-    return x_mat, y_g_vec, y_vec, true_rho, true_u
+    return np.array(x_mat), np.array(y_g_vec), np.array(y_vec), true_rho, true_u
 
 
 def get_e_logistic_term_guass_hermite(
@@ -148,9 +148,9 @@ class LogisticGLMM(object):
 
         self.glmm_par = copy.deepcopy(glmm_par)
         self.prior_par = copy.deepcopy(prior_par)
-        self.x_mat = x_mat
-        self.y_vec = y_vec
-        self.y_g_vec = y_g_vec
+        self.x_mat = np.array(x_mat)
+        self.y_vec = np.array(y_vec)
+        self.y_g_vec = np.array(y_g_vec)
         self.set_gh_points(num_gh_points)
 
         self.use_weights = False
@@ -201,6 +201,8 @@ class LogisticGLMM(object):
         e_u = self.glmm_par['u'].e()
         var_u = self.glmm_par['u'].var()
 
+        print('full: ', e_u[self.y_g_vec], var_u[self.y_g_vec])
+        print(type(self.y_g_vec))
         return get_data_log_lik_terms(
             e_beta = e_beta,
             var_beta = var_beta,
@@ -214,9 +216,9 @@ class LogisticGLMM(object):
 
     def get_log_lik(self):
         if self.use_weights:
-            log_lik = np.sum(self.weights * self.get_data_log_lik_terms())
+            data_log_lik = np.sum(self.weights * self.get_data_log_lik_terms())
         else:
-            log_lik = np.sum(self.get_data_log_lik_terms())
+            data_log_lik = np.sum(self.get_data_log_lik_terms())
 
         # Log likelihood from random effect terms.
         e_mu = self.glmm_par['mu'].e()
@@ -226,7 +228,7 @@ class LogisticGLMM(object):
         e_u = self.glmm_par['u'].e()
         var_u = self.glmm_par['u'].var()
 
-        log_lik += get_re_log_lik(
+        re_log_lik = get_re_log_lik(
             e_mu = e_mu,
             var_mu = var_mu,
             e_tau = e_tau,
@@ -234,20 +236,27 @@ class LogisticGLMM(object):
             e_u = e_u,
             var_u = var_u)
 
-        return log_lik
+        print('full log_lik ', data_log_lik, '\n')
 
-    def get_entropy(self):
+        return re_log_lik + data_log_lik
+
+    def get_entropy(self, include_u=True):
         info_mu = self.glmm_par['mu'].info.get()
         info_beta = self.glmm_par['beta'].info.get()
-        info_u = self.glmm_par['u'].info.get()
         tau_shape = self.glmm_par['tau'].shape.get()
         tau_rate = self.glmm_par['tau'].rate.get()
+
+        if include_u:
+            info_u = self.glmm_par['u'].info.get()
+            u_entropy = ef.univariate_normal_entropy(info_u)
+        else:
+            u_entropy = 0.0
 
         return \
             ef.univariate_normal_entropy(info_mu) + \
             ef.univariate_normal_entropy(info_beta) + \
-            ef.univariate_normal_entropy(info_u) + \
-            ef.gamma_entropy(tau_shape, tau_rate)
+            ef.gamma_entropy(tau_shape, tau_rate) + \
+            u_entropy
 
     def get_elbo(self):
         return np.squeeze(
@@ -329,7 +338,10 @@ class SparseModelObjective(LogisticGLMM):
     def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec,
                  num_gh_points, num_groups=1):
         super().__init__(
-            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points)
+            glmm_par, prior_par,
+            np.array(x_mat),
+            np.array(y_vec),
+            np.array(y_g_vec), num_gh_points)
 
         self.glmm_indices = copy.deepcopy(self.glmm_par)
         self.glmm_indices.set_vector(np.arange(0, self.glmm_indices.vector_size()))
@@ -396,26 +408,30 @@ class SparseModelObjective(LogisticGLMM):
         var_mu = self.group_par['mu'].var()
 
         all_group_rows, y_g_sub = self.get_data_for_groups(groups)
+        print('group: ', e_u[y_g_sub], var_u[y_g_sub])
+        print(type(y_g_sub))
+        data_log_lik = np.sum(get_data_log_lik_terms(
+            e_beta = e_beta,
+            var_beta = var_beta,
+            e_u = e_u,
+            var_u = var_u,
+            y_g_vec = y_g_sub,
+            x_mat = self.x_mat[all_group_rows, :],
+            y_vec = self.y_vec[all_group_rows],
+            gh_x = self.gh_x,
+            gh_w = self.gh_w))
 
-        return \
-            np.sum(get_data_log_lik_terms(
-                e_beta=e_beta,
-                var_beta=var_beta,
-                e_u=e_u,
-                var_u=var_u,
-                y_g_vec=y_g_sub,
-                x_mat=self.x_mat[all_group_rows, :],
-                y_vec=self.y_vec[all_group_rows],
-                gh_x=self.gh_x,
-                gh_w=self.gh_w)) + \
-            get_re_log_lik(
-                e_mu=e_mu,
-                var_mu=var_mu,
-                e_tau=e_tau,
-                e_log_tau=e_log_tau,
-                e_u=np.array([e_u]),
-                var_u=np.array([var_u])) + \
-            ef.univariate_normal_entropy(info_u)
+        re_log_lik = get_re_log_lik(
+            e_mu = e_mu,
+            var_mu = var_mu,
+            e_tau = e_tau,
+            e_log_tau = e_log_tau,
+            e_u = e_u,
+            var_u = var_u)
+
+        print('sparse log_lik ', data_log_lik, '\n')
+
+        return data_log_lik + re_log_lik + ef.univariate_normal_entropy(info_u)
 
     def get_global_elbo(self):
         e_beta = self.global_par['beta'].mean.get()
