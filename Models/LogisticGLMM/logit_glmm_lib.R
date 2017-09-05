@@ -121,8 +121,12 @@ ConvertGlmerSDResultToDF <- function(
   glmer_param_dict$e_tau$set(0)
   glmer_param_dict$e_log_tau$set(0)
 
-  return(ConvertPythonMomentVectorToDF(
-      glmer_moment_par$moment_par$get_vector(), glmm_par))
+  glmer_sd_df <- ConvertPythonMomentVectorToDF(
+      glmer_moment_par$moment_par$get_vector(), glmm_par)
+
+  # Make the tau sds NA
+  glmer_sd_df[grepl("tau", glmer_sd_df$par), "val"] <- NA
+  return(glmer_sd_df)
 }
 
 GetMFVBCovVector <- function(glmm_par) {

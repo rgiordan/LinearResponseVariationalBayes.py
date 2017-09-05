@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 # source(file.path(project_directory, "densities_lib.R"))
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -104,7 +104,6 @@ stan_map <- stan_results$stan_map
 # For tidiness, let's just leave it as NA.
 #inv_hess_diag <- -diag(solve(stan_map$hessian))
 #names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
-
 
 # Combine into a single tidy dataframe.
 results_posterior <-
@@ -239,6 +238,58 @@ sens_df_cast <-
         par + component + metric + par_prior ~ method,
         value.var="val")
 
+
+##################################
+# Make some tables.
+
+set.seed(42)
+# Randomly choose some u components to look at
+random_u_components <-
+  sample.int(max(filter(results, par == "e_u")$component), 10, replace=F)
+
+# Make a dataframe including the stan standard errors
+stan_summary_orig <-
+  data.frame(rstan::summary(stan_results$stan_sim, pars=c("beta", "mu", "tau", "u"))$summary)
+stan_summary_orig$stan_par <- rownames(stan_summary_orig)
+
+# Extract the parameter and components.  Leave in the original parameter for sanity
+# checking!
+stan_summary <-
+  mutate(stan_summary_orig,
+         par=sub("\\[+.*$", "", stan_par),
+         par=paste("e", par, sep="_"),
+         component_string=sub("(^.*\\[)([0-9]*)(\\]*$)", "\\2", stan_par),
+         component=as.numeric(sub("[^0-9].*", "", component_string))) %>%
+  select(-component_string) %>%
+  filter(par != "e_u" | (par == "e_u" & component %in% random_u_components))
+print(stan_summary)
+
+# Make a table with the means
+mean_table <-
+  filter(results, metric == "mean") %>%
+  filter(par != "e_u" | (par == "e_u" & component %in% random_u_components)) %>%
+  select(-lrvb) %>%
+  inner_join(select(stan_summary, n_eff, se_mean, mean, component, par),
+             by=c("par", "component")) %>%
+  rename(parameter=par, stan_std_err=se_mean)
+
+# Sanity check
+stopifnot(max(abs(mean_table$mean - mean_table$mcmc)) < 1e-6)
+mean_table <- select(mean_table, -mean, -metric) %>%
+  select(parameter, component, mcmc, mfvb, glmer, map, stan_std_err)
+
+# Make a table with the standard deviations
+sd_table <-
+  filter(results, metric == "sd") %>%
+  filter(par != "e_u" | (par == "e_u" & component %in% random_u_components)) %>%
+  filter(par != "e_log_tau") %>%
+  rename(parameter=par) %>%
+  select(-metric) %>%
+  select(parameter, component, mcmc, lrvb, glmer, mfvb)
+
+
+# Save
+
 if (save_results) {
   mcmc_time <- as.numeric(stan_results$mcmc_time, units="secs")
   map_time <- as.numeric(stan_results$map_time, units="secs")
@@ -263,6 +314,7 @@ if (save_results) {
   elbo_hess_sparsity <- 0.
   save(results,
        sens_df_cast,
+       mean_table, sd_table,
        mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
        num_mcmc_draws, num_gh_points,
        pp, num_obs, num_groups, beta_dim,
@@ -275,8 +327,7 @@ if (save_results) {
 # Graphs and analysis
 
 print(sprintf("This was %s", analysis_name))
-stop("Graphs follow -- not executing.")
-
+stop("Exploratory graphs follow -- not executing.")
 
 if (FALSE) {
   # VB means:
@@ -332,15 +383,18 @@ if (FALSE) {
   
   # GLMER sds:
   grid.arrange(
-    ggplot(filter(results, metric == "sd", par != "e_u")) +
-      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
-      geom_abline(aes(intercept=0, slope=1))
-    ,   
-    ggplot(filter(results, metric == "sd", par == "e_u")) +
+    ggplot(graph_df <- filter(results, metric == "sd", par != "e_u")) +
       geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
       geom_abline(aes(intercept=0, slope=1)) +
-      expand_limits(x=0, y=0)
-    , ncol=2
+      expand_limits(x=0, y=0) +
+      expand_limits(x=max(graph_df$mcmc), y=max(graph_df$mcmc))
+    ,   
+    ggplot(graph_df <- filter(results, metric == "sd", par == "e_u")) +
+      geom_point(aes(x=mcmc, y=glmer, color=par), size=3) +
+      geom_abline(aes(intercept=0, slope=1)) +
+      expand_limits(x=0, y=0) +
+      expand_limits(x=max(graph_df$mcmc), y=max(graph_df$mcmc))
+      , ncol=2
   )
   
 
@@ -371,30 +425,36 @@ if (FALSE) {
 
 
 
-# Glmer investigation
-
-# https://cran.r-project.org/web/packages/lme4/vignettes/Theory.pdf
-
-filter(results, metric == "mean", par != "e_u") %>% select(-lrvb, -map)
-
-# 3 is a good choice for the simulated small
-par_col <- 3 
-
-par = sprintf("u[%d]", par_col)
-u_draws <- rstan::extract(stan_results$stan_sim, pars=par)[[par]]
-#plot(1:length(u_draws), u_draws)
-glmer_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$glmer
-mfvb_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$mfvb
-glmer_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
-mfvb_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
-
-ggplot() +
-  geom_histogram(aes(x=u_draws)) +
-  geom_vline(aes(xintercept=glmer_e_u, color="glmer"), lwd=2) +
-  geom_vline(aes(xintercept=mfvb_e_u, color="mfvb"), lwd=2) +
-  geom_vline(aes(xintercept=mfvb_e_mu, color="mu"))
-
-
-# Note to self: try fitting VB without the u variances?  In theory, that should
-# be the main difference between GLMER and VB.
+if (FALSE) {
+  # Glmer investigation
   
+  # https://cran.r-project.org/web/packages/lme4/vignettes/Theory.pdf
+  filter(results, metric == "mean", par != "e_u") %>% select(-lrvb, -map)
+  
+  # 3 is a good choice for the simulated small
+  par_col <- 3 
+  
+  par = sprintf("u[%d]", par_col)
+  u_draws <- rstan::extract(stan_results$stan_sim, pars=par)[[par]]
+  #plot(1:length(u_draws), u_draws)
+  glmer_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$glmer
+  mfvb_e_u <- filter(results, metric == "mean", par == "e_u", component == par_col)$mfvb
+  glmer_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
+  mfvb_e_mu <- filter(results, metric == "mean", par == "e_mu")$mfvb
+  
+  ggplot() +
+    geom_histogram(aes(x=u_draws)) +
+    geom_vline(aes(xintercept=glmer_e_u, color="glmer"), lwd=2) +
+    geom_vline(aes(xintercept=mfvb_e_u, color="mfvb"), lwd=2) +
+    geom_vline(aes(xintercept=mfvb_e_mu, color="mu"))
+}
+
+
+# Stan convergence estimation
+stan_summary <- rstan::summary(stan_results$stan_sim, pars=c("beta", "mu", "tau"))
+stan_draws <- as.data.frame(stan_results$stan_sim, pars=c("beta", "mu", "tau"))
+print(stan_summary)
+
+
+
+plot(1:length(stan_draws$mu), stan_draws$mu)

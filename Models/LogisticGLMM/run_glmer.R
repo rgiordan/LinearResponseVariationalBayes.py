@@ -19,8 +19,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 source(file.path(project_directory, "densities_lib.R"))
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
