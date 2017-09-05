@@ -252,8 +252,8 @@ stan_summary_orig <-
   data.frame(rstan::summary(stan_results$stan_sim, pars=c("beta", "mu", "tau", "u"))$summary)
 stan_summary_orig$stan_par <- rownames(stan_summary_orig)
 
-# Extract the parameter and components.  Leave in the original parameter for sanity
-# checking!
+# Extract the parameter and components.  Leave in the original parameter for
+# sanity checking!
 stan_summary <-
   mutate(stan_summary_orig,
          par=sub("\\[+.*$", "", stan_par),
@@ -271,21 +271,20 @@ mean_table <-
   select(-lrvb) %>%
   inner_join(select(stan_summary, n_eff, se_mean, mean, component, par),
              by=c("par", "component")) %>%
-  rename(parameter=par, stan_std_err=se_mean)
+  rename(stan_std_err=se_mean)
 
 # Sanity check
 stopifnot(max(abs(mean_table$mean - mean_table$mcmc)) < 1e-6)
 mean_table <- select(mean_table, -mean, -metric) %>%
-  select(parameter, component, mcmc, mfvb, glmer, map, stan_std_err)
+  select(par, component, mcmc, mfvb, glmer, map, stan_std_err, n_eff)
 
 # Make a table with the standard deviations
 sd_table <-
   filter(results, metric == "sd") %>%
   filter(par != "e_u" | (par == "e_u" & component %in% random_u_components)) %>%
   filter(par != "e_log_tau") %>%
-  rename(parameter=par) %>%
   select(-metric) %>%
-  select(parameter, component, mcmc, lrvb, glmer, mfvb)
+  select(par, component, mcmc, lrvb, glmer, mfvb)
 
 
 # Save
@@ -299,6 +298,9 @@ if (save_results) {
   inverse_time <- as.numeric(vb_results$inverse_time, units="secs")
   num_mcmc_draws <- nrow(as.matrix(stan_results$stan_sim))
   num_gh_points <- vb_results$num_gh_points
+  
+  cg_row_time <- vb_results$cg_row_time
+  num_cg_iterations <- vb_results$num_cg_iterations
   
   # Prior parameters
   pp <- stan_results$stan_dat
@@ -316,6 +318,7 @@ if (save_results) {
        sens_df_cast,
        mean_table, sd_table,
        mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
+       cg_row_time, num_cg_iterations,
        num_mcmc_draws, num_gh_points,
        pp, num_obs, num_groups, beta_dim,
        elbo_hess_sparsity,

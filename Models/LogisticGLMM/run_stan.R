@@ -20,8 +20,8 @@ project_directory <- file.path(
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-#analysis_name <- "criteo_subsampled"
-analysis_name <- "simulated_data_small"
+analysis_name <- "criteo_subsampled"
+#analysis_name <- "simulated_data_small"
 
 true_params <- list()
 if (analysis_name == "simulated_data_small") {
@@ -62,7 +62,7 @@ if (analysis_name == "simulated_data_small") {
   iters <- 3000 # We actually need more than this -- use this for debugging.
 } else if (analysis_name == "criteo_subsampled") { 
   load(file.path(data_directory, "criteo_data_for_paper.Rdata"))
-  iters <- 5000
+  iters <- 10000
 } else {
   stop("Unknown analysis name.")
 }
@@ -149,7 +149,7 @@ stan_map_bfgs <- optimizing(
     model, data=stan_dat, algorithm="BFGS", hessian=TRUE,
     init=get_inits(stan_sim)[[1]], verbose=TRUE,
     tol_obj=1e-12, tol_grad=1e-12, tol_param=1e-12)
-bfgs_map_time <- bfgs_map_time - Sys.time()
+bfgs_map_time <- Sys.time() - bfgs_map_time
 
 stan_map <- stan_map_bfgs
 map_time <- bfgs_map_time
