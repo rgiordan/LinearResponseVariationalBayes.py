@@ -392,4 +392,8 @@ ggplot() +
   geom_vline(aes(xintercept=glmer_e_u, color="glmer"), lwd=2) +
   geom_vline(aes(xintercept=mfvb_e_u, color="mfvb"), lwd=2) +
   geom_vline(aes(xintercept=mfvb_e_mu, color="mu"))
+
+
+# Note to self: try fitting VB without the u variances?  In theory, that should
+# be the main difference between GLMER and VB.
   

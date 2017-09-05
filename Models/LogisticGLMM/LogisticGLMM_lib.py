@@ -126,7 +126,7 @@ def get_data_log_lik_terms(glmm_par, x_mat, y_vec, y_g_vec, gh_x, gh_w):
     e_beta = glmm_par['beta'].e()
     var_beta = glmm_par['beta'].var()
 
-    # atleast1d is necessary for indexing by y_g_vec to work right.
+    # atleast_1d is necessary for indexing by y_g_vec to work right.
     e_u = np.atleast_1d(glmm_par['u'].e())
     var_u = np.atleast_1d(glmm_par['u'].var())
 

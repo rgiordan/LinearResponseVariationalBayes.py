@@ -83,4 +83,15 @@ glmm_list$glmm_res <- glmm_res
 if (save_results) {
   print(sprintf("Saving to %s", glmer_results_file))
   save(glmm_list, file=glmer_results_file)
+  
+  # Save in JSON for reading in Python
+  json_filename <- file.path(
+    data_directory, paste(analysis_name, "_glmer_results.json", sep=""))
+  json_file <- file(json_filename, "w")
+  glmm_json_list <- glmm_list
+  glmm_json_list$glmm_res <- NULL # Cannot be saved as JSON
+  json_list <- toJSON(glmm_json_list)
+  write(json_list, file=json_file)
+  close(json_file)
 }
+
