@@ -274,6 +274,7 @@ if (save_results) {
 ########################################
 # Graphs and analysis
 
+print(sprintf("This was %s", analysis_name))
 stop("Graphs follow -- not executing.")
 
 

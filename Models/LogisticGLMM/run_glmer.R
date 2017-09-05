@@ -70,8 +70,10 @@ glmm_list$tau_mean <- 1 / attr(glmm_summary$varcor$y_g, "stddev") ^ 2
 
 # Glmer uses a non-centered model, where stan and vb use a centered model.
 glmm_ranef <- ranef(glmm_res, condVar=TRUE)
-glmm_list$u_map <- as.numeric(ranef(glmm_res)$y_g[, "(Intercept)"]) + glmm_list$mu_mean
-u_post_sd <- sqrt(array(attr(glmm_ranef$y_g, "postVar")))
+y_g_numerical_perm <- order(as.numeric(rownames(glmm_ranef$y_g)))
+glmm_list$u_map <- as.numeric(
+  ranef(glmm_res)$y_g[y_g_numerical_perm, "(Intercept)"]) + glmm_list$mu_mean
+u_post_sd <- sqrt(array(attr(glmm_ranef$y_g, "postVar")[y_g_numerical_perm]))
 glmm_list$u_cond_sd <- u_post_sd
 
 glmm_list$glmm_time <- as.numeric(glmer_time, units="secs")
