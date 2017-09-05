@@ -44,16 +44,28 @@ glmer_results <- LoadIntoEnvironment(glmer_file)
 # Load the python pickled data.
 InitializePython()
 py_main <- reticulate::import_main()
+
+# Original results
 python_filename <- file.path(
   data_directory, paste(analysis_name, "_python_vb_results.pkl", sep=""))
+
+# Results evaluating the linearity of the sensitivity
+python_perturbed_filename <- file.path(
+  data_directory, paste(analysis_name, "_python_vb_perturbation_results.pkl", sep=""))
+
 reticulate::py_run_string(
 "
 pkl_file = open('" %_% python_filename %_% "', 'rb')
 vb_results = pickle.load(pkl_file)
 pkl_file.close()
+
+pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
+vb_pert_results = pickle.load(pkl_file)
+pkl_file.close()
 ")
 
 vb_results <- py_main$vb_results
+vb_pert_results <- py_main$vb_pert_results
 
 ##############
 # Check covariance
@@ -287,6 +299,52 @@ sd_table <-
   select(par, component, mcmc, lrvb, glmer, mfvb)
 
 
+###########################
+# Perturbation and re-fit results
+
+# The refit time includes a "refit" with no change.  That still took a little time
+# but just ignore it, biasing the results a little unfavorably.
+vb_refit_time <-
+  vb_pert_results$vb_refit_time / (length(vb_pert_results$epsilon_list) - 1)
+
+GetPerturbationResult <- function(moment_vec, epsilon) {
+  return(
+    ConvertPythonMomentVectorToDF(moment_vec, glmm_par) %>%
+      mutate(epsilon=epsilon)
+  )
+}
+
+pert_result_list <- list()
+for (ind in 1:length(vb_pert_results$epsilon_list)) {
+  pert_result_list[[ind]] <- GetPerturbationResult(
+    vb_pert_results$moment_vec_list[[ind]], epsilon=vb_pert_results$epsilon_list[ind])
+}
+
+lrvb_sens_results <- 
+  ungroup(sensitivity_results) %>%
+  filter(par_prior == "mu_prior_info",
+         method=="lrvb",
+         metric == "prior_sensitivity") %>%
+  select(par, component, par_prior, val) %>%
+  rename(lrvb_sens=val)
+
+pert_result_df <-
+  do.call(rbind, pert_result_list)
+
+pert_result_diff_df <-
+  inner_join(filter(pert_result_df, epsilon != 0.0),
+             filter(pert_result_df, epsilon == 0.0) %>% select(par, component, val),
+             by=c("par", "component"),
+             suffix=c("", "_orig")) %>%
+  inner_join(lrvb_sens_results, by=c("par", "component")) %>%
+  mutate(diff = val - val_orig, pred_diff = epsilon * lrvb_sens)
+
+ggplot(filter(pert_result_diff_df, par == "e_mu")) +
+  geom_point(aes(x=epsilon, y=diff, color="actual")) +
+  geom_line(aes(x=epsilon, y=diff, color="actual")) +
+  geom_line(aes(x=epsilon, y=pred_diff, color="predicted"))
+  
+#######################
 # Save
 
 if (save_results) {
@@ -318,6 +376,7 @@ if (save_results) {
        sens_df_cast,
        mean_table, sd_table,
        mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
+       vb_refit_time,
        cg_row_time, num_cg_iterations,
        num_mcmc_draws, num_gh_points,
        pp, num_obs, num_groups, beta_dim,
