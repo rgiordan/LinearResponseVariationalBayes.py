@@ -449,3 +449,100 @@ class SparseModelObjective(LogisticGLMM):
             self.glmm_par.get_free(),
             vector_grad,
             vector_hess)
+
+
+###################################
+# MLE (MAP) estimators
+
+
+def get_mle_parameters(K, NG):
+    mle_par = vb.ModelParamsDict('GLMER Parameters')
+    mle_par.push_param(vb.VectorParam('mu'))
+    mle_par.push_param(vb.VectorParam('tau'))
+    mle_par.push_param(vb.VectorParam('beta', K))
+    mle_par.push_param(vb.VectorParam('u', NG))
+
+    return mle_par
+
+def get_mle_data_log_lik_terms(mle_par, x_mat, y_vec, y_g_vec):
+    beta = mle_par['beta'].get()
+
+    # atleast_1d is necessary for indexing by y_g_vec to work right.
+    e_u = np.atleast_1d(mle_par['u'].get())
+
+    # Log likelihood from data.
+    z = e_u[y_g_vec] + np.squeeze(np.matmul(x_mat, beta))
+
+    return y_vec * z - np.log1p(np.exp(z))
+
+def get_mle_re_log_lik(mle_par):
+    mu = mle_par['mu'].get()
+    tau = mle_par['tau'].get()
+    u = mle_par['u'].get()
+
+    return -0.5 * tau * np.sum(
+        ((mu - u) ** 2)) +  0.5 * np.log(tau) * mle_par['u'].size()
+
+def get_mle_log_prior(mle_par, prior_par):
+    beta = mle_par['beta'].get()
+    mu = mle_par['mu'].get()
+    tau = mle_par['tau'].get()
+
+    K = len(beta)
+    log_p_beta = ef.mvn_prior(
+        prior_mean = prior_par['beta_prior_mean'].get(),
+        prior_info = prior_par['beta_prior_info'].get(),
+        e_obs = beta,
+        cov_obs = np.zeros((K, K)))
+
+    log_p_mu = ef.uvn_prior(
+        prior_mean = prior_par['mu_prior_mean'].get(),
+        prior_info = prior_par['mu_prior_info'].get(),
+        e_obs = mu,
+        var_obs = 0.0)
+
+    log_p_tau = ef.gamma_prior(
+        prior_shape = prior_par['tau_prior_alpha'].get(),
+        prior_rate = prior_par['tau_prior_beta'].get(),
+        e_obs = tau,
+        e_log_obs = np.log(tau))
+
+    return log_p_beta + log_p_mu + log_p_tau
+
+
+def set_moment_par_from_mle(moment_par, mle_par):
+    moment_par.set_vector(np.full(moment_par.vector_size(), np.nan))
+    moment_par['e_beta'].set(mle_par['beta'].get())
+    moment_par['e_mu'].set(mle_par['mu'].get())
+    moment_par['e_tau'].set(mle_par['tau'].get())
+    moment_par['e_log_tau'].set(np.log(mle_par['tau'].get()))
+    moment_par['e_u'].set(mle_par['u'].get())
+
+    return moment_par
+
+
+class LogisticGLMMMaximumLikelihood(object):
+    def __init__(self, mle_par, prior_par, x_mat, y_vec, y_g_vec):
+
+        self.mle_par = copy.deepcopy(mle_par)
+        self.prior_par = copy.deepcopy(prior_par)
+        self.x_mat = np.array(x_mat)
+        self.y_vec = np.array(y_vec)
+        self.y_g_vec = np.array(y_g_vec)
+
+        assert np.min(y_g_vec) == 0
+        assert np.max(y_g_vec) == self.mle_par['u'].size() - 1
+
+
+    def get_log_lik(self):
+        data_log_lik = np.sum(get_mle_data_log_lik_terms(
+            mle_par = self.mle_par,
+            x_mat = self.x_mat,
+            y_vec = self.y_vec,
+            y_g_vec = self.y_g_vec))
+        re_log_lik = get_mle_re_log_lik(self.mle_par)
+        log_prior = get_mle_log_prior(self.mle_par, self.prior_par)
+        return np.squeeze(data_log_lik + re_log_lik + log_prior)
+
+    def get_log_loss(self):
+        return -1 * self.get_log_lik()

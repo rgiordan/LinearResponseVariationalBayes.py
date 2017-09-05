@@ -51,7 +51,13 @@ python_filename <- file.path(
 
 # Results evaluating the linearity of the sensitivity
 python_perturbed_filename <- file.path(
-  data_directory, paste(analysis_name, "_python_vb_perturbation_results.pkl", sep=""))
+  data_directory,
+  paste(analysis_name, "_python_vb_perturbation_results.pkl", sep=""))
+
+# Results evaluating the MAP
+python_map_filename <- file.path(
+  data_directory,
+  paste(analysis_name, "_python_vb_map_results.pkl", sep=""))
 
 reticulate::py_run_string(
 "
@@ -62,10 +68,19 @@ pkl_file.close()
 pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
 vb_pert_results = pickle.load(pkl_file)
 pkl_file.close()
+
+pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
+vb_pert_results = pickle.load(pkl_file)
+pkl_file.close()
+
+pkl_file = open('" %_% python_map_filename %_% "', 'rb')
+vb_map_results = pickle.load(pkl_file)
+pkl_file.close()
 ")
 
 vb_results <- py_main$vb_results
 vb_pert_results <- py_main$vb_pert_results
+vb_map_results <- py_main$vb_map_results
 
 ##############
 # Check covariance
@@ -107,15 +122,11 @@ mcmc_sd_vec <- apply(draws_mat, sd, MARGIN=2)
 lrvb_sd_vec <- sqrt(diag(lrvb_cov))
 
 # The MAP estimate
-stan_map <- stan_results$stan_map 
 
-# This is time-consuming and not necessary for the paper.
-# Get the MAP standard deviation based on the negative inverse Hessian
-# at the MAP, with the same names as the draws matrix.
-# If we wanted the sds of log(tau), we'd need the delta method.
-# For tidiness, let's just leave it as NA.
-#inv_hess_diag <- -diag(solve(stan_map$hessian))
-#names(inv_hess_diag) <- colnames(draws_mat)[1:length(inv_hess_diag)]
+# The Stan MAP estimate is slow and of quesitonable quality.
+# We'll use our own from Python instead.
+vb_map_results$mle_par_free
+
 
 # Combine into a single tidy dataframe.
 results_posterior <-
@@ -137,11 +148,8 @@ results_posterior <-
     ConvertGlmerSDResultToDF(glmer_results$glmm_list, glmm_par) %>%
       mutate(method="glmer", metric="sd"),
     
-    ConvertStanVectorToDF(stan_map$par, names(stan_map$par), glmm_par) %>%
+    ConvertPythonMomentVectorToDF(vb_map_results$mle_moment_par_vector, glmm_par) %>%
       mutate(method="map", metric="mean")
-    # ,
-    # ConvertStanVectorToDF(sqrt(inv_hess_diag), names(inv_hess_diag$par), glmm_par) %>%
-    #   mutate(method="map", metric="sd")
   )
 
 results <- dcast(results_posterior, par + metric + component ~ method, value.var="val")
@@ -322,7 +330,7 @@ for (ind in 1:length(vb_pert_results$epsilon_list)) {
 
 lrvb_sens_results <- 
   ungroup(sensitivity_results) %>%
-  filter(par_prior == "mu_prior_info",
+  filter(par_prior == vb_pert_results$perturb_prior_par,
          method=="lrvb",
          metric == "prior_sensitivity") %>%
   select(par, component, par_prior, val) %>%
@@ -339,17 +347,13 @@ pert_result_diff_df <-
   inner_join(lrvb_sens_results, by=c("par", "component")) %>%
   mutate(diff = val - val_orig, pred_diff = epsilon * lrvb_sens)
 
-ggplot(filter(pert_result_diff_df, par == "e_mu")) +
-  geom_point(aes(x=epsilon, y=diff, color="actual")) +
-  geom_line(aes(x=epsilon, y=diff, color="actual")) +
-  geom_line(aes(x=epsilon, y=pred_diff, color="predicted"))
-  
+
 #######################
 # Save
 
 if (save_results) {
   mcmc_time <- as.numeric(stan_results$mcmc_time, units="secs")
-  map_time <- as.numeric(stan_results$map_time, units="secs")
+  map_time <- as.numeric(vb_map_results$map_time, units="secs")
   glmer_time <- as.numeric(glmer_results$glmm_list$glmm_time, units="secs")
   vb_time <- as.numeric(vb_results$vb_time, units="secs")
   hess_time <- as.numeric(vb_results$hess_time, units="secs")
@@ -373,6 +377,7 @@ if (save_results) {
   #elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
   elbo_hess_sparsity <- 0.
   save(results,
+       pert_result_diff_df,
        sens_df_cast,
        mean_table, sd_table,
        mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
@@ -511,12 +516,26 @@ if (FALSE) {
     geom_vline(aes(xintercept=mfvb_e_mu, color="mu"))
 }
 
+if (FALSE) {
+
+  # VB re-fit
+  graph_df <-
+    filter(pert_result_diff_df,
+           par == "e_mu" |
+           par == "e_u" & component %in% random_u_components[1:5] |
+           par == "e_beta" & component %in% c(1, 2) |
+           par == "e_tau")
+  ggplot(graph_df) +
+    geom_point(aes(x=epsilon, y=diff, color="actual")) +
+    geom_line(aes(x=epsilon, y=diff, color="actual")) +
+    geom_line(aes(x=epsilon, y=pred_diff, color="predicted")) +
+    facet_grid(. ~ par + component)
+}
+
 
 # Stan convergence estimation
 stan_summary <- rstan::summary(stan_results$stan_sim, pars=c("beta", "mu", "tau"))
 stan_draws <- as.data.frame(stan_results$stan_sim, pars=c("beta", "mu", "tau"))
 print(stan_summary)
-
-
 
 plot(1:length(stan_draws$mu), stan_draws$mu)
