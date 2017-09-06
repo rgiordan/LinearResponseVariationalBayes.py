@@ -50,6 +50,7 @@ def wishart_entropy(df, v):
         0.5 * (df - k - 1) * multivariate_digamma(0.5 * df, k) + \
         0.5 * df * k
 
+#############################
 # Expectations
 
 # If \Sigma ~ Wishart(v, df), return E[log |\Sigma|]
@@ -79,6 +80,12 @@ def get_var_lognormal(mu, sigma_sq):
 def get_e_log_gamma(shape, rate):
     return sp.special.digamma(shape) - np.log(rate)
 
+def get_e_log_dirichlet(alpha):
+    digamma_sum = sp.special.digamma(np.sum(alpha))
+    return sp.special.digamma(alpha) - digamma_sum
+
+
+#############################
 # Priors
 
 # TODO: perhaps rename these expected_*_prior

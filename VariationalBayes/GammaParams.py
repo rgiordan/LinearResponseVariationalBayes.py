@@ -12,8 +12,6 @@ class GammaParam(vb.ModelParamsDict):
     def e_log(self):
         return ef.get_e_log_gamma(
             shape=self['shape'].get(), rate=self['rate'].get())
-        return asp.special.digamma(self['shape'].get()) - \
-               np.log(self['rate'].get())
     def entropy(self):
         return ef.gamma_entropy(
             shape=self['shape'].get(), rate=self['rate'].get())
