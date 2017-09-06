@@ -374,14 +374,10 @@ class TestParameters(unittest.TestCase):
         vec = np.full(2, 0.2)
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
         vp = MVNParam('test', k)
-        vp.mean.set(vec)
-        vp.info.set(mat)
 
 
     def test_UVNParam(self):
         vp = UVNParam('test', min_info=0.1)
-        vp.mean.set(0.2)
-        vp.info.set(1.2)
 
 
     def test_UVNParamVector(self):
@@ -389,23 +385,18 @@ class TestParameters(unittest.TestCase):
         vp_mean = np.array([ 0.2, 0.5 ])
         vp_info = np.array([ 1.2, 2.1 ])
         vp = UVNParamVector('test', k, min_info=0.1)
-        vp.mean.set(vp_mean)
-        vp.info.set(vp_info)
 
 
     def test_GammaParam(self):
         shape = 0.2
         rate = 0.4
         vp = GammaParam('test', min_rate=0.1)
-        vp.shape.set(shape)
-        vp.rate.set(rate)
 
 
     def test_DirichletParamVector(self):
         d = 4
         alpha = np.array([ 0.2, 1, 3, 0.7 ])
         vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
-        vp.alpha.set(alpha)
 
 
 class TestParameterDictionary(unittest.TestCase):

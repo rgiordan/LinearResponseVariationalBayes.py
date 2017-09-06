@@ -82,10 +82,12 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             offset = par.set_vector_offset(param, vec, offset)
     def get_vector(self):
-        return np.hstack([ par.get_vector() for par in self.param_dict.values() ])
+        return np.hstack(
+            [ par.get_vector() for par in self.param_dict.values() ])
 
     def names(self):
-        return np.concatenate([ param.names() for param in self.param_dict.values()])
+        return np.concatenate(
+            [ np.atleast_1d(param.names()) for param in self.param_dict.values()])
     def free_size(self):
         return self.__free_size
     def vector_size(self):
