@@ -340,7 +340,7 @@ pert_result_df <-
   do.call(rbind, pert_result_list)
 
 pert_result_diff_df <-
-  inner_join(filter(pert_result_df, epsilon != 0.0),
+  inner_join(filter(pert_result_df),
              filter(pert_result_df, epsilon == 0.0) %>% select(par, component, val),
              by=c("par", "component"),
              suffix=c("", "_orig")) %>%
@@ -360,6 +360,7 @@ if (save_results) {
   inverse_time <- as.numeric(vb_results$inverse_time, units="secs")
   num_mcmc_draws <- nrow(as.matrix(stan_results$stan_sim))
   num_gh_points <- vb_results$num_gh_points
+  hess_dim <- glmm_par$free_size()
   
   cg_row_time <- vb_results$cg_row_time
   num_cg_iterations <- vb_results$num_cg_iterations
@@ -375,7 +376,6 @@ if (save_results) {
   beta_dim <- stan_results$stan_dat$K
   # Doesn't work with sparse elbo_hess
   #elbo_hess_sparsity <- Matrix(abs(vb_results$elbo_hess) > 1e-8)
-  elbo_hess_sparsity <- 0.
   save(results,
        pert_result_diff_df,
        sens_df_cast,
@@ -384,8 +384,7 @@ if (save_results) {
        vb_refit_time,
        cg_row_time, num_cg_iterations,
        num_mcmc_draws, num_gh_points,
-       pp, num_obs, num_groups, beta_dim,
-       elbo_hess_sparsity,
+       pp, num_obs, num_groups, beta_dim, hess_dim,
        file=results_file)
 }
 
@@ -517,7 +516,6 @@ if (FALSE) {
 }
 
 if (FALSE) {
-
   # VB re-fit
   graph_df <-
     filter(pert_result_diff_df,
