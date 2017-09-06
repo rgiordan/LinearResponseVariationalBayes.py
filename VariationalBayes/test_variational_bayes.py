@@ -8,7 +8,7 @@ from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
 from VariationalBayes import MatrixParameters
-from VariationalBayes import MultinomialParams
+from VariationalBayes import SimplexParams
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 from VariationalBayes.MatrixParameters import \
@@ -18,8 +18,8 @@ from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.WishartParams import WishartParam
-from VariationalBayes.MultinomialParams import SimplexParam
-from VariationalBayes.MultinomialParams import \
+from VariationalBayes.SimplexParams import SimplexParam
+from VariationalBayes.SimplexParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
 from VariationalBayes.DirichletParams import DirichletParamVector, \
@@ -158,11 +158,11 @@ class TestConstrainingFunctions(unittest.TestCase):
         nrow = 5
         ncol = 4
         free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
-        simplex_mat = MultinomialParams.constrain_simplex_matrix(free_mat)
+        simplex_mat = SimplexParams.constrain_simplex_matrix(free_mat)
         self.assertEqual(simplex_mat.shape, (nrow, ncol))
         np_test.assert_array_almost_equal(
             np.full(nrow, 1.0), np.sum(simplex_mat, 1))
-        free_mat2 = MultinomialParams.unconstrain_simplex_matrix(simplex_mat)
+        free_mat2 = SimplexParams.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
 

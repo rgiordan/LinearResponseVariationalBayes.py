@@ -1,15 +1,15 @@
 import autograd.numpy as np
-import autograd.scipy as asp
+import autograd.scipy as sp
 import math
 
 def multivariate_digamma(x, size):
     x_vec = x - 0.5 * np.linspace(0, size - 1., size)
-    return np.sum(asp.special.digamma(x_vec))
+    return np.sum(sp.special.digamma(x_vec))
 
 
 def multivariate_gammaln(x, size):
     x_vec = x - 0.5 * np.linspace(0, size - 1., size)
-    return np.sum(asp.special.gammaln(x_vec)) + \
+    return np.sum(sp.special.gammaln(x_vec)) + \
            0.25 * np.log(np.pi) * size * (size - 1.0);
 
 
@@ -18,7 +18,7 @@ def multivariate_gammaln(x, size):
 # work with the sp.stats functions.
 
 def univariate_normal_entropy(info_obs):
-    # np.sum(asp.stats.norm.entropy(scale=np.sqrt(var_obs)))
+    # np.sum(sp.stats.norm.entropy(scale=np.sqrt(var_obs)))
     return 0.5 * np.sum(-1 * np.log(info_obs) + 1 + np.log(2 * math.pi))
 
 def multivariate_normal_entropy(info_obs):
@@ -28,15 +28,15 @@ def multivariate_normal_entropy(info_obs):
     return 0.5 * (-1 * logdet + k + k * np.log(2 * math.pi))
 
 def gamma_entropy(shape, rate):
-    return np.sum(shape - np.log(rate) + asp.special.gammaln(shape) + \
-                  (1 - shape) * asp.special.digamma(shape))
+    return np.sum(shape - np.log(rate) + sp.special.gammaln(shape) + \
+                  (1 - shape) * sp.special.digamma(shape))
 
 def dirichlet_entropy(alpha):
     sum_alpha = np.sum(alpha)
-    log_beta = np.sum(asp.special.gammaln(alpha)) \
-                - asp.special.gammaln(sum_alpha)
-    return log_beta - (len(alpha) - sum_alpha) * asp.special.digamma(sum_alpha) \
-            - np.dot((alpha - 1), asp.special.digamma(alpha))
+    log_beta = np.sum(sp.special.gammaln(alpha)) \
+                - sp.special.gammaln(sum_alpha)
+    return log_beta - (len(alpha) - sum_alpha) * sp.special.digamma(sum_alpha) \
+            - np.dot((alpha - 1), sp.special.digamma(alpha))
 
 def wishart_entropy(df, v):
     k = float(v.shape[0])
@@ -67,7 +67,7 @@ def e_log_inv_wishart_diag(df, v):
     assert v.shape[0] == v.shape[1]
     v_inv_diag = np.diag(np.linalg.inv(v))
     return np.log(v_inv_diag) - \
-           asp.special.digamma(0.5 * (df - k + 1)) - np.log(2)
+           sp.special.digamma(0.5 * (df - k + 1)) - np.log(2)
 
 def get_e_lognormal(mu, sigma_sq):
     return np.exp(mu + 0.5 * sigma_sq)
@@ -75,6 +75,9 @@ def get_e_lognormal(mu, sigma_sq):
 def get_var_lognormal(mu, sigma_sq):
     e_lognormal = get_e_lognormal(mu, sigma_sq)
     return (np.exp(sigma_sq) - 1) * (e_lognormal ** 2)
+
+def get_e_log_gamma(shape, rate):
+    return sp.special.digamma(shape) - np.log(rate)
 
 # Priors
 
