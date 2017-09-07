@@ -155,6 +155,49 @@ results_posterior <-
 results <- dcast(results_posterior, par + metric + component ~ method, value.var="val")
 
 
+##########################################
+# Compare the off-diagonals of part of the covariance matrices.
+
+vb_indices <- ConvertPythonMomentVectorToDF(1:ncol(lrvb_cov), glmm_par) %>%
+  mutate(ind=val)
+
+stan_indices_vec <- 1:ncol(draws_mat)
+names(stan_indices_vec) <- colnames(draws_mat)
+stan_indices <-
+  ConvertStanVectorToDF(stan_indices_vec, names(stan_indices_vec), glmm_par) %>%
+  mutate(ind=val)
+
+indices_df <-
+  inner_join(vb_indices, stan_indices, by=c("par", "component"), suffix=c("_vb", "_stan"))
+  
+cov_results_list <- list()
+for (vb_col in 1:20) {
+  cat(".")
+
+  col_df <- filter(indices_df, ind_vb == vb_col)
+  stopifnot(nrow(col_df) == 1)
+  stan_col <- col_df$ind_stan
+  stan_cov_val <- t(cov(draws_mat[, stan_col], draws_mat))
+  names(stan_cov_val) <- colnames(draws_mat)
+
+  cov_results_list[[length(cov_results_list) + 1]] <-
+    rbind(
+      ConvertStanVectorToDF(stan_cov_val, names(stan_cov_val), glmm_par) %>%
+        mutate(metric="cov", ind_vb=vb_col, method="mcmc"),
+      ConvertPythonMomentVectorToDF(as.numeric(lrvb_cov[, vb_col]), glmm_par) %>%
+        mutate(metric="cov", ind_vb=vb_col, method="lrvb")
+    )
+}
+
+cov_results_df <-
+  do.call(rbind, cov_results_list) %>%
+  inner_join(indices_df, by="ind_vb", suffix=c("_1", "_2")) %>%
+  dcast(par_1 + par_2 + component_1 + component_2 + metric ~ method, value.var="val") %>%
+  filter(par_1 != "e_log_tau", par_2 != "e_log_tau") %>%
+  filter(par_2 != "e_u" | component_2 < 50)
+  
+
+
 ################################################
 # Prior sensitivity.
 
@@ -379,6 +422,7 @@ if (save_results) {
   save(results,
        pert_result_diff_df,
        sens_df_cast,
+       cov_results_df,
        mean_table, sd_table,
        mcmc_time, glmer_time, map_time, vb_time, hess_time, inverse_time,
        vb_refit_time,
@@ -530,6 +574,20 @@ if (FALSE) {
     facet_grid(. ~ par + component)
 }
 
+
+if (FALSE) {
+  # Graph the covariances.
+  grid.arrange(
+    ggplot(filter(cov_results_df, par_1 != "e_u")) +
+      geom_point(aes(x=mcmc, y=lrvb, shape=par_1), size=3) +
+      geom_abline(aes(slope=1, intercept=0))
+    ,
+    ggplot(filter(cov_results_df, par_1 == "e_u", par_2 == "e_u")) +
+      geom_point(aes(x=mcmc, y=lrvb)) +
+      geom_abline(aes(slope=1, intercept=0))
+    , ncol=2
+  )
+}
 
 # Stan convergence estimation
 stan_summary <- rstan::summary(stan_results$stan_sim, pars=c("beta", "mu", "tau"))
