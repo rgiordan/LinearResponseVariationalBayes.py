@@ -5,15 +5,6 @@ import VariationalBayes.ExponentialFamilies as ef
 # TODO: deal with arrays of Dirichlet parameters in ExponentialFamilies
 import autograd.scipy as sp
 
-# from VariationalBayes import Parameters as par
-# import autograd.numpy as np
-# import autograd.scipy as asp
-#
-# from VariationalBayes.Parameters import \
-#     free_to_vector_jac_offset, free_to_vector_hess_offset
-#
-# from scipy.sparse import block_diag
-
 # a vector drawn according to a Dirichlet(alpha) distribution
 class DirichletParamVector(vb.ModelParamsDict):
     def __init__(self, name='', dim=2, min_alpha = 0.0):
