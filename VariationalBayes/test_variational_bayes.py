@@ -22,8 +22,8 @@ from VariationalBayes.SimplexParams import SimplexParam
 from VariationalBayes.SimplexParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
-from VariationalBayes.DirichletParams import DirichletParamVector, \
-            DirichletParamArray
+from VariationalBayes.DirichletParams import DirichletParamArray
+
 import unittest
 import scipy as sp
 
@@ -116,18 +116,22 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, MVNParam(), test_sparse_transform=True)
     def test_uvn(self):
         execute_required_methods(self, UVNParam(), test_sparse_transform=True)
+
     def test_uvn_vec(self):
         execute_required_methods(self, UVNParamVector(),
                                  test_sparse_transform=True)
 
     def test_gamma(self):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)
+
     def test_dirichlet(self):
-        execute_required_methods(self, DirichletParamVector(),
-                                 test_sparse_transform=True)
-    def test_dirichlet_array(self):
         execute_required_methods(self, DirichletParamArray(),
                                  test_sparse_transform=True)
+        alpha = np.exp(np.random.random((2, 3, 5)))
+        vp = DirichletParamArray(val=alpha)
+        self.assertEqual(vp.e().shape == alpha.shape)
+        self.assertEqual(vp.e_log().shape == alpha.shape)
+
     def test_UVN_array(self):
         execute_required_methods(self, MVNArray(),
                                  test_sparse_transform=True)
@@ -391,12 +395,6 @@ class TestParameters(unittest.TestCase):
         shape = 0.2
         rate = 0.4
         vp = GammaParam('test', min_rate=0.1)
-
-
-    def test_DirichletParamVector(self):
-        d = 4
-        alpha = np.array([ 0.2, 1, 3, 0.7 ])
-        vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
 
 
 class TestParameterDictionary(unittest.TestCase):
