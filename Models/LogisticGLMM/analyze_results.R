@@ -156,7 +156,7 @@ results <- dcast(results_posterior, par + metric + component ~ method, value.var
 
 
 ##########################################
-# Compare the off-diagonals of part of the covariance matrices.
+# Compare part of the covariance matrices.
 
 vb_indices <- ConvertPythonMomentVectorToDF(1:ncol(lrvb_cov), glmm_par) %>%
   mutate(ind=val)
@@ -308,7 +308,7 @@ sens_df_cast <-
 set.seed(42)
 # Randomly choose some u components to look at
 random_u_components <-
-  sample.int(max(filter(results, par == "e_u")$component), 10, replace=F)
+  sample.int(max(filter(results, par == "e_u")$component), 4, replace=F)
 
 # Make a dataframe including the stan standard errors
 stan_summary_orig <-
