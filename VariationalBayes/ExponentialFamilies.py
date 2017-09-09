@@ -31,12 +31,22 @@ def gamma_entropy(shape, rate):
     return np.sum(shape - np.log(rate) + sp.special.gammaln(shape) + \
                   (1 - shape) * sp.special.digamma(shape))
 
+# alpha can be an array of Dirichlet parameteres where dimension 0 is the
+# random variable dimension.
+# Returns an array of entropies.
+# TODO: make the behavior consistent with other array functions --
+# for example, the UVN entropy sums the entropies, and this doesn't.
+# I think they should not sum by default.
 def dirichlet_entropy(alpha):
-    sum_alpha = np.sum(alpha)
-    log_beta = np.sum(sp.special.gammaln(alpha)) \
-                - sp.special.gammaln(sum_alpha)
-    return log_beta - (len(alpha) - sum_alpha) * sp.special.digamma(sum_alpha) \
-            - np.dot((alpha - 1), sp.special.digamma(alpha))
+    dirichlet_dim = alpha.shape[0]
+    sum_alpha = np.sum(alpha, axis=0, keepdims=True)
+    log_beta = np.sum(sp.special.gammaln(alpha), axis=0, keepdims=True) - \
+               sp.special.gammaln(sum_alpha)
+    entropy = \
+        log_beta - \
+        (dirichlet_dim - sum_alpha) * sp.special.digamma(sum_alpha) - \
+        np.sum((alpha - 1) * sp.special.digamma(alpha), axis=0)
+    return np.squeeze(entropy, axis=0)
 
 def beta_entropy(tau):
     digamma_tau0 = sp.special.digamma(tau[:, 0])

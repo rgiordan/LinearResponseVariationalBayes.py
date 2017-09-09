@@ -1,6 +1,8 @@
 import VariationalBayes as vb
 import VariationalBayes.ExponentialFamilies as ef
 
+import numpy as np
+
 class WishartParam(vb.ModelParamsDict):
     def __init__(self, name='', size=2, diag_lb=0.0, min_df=None):
         super().__init__(name=name)
