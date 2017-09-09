@@ -21,3 +21,6 @@ class DirichletParamArray(vb.ModelParamsDict):
 
     def e_log(self):
         return ef.get_e_log_dirichlet(self['alpha'].get())
+
+    def entropy(self):
+        return ef.dirichlet_entropy(self['alpha'].get())

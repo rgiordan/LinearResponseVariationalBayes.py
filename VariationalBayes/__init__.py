@@ -1,8 +1,4 @@
-
-# http://semver.org/
-# I'll use "post" to indicate that the code currently follows (and
-# may have broken things from) the pervious version.
-__version__ = '0.1.0.post'
+from VariationalBayes.version import __version__
 
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
