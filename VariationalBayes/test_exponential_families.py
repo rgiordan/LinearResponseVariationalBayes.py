@@ -38,6 +38,13 @@ class TestEntropy(unittest.TestCase):
         self.assertAlmostEqual\
                 (dirichlet_dist.entropy(), ef.dirichlet_entropy(alpha))
 
+        alpha_shape = (5, 2)
+        alpha = 10 * np.random.random(alpha_shape)
+        ef_entropy = ef.dirichlet_entropy(alpha)
+        dirichlet_entropy = \
+            [ sp.stats.dirichlet.entropy(alpha[:, k]) for k in range(2) ]
+        np_test.assert_array_almost_equal(dirichlet_entropy, ef_entropy)
+
     def test_wishart_entropy(self):
         df = 4.3
         v = np.eye(2) + np.full((2, 2), 0.1)

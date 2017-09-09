@@ -114,30 +114,71 @@ class TestParameterMethods(unittest.TestCase):
 
     def test_mvn(self):
         execute_required_methods(self, MVNParam(), test_sparse_transform=True)
+        par = MVNParam()
+        par.e()
+        par.cov()
+        par.e_outer()
+        par.entropy()
+
     def test_uvn(self):
         execute_required_methods(self, UVNParam(), test_sparse_transform=True)
+        par = UVNParam()
+        par.e()
+        par.var()
+        par.e_outer()
+        par.e_exp()
+        par.var_exp()
+        par.e2_exp()
+        par.entropy()
 
     def test_uvn_vec(self):
         execute_required_methods(self, UVNParamVector(),
                                  test_sparse_transform=True)
+        par = UVNParamVector()
+        par.e()
+        par.var()
+        par.e_outer()
+        par.e_exp()
+        par.var_exp()
+        par.e2_exp()
+        par.entropy()
 
     def test_gamma(self):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)
+        par = GammaParam()
+        par.e()
+        par.e_log()
+        par.entropy()
 
     def test_dirichlet(self):
         execute_required_methods(self, DirichletParamArray(),
                                  test_sparse_transform=True)
-        # alpha = np.exp(np.random.random((2, 3, 5)))
-        # vp = DirichletParamArray(val=alpha)
-        # self.assertEqual(vp.e().shape == alpha.shape)
-        # self.assertEqual(vp.e_log().shape == alpha.shape)
+        par = DirichletParamArray()
+        par.e()
+        par.e_log()
+        par.entropy()
 
     def test_UVN_array(self):
         execute_required_methods(self, UVNParamArray(),
                                  test_sparse_transform=True)
+        par = UVNParamArray()
+        par.e()
+        par.var()
+        par.e_outer()
+        par.e_exp()
+        par.var_exp()
+        par.e2_exp()
+        par.entropy()
+
     def test_wishart(self):
         execute_required_methods(self, WishartParam(),
                                  test_sparse_transform=True)
+        par = WishartParam()
+        par.e()
+        par.e_log_det()
+        par.e_inv()
+        par.entropy()
+        par.e_log_lkj_inv_prior(5.0)
 
 
 class TestConstrainingFunctions(unittest.TestCase):

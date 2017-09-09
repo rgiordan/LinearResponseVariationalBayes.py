@@ -1,6 +1,8 @@
 import VariationalBayes as vb
 import VariationalBayes.ExponentialFamilies as ef
 
+from autograd import numpy as np
+
 class MVNParam(vb.ModelParamsDict):
     def __init__(self, name='', dim=2, min_info=0.0):
         super().__init__(name=name)

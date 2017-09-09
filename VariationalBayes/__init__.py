@@ -1,3 +1,5 @@
+from VariationalBayes.version import __version__
+
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 
