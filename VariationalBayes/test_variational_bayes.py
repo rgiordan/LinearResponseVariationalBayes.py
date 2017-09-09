@@ -8,7 +8,7 @@ from itertools import product
 import numpy.testing as np_test
 from VariationalBayes import Parameters
 from VariationalBayes import MatrixParameters
-from VariationalBayes import MultinomialParams
+from VariationalBayes import SimplexParams
 from VariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 from VariationalBayes.MatrixParameters import \
@@ -18,12 +18,12 @@ from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray, UVNParamArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.WishartParams import WishartParam
-from VariationalBayes.MultinomialParams import SimplexParam
-from VariationalBayes.MultinomialParams import \
+from VariationalBayes.SimplexParams import SimplexParam
+from VariationalBayes.SimplexParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
-from VariationalBayes.DirichletParams import DirichletParamVector, \
-            DirichletParamArray
+from VariationalBayes.DirichletParams import DirichletParamArray
+
 import unittest
 import scipy as sp
 
@@ -116,18 +116,22 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, MVNParam(), test_sparse_transform=True)
     def test_uvn(self):
         execute_required_methods(self, UVNParam(), test_sparse_transform=True)
+
     def test_uvn_vec(self):
         execute_required_methods(self, UVNParamVector(),
                                  test_sparse_transform=True)
 
     def test_gamma(self):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)
+
     def test_dirichlet(self):
-        execute_required_methods(self, DirichletParamVector(),
-                                 test_sparse_transform=True)
-    def test_dirichlet_array(self):
         execute_required_methods(self, DirichletParamArray(),
                                  test_sparse_transform=True)
+        # alpha = np.exp(np.random.random((2, 3, 5)))
+        # vp = DirichletParamArray(val=alpha)
+        # self.assertEqual(vp.e().shape == alpha.shape)
+        # self.assertEqual(vp.e_log().shape == alpha.shape)
+
     def test_UVN_array(self):
         execute_required_methods(self, UVNParamArray(),
                                  test_sparse_transform=True)
@@ -158,11 +162,11 @@ class TestConstrainingFunctions(unittest.TestCase):
         nrow = 5
         ncol = 4
         free_mat = np.random.random((nrow, ncol - 1)) * 2 - 1
-        simplex_mat = MultinomialParams.constrain_simplex_matrix(free_mat)
+        simplex_mat = SimplexParams.constrain_simplex_matrix(free_mat)
         self.assertEqual(simplex_mat.shape, (nrow, ncol))
         np_test.assert_array_almost_equal(
             np.full(nrow, 1.0), np.sum(simplex_mat, 1))
-        free_mat2 = MultinomialParams.unconstrain_simplex_matrix(simplex_mat)
+        free_mat2 = SimplexParams.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
 
@@ -368,44 +372,6 @@ class TestParameters(unittest.TestCase):
         vp.set(np.full((k, k), 0.))
         vp.set_vector(mat_vectorized)
         np_test.assert_array_almost_equal(mat, vp.get())
-
-    def test_MVNParam(self):
-        k = 2
-        vec = np.full(2, 0.2)
-        mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
-        vp = MVNParam('test', k)
-        vp.mean.set(vec)
-        vp.info.set(mat)
-
-
-    def test_UVNParam(self):
-        vp = UVNParam('test', min_info=0.1)
-        vp.mean.set(0.2)
-        vp.info.set(1.2)
-
-
-    def test_UVNParamVector(self):
-        k = 2
-        vp_mean = np.array([ 0.2, 0.5 ])
-        vp_info = np.array([ 1.2, 2.1 ])
-        vp = UVNParamVector('test', k, min_info=0.1)
-        vp.mean.set(vp_mean)
-        vp.info.set(vp_info)
-
-
-    def test_GammaParam(self):
-        shape = 0.2
-        rate = 0.4
-        vp = GammaParam('test', min_rate=0.1)
-        vp.shape.set(shape)
-        vp.rate.set(rate)
-
-
-    def test_DirichletParamVector(self):
-        d = 4
-        alpha = np.array([ 0.2, 1, 3, 0.7 ])
-        vp = DirichletParamVector('test', dim = d, min_alpha=0.0)
-        vp.alpha.set(alpha)
 
 
 class TestParameterDictionary(unittest.TestCase):

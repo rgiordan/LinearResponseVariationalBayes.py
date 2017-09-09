@@ -1,4 +1,5 @@
-from VariationalBayes import Parameters as par
+import VariationalBayes as vb
+
 import autograd
 import autograd.numpy as np
 import autograd.scipy as sp
@@ -9,7 +10,8 @@ from scipy.sparse import coo_matrix
 # The first index is assumed to index simplicial observations.
 def constrain_simplex_matrix(free_mat):
     # The first column is the reference value.
-    free_mat_aug = np.hstack([np.full((free_mat.shape[0], 1), 0.), free_mat])
+    free_mat_aug = np.hstack(
+        [np.full((free_mat.shape[0], 1), 0.), free_mat])
     log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
     return np.exp(free_mat_aug - log_norm)
 
@@ -17,6 +19,7 @@ def constrain_simplex_matrix(free_mat):
 def unconstrain_simplex_matrix(simplex_mat):
     return np.log(simplex_mat[:, 1:]) - \
            np.expand_dims(np.log(simplex_mat[:, 0]), axis=1)
+
 
 def constrain_simplex_vector(free_vec):
     return constrain_simplex_matrix(np.expand_dims(free_vec, 0)).flatten()
@@ -126,7 +129,8 @@ class SimplexParam(object):
 
         for row in range(self.shape()[0]):
             # Each of the output depends only on one row of the input.
-            free_inds = np.ravel_multi_index([[row], free_cols], self.free_shape())
+            free_inds = np.ravel_multi_index(
+                [[row], free_cols], self.free_shape())
             vec_inds = self.get_vector_indices(row)
             z = constrain_simplex_vector(free_val[free_inds])
             row_hess = constrain_hess_from_moment(z)

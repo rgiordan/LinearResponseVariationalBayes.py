@@ -4,7 +4,7 @@ from VariationalBayes.Parameters import \
 from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 
-from VariationalBayes.MultinomialParams import SimplexParam
+from VariationalBayes.SimplexParams import SimplexParam
 
 from VariationalBayes.ParameterDictionary import ModelParamsDict
 
