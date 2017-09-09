@@ -45,6 +45,7 @@ class UVNParam(vb.ModelParamsDict):
         return ef.univariate_normal_entropy(self['info'].get())
 
 
+# TODO: better to derive this from UVNParamArray?
 class UVNParamVector(vb.ModelParamsDict):
     def __init__(self, name='', length=2, min_info=0.0):
         super().__init__(name=name)
@@ -67,6 +68,31 @@ class UVNParamVector(vb.ModelParamsDict):
         return self.e_exp() ** 2 + self.var_exp()
     def entropy(self):
         return np.sum(ef.univariate_normal_entropy(self['info'].get()))
+
+
+class UVNParamArray(vb.ModelParamsDict):
+    def __init__(self, name='', shape=(1, 1), min_info=0.0):
+        super().__init__(name=name)
+        self.push_param(vb.ArrayParam('mean', shape))
+        self.push_param(vb.ArrayParam('info', shape, lb=min_info))
+
+    def e(self):
+        return self['mean'].get()
+    def e_outer(self):
+        return self['mean'].get() ** 2 + 1 / self['info'].get()
+    def var(self):
+        return 1. / self['info'].get()
+    def e_exp(self):
+        return ef.get_e_lognormal(self['mean'].get(),
+                                  1. / self['info'].get())
+    def var_exp(self):
+        return ef.get_var_lognormal(self['mean'].get(),
+                                    1. / self['info'].get())
+    def e2_exp(self):
+        return self.e_exp() ** 2 + self.var_exp()
+    def entropy(self):
+        return np.sum(ef.univariate_normal_entropy(self['info'].get()))
+
 
 # Array of multivariate normals
 # for now each row is a draw from a MVN with diagonal constant variance ...

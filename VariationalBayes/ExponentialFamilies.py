@@ -38,6 +38,24 @@ def dirichlet_entropy(alpha):
     return log_beta - (len(alpha) - sum_alpha) * sp.special.digamma(sum_alpha) \
             - np.dot((alpha - 1), sp.special.digamma(alpha))
 
+def beta_entropy(tau):
+    digamma_tau0 = sp.special.digamma(tau[:, 0])
+    digamma_tau1 = sp.special.digamma(tau[:, 1])
+    digamma_tausum = sp.special.digamma(np.sum(tau, 1))
+
+    lgamma_tau0 = sp.special.gammaln(tau[:, 0])
+    lgamma_tau1 = sp.special.gammaln(tau[:, 1])
+    lgamma_tausum = sp.special.gammaln(np.sum(tau, 1))
+
+    lbeta = lgamma_tau0 + lgamma_tau1 - lgamma_tausum
+
+    return np.sum(
+        lbeta - \
+        (tau[:, 0] - 1.) * digamma_tau0 - \
+        (tau[:, 1] - 1.) * digamma_tau1 + \
+        (tau[:, 0] + tau[:, 1] - 2) * digamma_tausum)
+
+
 def wishart_entropy(df, v):
     k = float(v.shape[0])
     assert v.shape[0] == v.shape[1]
