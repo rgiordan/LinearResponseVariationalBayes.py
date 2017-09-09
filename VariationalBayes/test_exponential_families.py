@@ -45,6 +45,12 @@ class TestEntropy(unittest.TestCase):
         self.assertAlmostEqual(
             wishart_dist.entropy(), ef.wishart_entropy(df, v))
 
+    def test_beta_entropy(self):
+        tau = np.array([[1,2], [3,4], [5,6]])
+        test_entropy = np.sum([sp.stats.beta.entropy(tau[i, 0], tau[i, 1])
+            for i in range(np.shape(tau)[0])])
+        self.assertAlmostEqual(ef.beta_entropy(tau), test_entropy)
+
 class TestMoments(unittest.TestCase):
     def test_wishart_moments(self):
         num_draws = 10000
