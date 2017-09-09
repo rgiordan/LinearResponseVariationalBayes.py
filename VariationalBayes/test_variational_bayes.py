@@ -15,7 +15,7 @@ from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
-                            MVNArray
+                            MVNArray, UVNParamArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.WishartParams import WishartParam
 from VariationalBayes.MultinomialParams import SimplexParam
@@ -129,7 +129,7 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self, DirichletParamArray(),
                                  test_sparse_transform=True)
     def test_UVN_array(self):
-        execute_required_methods(self, MVNArray(),
+        execute_required_methods(self, UVNParamArray(),
                                  test_sparse_transform=True)
     def test_wishart(self):
         execute_required_methods(self, WishartParam(),

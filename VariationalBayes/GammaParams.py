@@ -1,4 +1,6 @@
 from VariationalBayes import Parameters as par
+import VariationalBayes.ExponentialFamilies as ef
+
 import autograd.numpy as np
 import autograd.scipy as asp
 
@@ -24,6 +26,8 @@ class GammaParam(object):
         return self.shape.get() / self.rate.get()
     def e_log(self):
         return asp.special.digamma(self.shape.get()) - np.log(self.rate.get())
+    def entropy(self):
+        return ef.gamma_entropy(self.shape.get(), self.rate.get())
 
     def set_free(self, free_val):
         if free_val.size != self.__free_size: \
