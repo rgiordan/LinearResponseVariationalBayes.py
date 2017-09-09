@@ -42,10 +42,11 @@ def dirichlet_entropy(alpha):
     sum_alpha = np.sum(alpha, axis=0, keepdims=True)
     log_beta = np.sum(sp.special.gammaln(alpha), axis=0, keepdims=True) - \
                sp.special.gammaln(sum_alpha)
-    return \
+    entropy = \
         log_beta - \
         (dirichlet_dim - sum_alpha) * sp.special.digamma(sum_alpha) - \
         np.sum((alpha - 1) * sp.special.digamma(alpha), axis=0)
+    return np.squeeze(entropy, axis=0)
 
 def beta_entropy(tau):
     digamma_tau0 = sp.special.digamma(tau[:, 0])
