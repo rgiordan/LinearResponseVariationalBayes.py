@@ -10,8 +10,6 @@ from autograd.core import primitive
 import scipy as osp
 from scipy.sparse import coo_matrix, csr_matrix, block_diag
 
-import time
-
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
         raise ValueError('Elements larger than the upper bound')

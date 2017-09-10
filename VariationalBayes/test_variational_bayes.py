@@ -24,6 +24,9 @@ from VariationalBayes.SimplexParams import \
     constrain_grad_from_moment
 from VariationalBayes.DirichletParams import DirichletParamArray
 
+from VariationalBayes.ProjectionParams import \
+    SubspaceVectorParam, get_perpendicular_subspace
+
 import unittest
 import scipy as sp
 
@@ -110,6 +113,9 @@ class TestParameterMethods(unittest.TestCase):
             test_autograd=True, test_sparse_transform=True)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
+            test_autograd=True, test_sparse_transform=True)
+    def test_projection_params(self):
+        execute_required_methods(self, SubspaceVectorParam(),
             test_autograd=True, test_sparse_transform=True)
 
     def test_mvn(self):
@@ -210,6 +216,15 @@ class TestConstrainingFunctions(unittest.TestCase):
         free_mat2 = SimplexParams.unconstrain_simplex_matrix(simplex_mat)
         self.assertEqual(free_mat2.shape, (nrow, ncol - 1))
         np_test.assert_array_almost_equal(free_mat, free_mat2)
+
+    def test_get_perpendicular_subspace(self):
+        dim = 5
+        const_dim = 2
+        # We will project perpendicular to the rows of x.
+        x = np.random.random((const_dim, dim))
+        basis = get_perpendicular_subspace(x)
+        np_test.assert_array_almost_equal(
+            np.zeros((const_dim, dim - const_dim)), np.matmul(x, basis))
 
 
 class TestParameters(unittest.TestCase):
