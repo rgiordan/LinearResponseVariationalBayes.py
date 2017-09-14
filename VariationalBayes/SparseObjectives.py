@@ -17,22 +17,40 @@ class Logger(object):
         self.print_every = print_every
         self.initialize()
         self.print_x_diff = True
+        self.callback = None
 
     def initialize(self):
         self.iter = 0
         self.last_x = None
+        self.x = None
+        self.value = None
+        self.last_value = None
+        self.x_array = []
+        self.val_array = []
+
+    def print_message(self):
+        print('Iter ', self.iter, ' value: ', self.value)
 
     def log(self, value, x):
+        self.value = value
+        self.x = x
+        self.x_array.append(x)
+        self.val_array.append(value)
+
+        # TODO: use the arrays instead of last_*
         if self.last_x is None:
             x_diff = float('inf')
         else:
-            x_diff = np.max(np.abs(x - self.last_x))
+            x_diff = np.max(np.abs(self.x - self.last_x))
 
         self.last_x = x
+        self.last_value = value
+
         if self.iter % self.print_every == 0:
-            print('Iter ', self.iter, ' value: ', value)
-            if self.print_x_diff:
-                print('\tx_diff: ', x_diff)
+            if self.callback is None:
+                self.print_message()
+            else:
+                self.callback(self)
         self.iter += 1
 
 
