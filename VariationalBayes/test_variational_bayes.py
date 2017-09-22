@@ -15,7 +15,7 @@ from VariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
 from VariationalBayes import ParameterDictionary as par_dict
 from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
-                            MVNArray, UVNParamArray
+                            MVNArray, UVNParamArray, UVNMomentParamArray
 from VariationalBayes.GammaParams import GammaParam
 from VariationalBayes.WishartParams import WishartParam
 from VariationalBayes.SimplexParams import SimplexParam
@@ -164,10 +164,11 @@ class TestParameterMethods(unittest.TestCase):
         par.e_log()
         par.entropy()
 
-    def test_UVN_array(self):
+    def test_uvn_array(self):
         execute_required_methods(self, UVNParamArray(),
                                  test_sparse_transform=True)
-        par = UVNParamArray()
+        test_shape = (3, 2, 1)
+        par = UVNParamArray(shape=test_shape)
         par.e()
         par.var()
         par.e_outer()
@@ -175,6 +176,34 @@ class TestParameterMethods(unittest.TestCase):
         par.var_exp()
         par.e2_exp()
         par.entropy()
+        par.shape()
+
+    def test_uvn_moment_array(self):
+        execute_required_methods(self, UVNMomentParamArray(),
+                                 test_sparse_transform=True)
+        test_shape = (3, 2, 1)
+        par = UVNMomentParamArray(shape=test_shape)
+        par.e()
+        par.var()
+        par.e_outer()
+        par.e_exp()
+        par.var_exp()
+        par.e2_exp()
+        par.entropy()
+        par.shape()
+
+        uvn_par = UVNParamArray(shape=test_shape)
+        uvn_par['mean'].set(np.random.random(test_shape))
+        uvn_par['info'].set(np.exp(np.random.random(test_shape)))
+        par.set_from_uvn_param_array(uvn_par)
+        np_test.assert_array_almost_equal(uvn_par.e(), par.e())
+        np_test.assert_array_almost_equal(uvn_par.e_outer(), par.e_outer())
+
+        array_par = ArrayParam(shape=test_shape)
+        array_par.set(np.random.random(test_shape))
+        par.set_from_constant(array_par)
+        np_test.assert_array_almost_equal(array_par.get(), par.e())
+        np_test.assert_array_almost_equal(array_par.get() ** 2, par.e_outer())
 
     def test_wishart(self):
         execute_required_methods(self, WishartParam(),
