@@ -14,7 +14,8 @@ from VariationalBayes.SimplexParams import SimplexParam
 from VariationalBayes.ParameterDictionary import ModelParamsDict
 
 from VariationalBayes.NormalParams import \
-    UVNParam, UVNParamVector, MVNParam, MVNArray
+    UVNParam, UVNParamVector, UVNParamArray, UVNMomentParamArray, \
+    MVNParam, MVNArray
 
 from VariationalBayes.GammaParams import GammaParam
 
