@@ -20,3 +20,5 @@ from VariationalBayes.NormalParams import \
 from VariationalBayes.GammaParams import GammaParam
 
 from VariationalBayes.WishartParams import WishartParam
+
+from VariationalBayes.DirichletParams import DirichletParamArray
