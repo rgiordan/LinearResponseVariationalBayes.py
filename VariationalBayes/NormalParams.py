@@ -75,6 +75,7 @@ class UVNParamVector(vb.ModelParamsDict):
 class UVNParamArray(vb.ModelParamsDict):
     def __init__(self, name='', shape=(1, 1), min_info=0.0):
         super().__init__(name=name)
+        self.__shape = shape
         self.push_param(vb.ArrayParam('mean', shape))
         self.push_param(vb.ArrayParam('info', shape, lb=min_info))
 
@@ -94,6 +95,48 @@ class UVNParamArray(vb.ModelParamsDict):
         return self.e_exp() ** 2 + self.var_exp()
     def entropy(self):
         return np.sum(ef.univariate_normal_entropy(self['info'].get()))
+
+    def shape(self):
+        return self.__shape
+
+
+# A moment parameterization of the UVN array.
+class UVNMomentParamArray(vb.ModelParamsDict):
+    def __init__(self, name='', shape=(2, 3), min_info=0.0):
+        super().__init__(name=name)
+        self.__shape = shape
+        self.push_param(vb.ArrayParam('e', shape))
+        self.push_param(vb.ArrayParam('e2', shape, lb=min_info))
+
+    def e(self):
+        return self['e'].get()
+    def e_outer(self):
+        return self['e2'].get()
+    def var(self):
+        return self['e2'].get() - self['e'].get() ** 2
+    def e_exp(self):
+        return ef.get_e_lognormal(self['e'].get(), self.var())
+    def var_exp(self):
+        return ef.get_e_lognormal(self['e'].get(), self.var())
+    def e2_exp(self):
+        return self.e_exp() ** 2 + self.var_exp()
+    def entropy(self):
+        info = 1. / self.var()
+        return np.sum(ef.univariate_normal_entropy(info))
+
+    def shape(self):
+        return self.__shape
+
+    def set_from_uvn_param_array(self, uvn_par):
+        assert(uvn_par.shape() == self.shape())
+        self['e'].set(uvn_par.e())
+        self['e2'].set(uvn_par.e_outer())
+
+    # Set from a scalar array assuming zero variance.
+    def set_from_constant(self, scalar_array_par):
+        assert(scalar_array_par.shape() == self.shape())
+        self['e'].set(scalar_array_par.get())
+        self['e2'].set(scalar_array_par.get() ** 2)
 
 
 # Array of multivariate normals
