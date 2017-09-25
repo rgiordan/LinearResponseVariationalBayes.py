@@ -32,6 +32,26 @@ def get_e_logistic_term(y, z_mean, z_sd, std_draws):
     return np.sum(y * z_mean) - logit_term
 
 
+def get_e_logistic_term_guass_hermite(
+    z_mean, z_sd, gh_x, gh_w, aggregate_all=True):
+
+    assert z_mean.shape == z_sd.shape
+    draws_axis = z_sd.ndim
+    z_vals = \
+        np.sqrt(2) * np.expand_dims(z_sd, axis=draws_axis) * gh_x + \
+        np.expand_dims(z_mean, axis=draws_axis)
+
+    # By dividing by the number of standard draws after summing,
+    # we add the sample means for all the observations.
+    # Note that
+    # log(1 - p) = log(1 / (1 + exp(z))) = -log(1 + exp(z))
+    logit_term = gh_w * np.log1p(np.exp(z_vals)) / np.sqrt(np.pi)
+    if aggregate_all:
+        return np.sum(logit_term)
+    else:
+        return np.sum(logit_term, axis=draws_axis)
+
+
 # def get_e_logistic_term_only(z_mean, z_sd, std_draws):
 #     # The last axis will be the standard draws axis.
 #     draws_axis = z_sd.ndim

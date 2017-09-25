@@ -250,7 +250,9 @@ class ArrayParam(object):
 
     def set(self, val):
         if val.shape != self.shape():
-            raise ValueError('Wrong size for array ' + self.name)
+            raise ValueError('Wrong size for array ' + self.name + \
+                             ' Expected shape: ' + str(self.shape()) + \
+                             ' Got shape: ' + str(val.shape))
         if (np.array(val < self.__lb)).any():
             raise ValueError('Value beneath lower bound.')
         if (np.array(val > self.__ub)).any():
