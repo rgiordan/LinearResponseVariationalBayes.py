@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+import autograd
 from autograd import numpy as np
 import scipy as sp
 import numpy.testing as np_test
@@ -12,15 +13,17 @@ class Model(object):
         self.dim = dim
         self.x = vb.VectorParam('x', size=dim, lb=-2.0, ub=5.0)
         self.y = vb.VectorParam('y', size=dim, lb=-2.0, ub=5.0)
+        # self.x = vb.VectorParam('x', size=dim)
+        # self.y = vb.VectorParam('y', size=dim)
         self.a_mat = np.full((dim, dim), 0.1) + np.eye(dim)
-        self.set_ones()
+        self.set_inits()
 
         self.preconditioner = np.eye(dim)
 
     def set_random(self):
         self.x.set_free(np.random.random(self.x.free_size()))
 
-    def set_ones(self):
+    def set_inits(self):
         #self.x.set_vector(np.ones(self.dim))
         self.x.set_vector(np.linspace(0., 1., self.dim))
 
@@ -49,7 +52,7 @@ class TestObjectiveClass(unittest.TestCase):
         model = Model(dim=3)
         objective = obj_lib.Objective(par=model.x, fun=model.f)
 
-        model.set_ones()
+        model.set_inits()
         x_free = model.x.get_free()
         x_vec = model.x.get_vector()
 
@@ -70,38 +73,99 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             np.matmul(hess, grad), objective.fun_vector_hvp(x_free, grad))
 
-        # Check the preconditioning
+        # Test the preconditioning
         preconditioner = 2.0 * np.eye(model.dim)
         preconditioner[model.dim - 1, 0] = 0.1 # Add asymmetry for testing!
         objective.preconditioner = preconditioner
 
-        # Test by evaluating an objective direclty in terms of the
-        # transformed variable.
-        model.preconditioner = preconditioner
-        direct_objective = \
-            obj_lib.Objective(par=model.x, fun=model.f_conditioned)
-
-        y = np.matmul(preconditioner, x_free)
-        np_test.assert_array_almost_equal(
-            direct_objective.fun_free(x_free),
-            objective.fun_free(y))
-
         np_test.assert_array_almost_equal(
             objective.fun_free_cond(x_free),
-            objective.fun_free(y))
+            objective.fun_free(np.matmul(preconditioner, x_free)),
+            err_msg='Conditioned function values')
 
-        grad_cond = objective.fun_free_grad_cond(y)
+        fun_free_cond_grad = autograd.grad(objective.fun_free_cond)
+        grad_cond = objective.fun_free_grad_cond(x_free)
         np_test.assert_array_almost_equal(
-            direct_objective.fun_free_grad(x_free), grad_cond)
+            fun_free_cond_grad(x_free), grad_cond,
+            err_msg='Conditioned gradient values')
 
-        hessian_cond = objective.fun_free_hessian_cond(y)
+        fun_free_cond_hessian = autograd.hessian(objective.fun_free_cond)
+        hess_cond = objective.fun_free_hessian_cond(x_free)
         np_test.assert_array_almost_equal(
-            direct_objective.fun_free_hessian(x_free),
-            hessian_cond)
+            fun_free_cond_hessian(x_free), hess_cond,
+            err_msg='Conditioned Hessian values')
 
+        fun_free_cond_hvp = autograd.hessian_vector_product(
+            objective.fun_free_cond)
         np_test.assert_array_almost_equal(
-            direct_objective.fun_free_hvp(x_free, grad),
-            objective.fun_free_hvp_cond(y, grad))
+            fun_free_cond_hvp(x_free, grad_cond),
+            objective.fun_free_hvp_cond(x_free, grad_cond),
+            err_msg='Conditioned Hessian vector product values')
+
+
+    def test_optimization(self):
+        model = Model(dim=3)
+        objective = obj_lib.Objective(par=model.x, fun=model.f)
+        preconditioner = 2.0 * np.eye(model.dim)
+        preconditioner[model.dim - 1, 0] = 0.1 # Add asymmetry for testing!
+        objective.preconditioner = preconditioner
+
+        model.set_inits()
+        x0 = model.x.get_free()
+        y0 = np.linalg.solve(preconditioner, x0)
+
+        # Unconditioned
+        opt_result = sp.optimize.minimize(
+            fun=objective.fun_free,
+            jac=objective.fun_free_grad,
+            hessp=objective.fun_free_hvp,
+            x0=x0,
+            method='trust-ncg',
+            options={'maxiter': 100, 'disp': False, 'gtol': 1e-6 })
+        self.assertTrue(opt_result.success)
+        model.x.set_free(opt_result.x)
+        np_test.assert_array_almost_equal(
+            np.zeros(model.dim), model.x.get_vector(),
+            err_msg='Trust-NCG Unconditioned')
+
+        # Conditioned:
+        opt_result = sp.optimize.minimize(
+            fun=objective.fun_free_cond,
+            jac=objective.fun_free_grad_cond,
+            hessp=objective.fun_free_hvp_cond,
+            x0=y0,
+            method='trust-ncg',
+            options={'maxiter': 100, 'disp': False, 'gtol': 1e-6 })
+        self.assertTrue(opt_result.success)
+        model.x.set_free(objective.uncondition_x(opt_result.x))
+        np_test.assert_array_almost_equal(
+            np.zeros(model.dim), model.x.get_vector(),
+            err_msg='Trust-NCG')
+
+        opt_result = sp.optimize.minimize(
+            fun=lambda par: objective.fun_free_cond(par, verbose=False),
+            jac=objective.fun_free_grad_cond,
+            x0=y0,
+            method='BFGS',
+            options={'maxiter': 100, 'disp': False, 'gtol': 1e-6 })
+        self.assertTrue(opt_result.success)
+        model.x.set_free(objective.uncondition_x(opt_result.x))
+        np_test.assert_array_almost_equal(
+            np.zeros(model.dim), model.x.get_vector(), err_msg='BFGS')
+
+
+        opt_result = sp.optimize.minimize(
+            fun=lambda par: objective.fun_free_cond(par, verbose=False),
+            jac=objective.fun_free_grad_cond,
+            hess=objective.fun_free_hessian_cond,
+            x0=y0,
+            method='Newton-CG',
+            options={'maxiter': 100, 'disp': False })
+        self.assertTrue(opt_result.success)
+        model.x.set_free(objective.uncondition_x(opt_result.x))
+        np_test.assert_array_almost_equal(
+            np.zeros(model.dim), model.x.get_vector(), err_msg='Newton')
+
 
 
 class TestSparsePacking(unittest.TestCase):

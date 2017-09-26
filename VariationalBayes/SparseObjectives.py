@@ -88,27 +88,35 @@ class Objective(object):
     # Pre-conditioned versions of the free functions.  The value at which
     # they are evaluted is assumed to include the preconditioner, i.e.
     # to be free_val = a * x
-    def fun_free_cond(self, free_val):
+    def fun_free_cond(self, free_val, verbose=False):
         assert self.preconditioner is not None
-        return self.fun_free(np.matmul(self.preconditioner, free_val))
+        y = np.matmul(self.preconditioner, free_val)
+        return self.fun_free(y, verbose=verbose)
 
     def fun_free_grad_cond(self, free_val):
         assert self.preconditioner is not None
-        grad = self.fun_free_grad(free_val)
+        y = np.matmul(self.preconditioner, free_val)
+        grad = self.fun_free_grad(y)
         return np.matmul(self.preconditioner.T, grad)
 
     def fun_free_hessian_cond(self, free_val):
         assert self.preconditioner is not None
-        hess = self.fun_free_hessian(free_val)
-        return np.matmul(np.matmul(self.preconditioner.T, hess),
-                         self.preconditioner)
+        y = np.matmul(self.preconditioner, free_val)
+        hess = self.fun_free_hessian(y)
+        return np.matmul(self.preconditioner.T,
+                         np.matmul(hess, self.preconditioner))
 
     def fun_free_hvp_cond(self, free_val, vec):
         assert self.preconditioner is not None
+        y = np.matmul(self.preconditioner, free_val)
         return np.matmul(
             self.preconditioner.T,
-            self.fun_free_hvp(free_val,
-                              np.matmul(self.preconditioner, vec)))
+            self.fun_free_hvp(y, np.matmul(self.preconditioner, vec)))
+
+    # Convert the optimum of the conditioned problem to the
+    # value (with tests to be sure you're doing it right).
+    def uncondition_x(self, cond_x):
+        return np.matmul(self.preconditioner, cond_x)
 
 
 # Note: the function get_sparse_hessian, with the associated template in
