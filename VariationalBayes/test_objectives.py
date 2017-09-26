@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from autograd import numpy as np
-from autograd import scipy as sp
+import scipy as sp
 import numpy.testing as np_test
 import unittest
 import VariationalBayes as vb
@@ -103,6 +103,20 @@ class TestObjectiveClass(unittest.TestCase):
             direct_objective.fun_free_hvp(x_free, grad),
             objective.fun_free_hvp_cond(y, grad))
 
+
+class TestSparsePacking(unittest.TestCase):
+    def test_packing(self):
+        dense_mat = np.zeros((3, 3))
+        dense_mat[0, 0] = 2.0
+        dense_mat[0, 1] = 3.0
+        dense_mat[2, 1] = 4.0
+
+        sparse_mat = sp.sparse.csr_matrix(dense_mat)
+        sparse_mat_packed = obj_lib.pack_csr_matrix(sparse_mat)
+        sparse_mat_unpacked = obj_lib.unpack_csr_matrix(sparse_mat_packed)
+
+        np_test.assert_array_almost_equal(
+            dense_mat, sparse_mat_unpacked.todense())
 
 
 if __name__ == '__main__':

@@ -317,8 +317,6 @@ def get_sparse_hessian(
         (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
 
 
-# TODO: test these formally
-
 # Utilities for pickling and unpickling sparse matrices.
 def pack_csr_matrix(sp_mat):
     return { 'data': sp_mat.data,
