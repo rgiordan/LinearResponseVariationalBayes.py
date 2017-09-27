@@ -89,7 +89,7 @@ class Objective(object):
     # they are evaluted is assumed to include the preconditioner, i.e.
     # to be free_val = a * x
     def get_conditioned_x(self, free_val):
-        return np.squeeze(np.matmul(self.preconditioner, free_val))
+        return np.squeeze(np.array(np.matmul(self.preconditioner, free_val)))
 
     def fun_free_cond(self, free_val, verbose=False):
         assert self.preconditioner is not None

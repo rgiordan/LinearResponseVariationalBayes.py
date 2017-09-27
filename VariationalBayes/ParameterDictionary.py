@@ -48,7 +48,11 @@ class ModelParamsDict(object):
         return result
 
     def set_free(self, vec):
-        if vec.size != self.__free_size: raise ValueError("Wrong size.")
+        if vec.size != self.__free_size:
+            error_string = \
+                'Wrong size for parameter {}.  Expected {}, got {}'.format(
+                    self.name, str(self.__free_size), str(vec.size))
+            raise ValueError(error_string)
         offset = 0
         for param in self.param_dict.values():
             offset = par.set_free_offset(param, vec, offset)
@@ -77,7 +81,11 @@ class ModelParamsDict(object):
         return np.array(hessians)
 
     def set_vector(self, vec):
-        if vec.size != self.__vector_size: raise ValueError("Wrong size.")
+        if vec.size != self.__vector_size:
+            error_string = \
+                'Wrong size for parameter {}.  Expected {}, got {}'.format(
+                    self.name, str(self.__vector_size), str(vec.size))
+            raise ValueError(error_string)
         offset = 0
         for param in self.param_dict.values():
             offset = par.set_vector_offset(param, vec, offset)

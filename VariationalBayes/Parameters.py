@@ -263,7 +263,10 @@ class ArrayParam(object):
 
     def set_free(self, free_val):
         if free_val.size != self.free_size():
-            raise ValueError('Wrong length for array ' + self.name)
+            error_string = \
+                'Wrong size for array {}.  Expected {}, got {}'.format(
+                    self.name, str(self.free_size()), str(free_val.size))
+            raise ValueError(error_string)
         self.set(constrain(free_val, self.__lb, self.__ub).reshape(self.__shape))
     def get_free(self):
         return unconstrain_array(self.__val, self.__lb, self.__ub)
@@ -288,7 +291,10 @@ class ArrayParam(object):
 
     def set_vector(self, val):
         if val.size != self.vector_size():
-            raise ValueError('Wrong length for array ' + self.name)
+            error_string = \
+                'Wrong size for array {}.  Expected {}, got {}'.format(
+                    self.name, str(self.vector_size()), str(val.size))
+            raise ValueError(error_string)
         self.set(val.reshape(self.__shape))
     def get_vector(self):
         return self.__val.flatten()
@@ -374,6 +380,7 @@ def free_to_vector_hess_offset(
 def convert_vector_to_free_hessian(param, free_val, vector_grad, vector_hess):
     #free_hess = csr_matrix((param.free_size(), param.free_size()))
 
+    param.set_free(free_val)
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
     free_to_vec_hessian = param.free_to_vector_hess(free_val)
 
