@@ -88,27 +88,30 @@ class Objective(object):
     # Pre-conditioned versions of the free functions.  The value at which
     # they are evaluted is assumed to include the preconditioner, i.e.
     # to be free_val = a * x
+    def get_conditioned_x(self, free_val):
+        return np.squeeze(np.matmul(self.preconditioner, free_val))
+
     def fun_free_cond(self, free_val, verbose=False):
         assert self.preconditioner is not None
-        y = np.matmul(self.preconditioner, free_val)
+        y = self.get_conditioned_x(free_val)
         return self.fun_free(y, verbose=verbose)
 
     def fun_free_grad_cond(self, free_val):
         assert self.preconditioner is not None
-        y = np.matmul(self.preconditioner, free_val)
+        y = self.get_conditioned_x(free_val)
         grad = self.fun_free_grad(y)
         return np.matmul(self.preconditioner.T, grad)
 
     def fun_free_hessian_cond(self, free_val):
         assert self.preconditioner is not None
-        y = np.matmul(self.preconditioner, free_val)
+        y = self.get_conditioned_x(free_val)
         hess = self.fun_free_hessian(y)
         return np.matmul(self.preconditioner.T,
                          np.matmul(hess, self.preconditioner))
 
     def fun_free_hvp_cond(self, free_val, vec):
         assert self.preconditioner is not None
-        y = np.matmul(self.preconditioner, free_val)
+        y = self.get_conditioned_x(free_val)
         return np.matmul(
             self.preconditioner.T,
             self.fun_free_hvp(y, np.matmul(self.preconditioner, vec)))

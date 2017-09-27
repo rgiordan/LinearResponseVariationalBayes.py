@@ -18,6 +18,8 @@ class Model(object):
         self.a_mat = np.full((dim, dim), 0.1) + np.eye(dim)
         self.set_inits()
 
+        self.opt_x = np.linspace(1., 2., self.dim)
+
         self.preconditioner = np.eye(dim)
 
     def set_random(self):
@@ -27,11 +29,12 @@ class Model(object):
         #self.x.set_vector(np.ones(self.dim))
         self.x.set_vector(np.linspace(0., 1., self.dim))
 
-    def set_zeros(self):
-        self.x.set_vector(np.zeros(self.dim))
+    def set_opt(self):
+        self.x.set_vector(self.opt_x)
 
     def f_of_x(self, x):
-        return np.matmul(x.T, np.matmul(self.a_mat, x))
+        x_c = x - self.opt_x
+        return np.matmul(x_c.T, np.matmul(self.a_mat, x_c))
 
     def f(self):
         return self.f_of_x(self.x.get())
@@ -56,7 +59,7 @@ class TestObjectiveClass(unittest.TestCase):
         x_free = model.x.get_free()
         x_vec = model.x.get_vector()
 
-        model.set_zeros()
+        model.set_opt()
         self.assertTrue(objective.fun_free(x_free) > 0.0)
         np_test.assert_array_almost_equal(
             objective.fun_free(x_free), objective.fun_vector(x_vec))
@@ -66,7 +69,7 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             np.matmul(hess, grad), objective.fun_free_hvp(x_free, grad))
 
-        model.set_zeros()
+        model.set_opt()
         self.assertTrue(objective.fun_vector(x_vec) > 0.0)
         grad = objective.fun_vector_grad(x_vec)
         hess = objective.fun_vector_hessian(x_vec)
@@ -125,7 +128,7 @@ class TestObjectiveClass(unittest.TestCase):
         self.assertTrue(opt_result.success)
         model.x.set_free(opt_result.x)
         np_test.assert_array_almost_equal(
-            np.zeros(model.dim), model.x.get_vector(),
+            model.opt_x, model.x.get_vector(),
             err_msg='Trust-NCG Unconditioned')
 
         # Conditioned:
@@ -139,7 +142,7 @@ class TestObjectiveClass(unittest.TestCase):
         self.assertTrue(opt_result.success)
         model.x.set_free(objective.uncondition_x(opt_result.x))
         np_test.assert_array_almost_equal(
-            np.zeros(model.dim), model.x.get_vector(),
+            model.opt_x, model.x.get_vector(),
             err_msg='Trust-NCG')
 
         opt_result = sp.optimize.minimize(
@@ -151,7 +154,7 @@ class TestObjectiveClass(unittest.TestCase):
         self.assertTrue(opt_result.success)
         model.x.set_free(objective.uncondition_x(opt_result.x))
         np_test.assert_array_almost_equal(
-            np.zeros(model.dim), model.x.get_vector(), err_msg='BFGS')
+            model.opt_x, model.x.get_vector(), err_msg='BFGS')
 
 
         opt_result = sp.optimize.minimize(
@@ -164,7 +167,7 @@ class TestObjectiveClass(unittest.TestCase):
         self.assertTrue(opt_result.success)
         model.x.set_free(objective.uncondition_x(opt_result.x))
         np_test.assert_array_almost_equal(
-            np.zeros(model.dim), model.x.get_vector(), err_msg='Newton')
+            model.opt_x, model.x.get_vector(), err_msg='Newton')
 
 
 
