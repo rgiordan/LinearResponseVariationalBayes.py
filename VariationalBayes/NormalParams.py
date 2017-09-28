@@ -51,6 +51,7 @@ class UVNParam(vb.ModelParamsDict):
 class UVNParamVector(vb.ModelParamsDict):
     def __init__(self, name='', length=2, min_info=0.0):
         super().__init__(name=name)
+        self.__size = length
         self.push_param(vb.VectorParam('mean', length))
         self.push_param(vb.VectorParam('info', length, lb=min_info))
 
@@ -70,6 +71,9 @@ class UVNParamVector(vb.ModelParamsDict):
         return self.e_exp() ** 2 + self.var_exp()
     def entropy(self):
         return np.sum(ef.univariate_normal_entropy(self['info'].get()))
+
+    def size(self):
+        return self.__size
 
 
 class UVNParamArray(vb.ModelParamsDict):

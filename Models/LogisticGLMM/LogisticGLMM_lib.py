@@ -2,7 +2,8 @@
 import VariationalBayes as vb
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as modeling
-from VariationalBayes.SparseObjectives import get_sparse_hessian
+from VariationalBayes.SparseObjectives import \
+    get_sparse_hessian, Objective
 from VariationalBayes.Parameters import convert_vector_to_free_hessian
 
 import autograd
@@ -133,31 +134,33 @@ def get_re_log_lik(glmm_par):
         ((e_mu - e_u) ** 2) + var_mu + var_u) + \
         0.5 * e_log_tau * glmm_par['u'].size()
 
+
 def get_global_entropy(glmm_par):
-    info_mu = glmm_par['mu'].info.get()
-    info_beta = glmm_par['beta'].info.get()
-    tau_shape = glmm_par['tau'].shape.get()
-    tau_rate = glmm_par['tau'].rate.get()
+    info_mu = glmm_par['mu']['info'].get()
+    info_beta = glmm_par['beta']['info'].get()
+    tau_shape = glmm_par['tau']['shape'].get()
+    tau_rate = glmm_par['tau']['rate'].get()
 
     return \
         ef.univariate_normal_entropy(info_mu) + \
         ef.univariate_normal_entropy(info_beta) + \
         ef.gamma_entropy(tau_shape, tau_rate)
 
+
 def get_local_entropy(glmm_par):
-    info_u = glmm_par['u'].info.get()
+    info_u = glmm_par['u']['info'].get()
     return ef.univariate_normal_entropy(info_u)
 
 
 def get_e_log_prior(glmm_par, prior_par):
-    e_beta = glmm_par['beta'].mean.get()
-    info_beta = glmm_par['beta'].info.get()
+    e_beta = glmm_par['beta']['mean'].get()
+    info_beta = glmm_par['beta']['info'].get()
     #cov_beta = np.linalg.inv(info_beta)
     cov_beta = np.diag(1. / info_beta)
     beta_prior_info = prior_par['beta_prior_info'].get()
     beta_prior_mean = prior_par['beta_prior_mean'].get()
-    e_mu = glmm_par['mu'].mean.get()
-    info_mu = glmm_par['mu'].info.get()
+    e_mu = glmm_par['mu']['mean'].get()
+    info_mu = glmm_par['mu']['info'].get()
     var_mu = 1 / info_mu
     e_tau = glmm_par['tau'].e()
     e_log_tau = glmm_par['tau'].e_log()
@@ -200,7 +203,15 @@ class LogisticGLMM(object):
         assert np.min(y_g_vec) == 0
         assert np.max(y_g_vec) == self.glmm_par['u'].size() - 1
 
+        self.objective = Objective(self.glmm_par, self.get_kl)
+
+        self.get_prior_model_grad = \
+            autograd.grad(self.get_e_log_prior_from_args, argnum=0)
+        self.get_prior_hess = \
+            autograd.jacobian(self.get_prior_model_grad, argnum=1)
+
     def set_gh_points(self, num_gh_points):
+        self.num_gh_points = num_gh_points
         self.gh_x, self.gh_w = onp.polynomial.hermite.hermgauss(num_gh_points)
 
     def get_e_log_prior(self):
@@ -239,18 +250,41 @@ class LogisticGLMM(object):
     def get_kl(self):
         return -1 * self.get_elbo()
 
+    def get_e_log_prior_from_args(self, prior_vec, free_par):
+        self.glmm_par.set_free(free_par)
+        self.prior_par.set_vector(prior_vec)
+        return self.get_e_log_prior()
+
+    def tr_optimize(self, trust_init, num_gh_points,
+                    print_every=5, gtol=1e-6, maxiter=500):
+        self.set_gh_points(num_gh_points)
+        self.objective.logger.initialize()
+        self.objective.logger.print_every = print_every
+        vb_opt = osp.optimize.minimize(
+            lambda par: self.objective.fun_free(par, verbose=True),
+            x0=trust_init,
+            method='trust-ncg',
+            jac=self.objective.fun_free_grad,
+            hessp=self.objective.fun_free_hvp,
+            tol=1e-6,
+            options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
+        return vb_opt
+
 
 class MomentWrapper(object):
     def __init__(self, glmm_par):
         self.glmm_par = copy.deepcopy(glmm_par)
-        K = glmm_par['beta'].mean.size()
-        NG =  glmm_par['u'].mean.size()
+        K = glmm_par['beta']['mean'].size()
+        NG =  glmm_par['u']['mean'].size()
         self.moment_par = vb.ModelParamsDict('Moment Parameters')
         self.moment_par.push_param(vb.VectorParam('e_beta', K))
         self.moment_par.push_param(vb.ScalarParam('e_mu'))
         self.moment_par.push_param(vb.ScalarParam('e_tau'))
         self.moment_par.push_param(vb.ScalarParam('e_log_tau'))
         self.moment_par.push_param(vb.VectorParam('e_u', NG))
+
+        self.get_moment_jacobian = \
+            autograd.jacobian(self.get_moment_vector_from_free)
 
     def __str__(self):
         return str(self.moment_par)
@@ -264,7 +298,7 @@ class MomentWrapper(object):
         self.moment_par['e_u'].set(self.glmm_par['u'].e())
 
     # Return a posterior moment of interest as a function of unconstrained parameters.
-    def get_moment_vector(self, free_par_vec):
+    def get_moment_vector_from_free(self, free_par_vec):
         self.set_moments(free_par_vec)
         return self.moment_par.get_vector()
 
@@ -299,8 +333,8 @@ def set_group_parameters(glmm_par, group_par, groups):
     group_par['mu'].set_vector(glmm_par['mu'].get_vector())
     group_par['tau'].set_vector(glmm_par['tau'].get_vector())
 
-    group_par['u'].mean.set(glmm_par['u'].mean.get()[groups])
-    group_par['u'].info.set(glmm_par['u'].info.get()[groups])
+    group_par['u']['mean'].set(glmm_par['u']['mean'].get()[groups])
+    group_par['u']['info'].set(glmm_par['u']['info'].get()[groups])
 
 def set_global_parameters(glmm_par, global_par):
     global_par['beta'].set_vector(glmm_par['beta'].get_vector())
@@ -312,6 +346,7 @@ class SparseModelObjective(LogisticGLMM):
     def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec,
                  num_gh_points, num_groups=1):
         super().__init__(
+
             glmm_par, prior_par,
             np.array(x_mat),
             np.array(y_vec),
