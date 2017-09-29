@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 import VariationalBayes as vb
 import LogisticGLMM_lib as logit_glmm
-from VariationalBayes.SparseObjectives import \
-    Objective, SparseObjective, pack_csr_matrix
+import VariationalBayes.SparseObjectives as obj_lib
 
 import unittest
 import numpy.testing as np_test
@@ -36,7 +35,7 @@ class TestModel(unittest.TestCase):
         model = logit_glmm.LogisticGLMM(
             glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4)
 
-        objective = Objective(model.glmm_par, model.get_kl)
+        objective = obj_lib.Objective(model.glmm_par, model.get_kl)
         free_par = np.random.random(model.glmm_par.free_size())
         model.glmm_par.set_free(free_par)
         objective.fun_free(free_par)
@@ -49,7 +48,7 @@ class TestModel(unittest.TestCase):
             err_msg='Hessian vector product equals Hessian')
 
         moment_wrapper = logit_glmm.MomentWrapper(glmm_par)
-        moment_wrapper.get_moment_vector(free_par)
+        moment_wrapper.get_moment_vector_from_free(free_par)
 
     def test_sparse_model(self):
         N = 17
@@ -63,7 +62,7 @@ class TestModel(unittest.TestCase):
         model = logit_glmm.LogisticGLMM(
             glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4)
         moment_wrapper = logit_glmm.MomentWrapper(glmm_par)
-        objective = Objective(model.glmm_par, model.get_kl)
+        objective = obj_lib.Objective(model.glmm_par, model.get_kl)
 
         free_par = np.random.random(model.glmm_par.free_size())
 

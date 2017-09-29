@@ -20,8 +20,8 @@ project_directory <- file.path(
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 true_params <- list()
 if (analysis_name == "simulated_data_small") {

@@ -2,8 +2,7 @@
 import VariationalBayes as vb
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as modeling
-from VariationalBayes.SparseObjectives import \
-    get_sparse_hessian, Objective
+import VariationalBayes.SparseObjectives as obj_lib
 from VariationalBayes.Parameters import convert_vector_to_free_hessian
 
 import autograd
@@ -11,6 +10,7 @@ import autograd.numpy as np
 import autograd.numpy.random as npr
 import autograd.scipy as sp
 import scipy as osp
+from scipy import sparse
 import numpy as onp
 
 import json
@@ -203,7 +203,7 @@ class LogisticGLMM(object):
         assert np.min(y_g_vec) == 0
         assert np.max(y_g_vec) == self.glmm_par['u'].size() - 1
 
-        self.objective = Objective(self.glmm_par, self.get_kl)
+        self.objective = obj_lib.Objective(self.glmm_par, self.get_kl)
 
         self.get_prior_model_grad = \
             autograd.grad(self.get_e_log_prior_from_args, argnum=0)
@@ -352,22 +352,21 @@ class SparseModelObjective(LogisticGLMM):
             np.array(y_vec),
             np.array(y_g_vec), num_gh_points)
 
-        self.glmm_indices = copy.deepcopy(self.glmm_par)
-        self.glmm_indices.set_vector(np.arange(0, self.glmm_indices.vector_size()))
+        self.glmm_indices = obj_lib.make_index_param(self.glmm_par)
 
         # Parameters for a single observation.
         K = glmm_par['beta'].size()
         self.group_par = get_group_parameters(K, num_groups)
         self.group_indices = get_group_parameters(K, num_groups)
-        self.group_indices.set_vector(np.arange(0, self.group_indices.vector_size()))
+        self.group_indices.set_vector(
+            np.arange(0, self.group_indices.vector_size()))
 
         self.group_rows = [ self.y_g_vec == g \
                             for g in range(np.max(self.y_g_vec) + 1)]
 
         # Parameters that are shared across all observations.
         self.global_par = get_global_parameters(K)
-        self.global_indices = get_global_parameters(K)
-        self.global_indices.set_vector(np.arange(0, self.global_indices.vector_size()))
+        self.global_indices = obj_lib.make_index_param(self.global_par)
 
         # Hessians with respect to the vectorized versions of the observation
         # and global parameter vectors.
@@ -387,17 +386,18 @@ class SparseModelObjective(LogisticGLMM):
         set_group_parameters(self.glmm_indices, self.group_indices, group)
         return self.group_par.get_vector(), self.group_indices.get_vector()
 
-    def set_global_parameters(self, unused_group=-1):
+    def set_global_parameters(self):
         set_global_parameters(self.glmm_par, self.global_par)
         set_global_parameters(self.glmm_indices, self.global_indices)
         return self.global_par.get_vector(), self.global_indices.get_vector()
 
-    # For a vector of groups, return the subsest of the data needed to evaluate
+    # For a vector of groups, return the subset of the data needed to evaluate
     # the model at those groups, including a y_g vector appropriate to a set
     # of parameters that only contains parameters for these groups.
     def get_data_for_groups(self, groups):
         # Rows in the dataset corresponding to these groups:
-        all_group_rows = onp.logical_or.reduce([self.group_rows[g] for g in groups])
+        all_group_rows = onp.logical_or.reduce(
+            [self.group_rows[g] for g in groups])
 
         # Which indices within the groups vector correspond to these rows:
         y_g_sub = np.hstack([ np.full(np.sum(self.group_rows[groups[ig]]), ig) \
@@ -429,7 +429,7 @@ class SparseModelObjective(LogisticGLMM):
         self.group_par.set_vector(group_par_vec)
         return self.get_group_elbo(group)
 
-    def get_global_elbo_from_vec(self, global_par_vec, group):
+    def get_global_elbo_from_vec(self, global_par_vec):
         self.global_par.set_vector(global_par_vec)
         return self.get_global_elbo()
 
@@ -439,21 +439,43 @@ class SparseModelObjective(LogisticGLMM):
 
     def get_sparse_vector_hessian(self, print_every_n):
         print('Calculating global hessian:')
-        sparse_global_hess = get_sparse_hessian(
-            set_parameters_fun = self.set_global_parameters,
-            get_group_hessian = self.get_global_vector_hessian,
-            group_range = [0],
-            full_hess_dim = self.glmm_par.vector_size(),
-            print_every = 1)
+        full_hess_dim = self.glmm_par.vector_size()
+
+        global_par_vec, global_indices = self.set_global_parameters()
+        global_vec_hessian = self.get_global_vector_hessian(global_par_vec)
+        sparse_global_hess = obj_lib.get_sparse_sub_hessian(
+            sub_hessian = global_vec_hessian,
+            full_indices = global_indices,
+            full_hess_dim = full_hess_dim)
+        # sparse_global_hess = get_sparse_hessian(
+        #     set_parameters_fun = self.set_global_parameters,
+        #     get_group_hessian = self.get_global_vector_hessian,
+        #     group_range = [0],
+        #     full_hess_dim = self.glmm_par.vector_size(),
+        #     print_every = 1)
 
         print('Calculating local hessian:')
         NG = np.max(self.y_g_vec) + 1
-        sparse_group_hess = get_sparse_hessian(
-            set_parameters_fun = self.set_group_parameters,
-            get_group_hessian = self.get_group_vector_hessian,
-            group_range = [[g] for g in range(NG)],
-            full_hess_dim = self.glmm_par.vector_size(),
-            print_every = print_every_n)
+        sparse_group_hess = \
+            osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
+        for g in range(NG):
+            if g % print_every_n == 0:
+                print('Group {} of {}.'.format(g, NG - 1))
+            group_par_vec, group_indices = self.set_group_parameters([g])
+            group_vec_hessian = self.get_group_vector_hessian(
+                group_par_vec, [g])
+            sparse_group_hess += \
+                obj_lib.get_sparse_sub_hessian(
+                    sub_hessian = group_vec_hessian,
+                    full_indices = group_indices,
+                    full_hess_dim = full_hess_dim)
+
+            # sparse_group_hess = get_sparse_hessian(
+            #     set_parameters_fun = self.set_group_parameters,
+            #     get_group_hessian = self.get_group_vector_hessian,
+            #     group_range = [[g] for g in range(NG)],
+            #     full_hess_dim = self.glmm_par.vector_size(),
+            #     print_every = print_every_n)
 
         return sparse_group_hess + sparse_global_hess
 

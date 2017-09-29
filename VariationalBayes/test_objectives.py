@@ -186,5 +186,24 @@ class TestSparsePacking(unittest.TestCase):
             dense_mat, sparse_mat_unpacked.todense())
 
 
+class TestIndexParams(unittest.TestCase):
+
+    def test_index_params(self):
+        dim = 3
+        param = vb.ModelParamsDict('test')
+        param.push_param(vb.VectorParam('x', size=dim, lb=-2.0, ub=5.0))
+        param.push_param(vb.VectorParam('y', size=dim, lb=-2.0, ub=5.0))
+
+        index_par = obj_lib.make_index_param(param)
+        param.set_free(np.random.random(param.free_size()))
+        param_vec = param.get_vector()
+
+        for d in range(dim):
+            for pname in ['x', 'y']:
+                self.assertAlmostEqual(
+                    param[pname].get()[d],
+                    param_vec[index_par[pname].get()[d]])
+
+
 if __name__ == '__main__':
     unittest.main()
