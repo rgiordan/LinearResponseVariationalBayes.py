@@ -67,17 +67,21 @@ class TestModel(unittest.TestCase):
 
         free_par = np.random.random(model.glmm_par.free_size())
 
-        sparse_model = logit_glmm.SparseModelObjective(
-            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4,
-            num_groups=1)
+        model.glmm_par.set_free(free_par)
+        group_model = logit_glmm.SubGroupsModel(model)
+        global_model = logit_glmm.GlobalModel(model)
+        # sparse_model = logit_glmm.SparseModelObjective(
+        #     glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4,
+        #     num_groups=1)
 
-        sparse_model.glmm_par.set_free(free_par)
+        # global_model.glmm_par.set_free(free_par)
+        # group_model.glmm_par.set_free(free_par)
 
         ################################
         # Test get_data_for_groups
 
         g = 2
-        group_rows, y_g_select = sparse_model.get_data_for_groups([g])
+        group_rows, y_g_select = group_model.get_data_for_groups([g])
         np_test.assert_array_almost_equal(
             x_mat[group_rows, :], x_mat[y_g_vec == g, :])
         np_test.assert_array_almost_equal(
@@ -89,45 +93,48 @@ class TestModel(unittest.TestCase):
 
         # Testing the sparse objective.
         g = 2
-        sparse_model.set_global_parameters()
-        sparse_model.set_group_parameters([g])
+        global_model.set_global_parameters()
+        group_model.set_group_parameters([g])
         single_group_model = logit_glmm.LogisticGLMM(
-            sparse_model.group_par, prior_par,
+            group_model.group_par, prior_par,
             x_mat[group_rows, :], y_vec[group_rows], y_g_select,
-            num_gh_points=4)
+            num_gh_points = model.num_gh_points)
         np_test.assert_array_almost_equal(
             single_group_model.glmm_par.get_vector(),
-            sparse_model.group_par.get_vector(),
+            group_model.group_par.get_vector(),
             err_msg='Group model parameter equality')
 
         # Checking that a single group is equal.
-        single_group_elbo = single_group_model.get_elbo()
-        sparse_elbo = sparse_model.get_global_elbo() + \
-            sparse_model.get_group_elbo([g])
+        single_group_kl = single_group_model.get_kl()
+        sparse_kl = \
+            global_model.get_global_kl() + \
+            group_model.get_group_kl()
 
         np_test.assert_array_almost_equal(
-            single_group_elbo, sparse_elbo,
-            err_msg="Group model elbo equality")
+            single_group_kl, sparse_kl,
+            err_msg="Group model kl equality")
 
-        # Checking the full elbo is equal.
-        sparse_elbo = sparse_model.get_global_elbo()
+        # Checking the full kl is equal.
+        sparse_kl = global_model.get_global_kl()
         for g in range(NG):
-            sparse_model.set_group_parameters([g])
-            sparse_elbo += sparse_model.get_group_elbo([g])
+            group_model.set_group_parameters([g])
+            sparse_kl += group_model.get_group_kl()
 
-        elbo = -1 * objective.fun_free(free_par)
-        np_test.assert_array_almost_equal(elbo, sparse_elbo)
+        np_test.assert_array_almost_equal(
+            objective.fun_free(free_par), sparse_kl)
 
         # Check that the vector Hessian is equal.
         model.glmm_par.set_free(free_par)
-        sparse_model.glmm_par.set_free(free_par)
+        global_model.glmm_par.set_free(free_par)
+        group_model.glmm_par.set_free(free_par)
+
         sparse_vector_hess = \
-            sparse_model.get_sparse_vector_hessian(print_every_n=1000)
+            group_model.get_sparse_kl_vec_hessian(print_every_n=-1) + \
+            global_model.get_sparse_kl_vec_hessian()
         sparse_vector_hess_dense = \
             np.array(sparse_vector_hess.todense())
         full_vector_hess = \
-            -1 * objective.fun_vector_hessian(
-                sparse_model.glmm_par.get_vector())
+            objective.fun_vector_hessian(model.glmm_par.get_vector())
 
         np_test.assert_array_almost_equal(
             full_vector_hess,
@@ -136,9 +143,10 @@ class TestModel(unittest.TestCase):
 
         # Check that the free Hessian is equal.
         #sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
-        sparse_hess = sparse_model.get_free_hessian()
-        full_hess = -1 * objective.fun_free_hessian(
-            sparse_model.glmm_par.get_free())
+        sparse_hess = glmm_lib.get_free_hessian(
+            model, group_model=group_model, global_model=global_model)
+        full_hess = objective.fun_free_hessian(
+            model.glmm_par.get_free())
 
         np_test.assert_array_almost_equal(
             full_hess,
@@ -146,7 +154,7 @@ class TestModel(unittest.TestCase):
             err_msg='Sparse free Hessian equality')
 
         # Check that the weight jacobian is equal.
-        sparse_jac = sparse_model.get_sparse_weight_vector_jacobian()
+        sparse_jac = group_model.get_sparse_weight_vector_jacobian()
         def get_data_terms_vec(glmm_par_vec):
             model.glmm_par.set_vector(glmm_par_vec)
             return model.get_data_log_lik_terms()
@@ -163,8 +171,8 @@ class TestModel(unittest.TestCase):
             np.asarray(sparse_jac.todense()),
             err_msg='Sparse vector Jacobian equality')
 
-        sparse_free_jac = sparse_model.get_sparse_weight_free_jacobian()
-
+        sparse_free_jac = \
+            glmm_lib.get_sparse_weight_free_jacobian(group_model)
         get_full_free_jac = autograd.jacobian(get_data_terms_free)
         full_free_jac = get_full_free_jac(model.glmm_par.get_free())
 

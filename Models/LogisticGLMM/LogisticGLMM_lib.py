@@ -197,6 +197,9 @@ class LogisticGLMM(object):
         self.y_g_vec = np.array(y_g_vec)
         self.set_gh_points(num_gh_points)
 
+        self.beta_dim = self.x_mat.shape[1]
+        self.num_groups = np.max(self.y_g_vec) + 1
+
         self.use_weights = False
         self.weights = np.full(self.x_mat.shape[0], 1.0)
 
@@ -342,57 +345,42 @@ def set_global_parameters(glmm_par, global_par):
     global_par['tau'].set_vector(glmm_par['tau'].get_vector())
 
 
-class SparseModelObjective(LogisticGLMM):
-    def __init__(self, glmm_par, prior_par, x_mat, y_vec, y_g_vec,
-                 num_gh_points, num_groups=1):
-        super().__init__(
+# Evaluate the model at only a certain select set of groups.
+class SubGroupsModel(object):
+    def __init__(self, model, num_groups=1):
+        self.model = model
+        self.glmm_par = self.model.glmm_par
+        self.num_groups = num_groups
 
-            glmm_par, prior_par,
-            np.array(x_mat),
-            np.array(y_vec),
-            np.array(y_g_vec), num_gh_points)
+        self.full_indices = obj_lib.make_index_param(self.glmm_par)
 
-        self.glmm_indices = obj_lib.make_index_param(self.glmm_par)
+        self.group_par = get_group_parameters(
+            self.model.beta_dim, self.num_groups)
+        self.group_indices = obj_lib.make_index_param(self.group_par)
 
-        # Parameters for a single observation.
-        K = glmm_par['beta'].size()
-        self.group_par = get_group_parameters(K, num_groups)
-        self.group_indices = get_group_parameters(K, num_groups)
-        self.group_indices.set_vector(
-            np.arange(0, self.group_indices.vector_size()))
+        self.set_group_parameters(np.arange(0, num_groups))
 
-        self.group_rows = [ self.y_g_vec == g \
-                            for g in range(np.max(self.y_g_vec) + 1)]
+        self.group_rows = [ self.model.y_g_vec == g \
+                            for g in range(np.max(self.model.y_g_vec) + 1)]
 
-        # Parameters that are shared across all observations.
-        self.global_par = get_global_parameters(K)
-        self.global_indices = obj_lib.make_index_param(self.global_par)
+        self.kl_objective = obj_lib.Objective(
+            self.group_par, self.get_group_kl)
 
-        # Hessians with respect to the vectorized versions of the observation
-        # and global parameter vectors.
-        self.get_group_vector_hessian = \
-            autograd.hessian(self.get_group_elbo_from_vec)
-        self.get_global_vector_hessian = \
-            autograd.hessian(self.get_global_elbo_from_vec)
-        self.get_vector_grad = \
-            autograd.grad(self.get_elbo_from_vec)
-        self.get_vector_hessian = \
-            autograd.hessian(self.get_elbo_from_vec)
-
-        self.get_group_weight_jacobian = \
-            autograd.jacobian(self.get_group_data_log_lik_from_vec)
+        self.data_kl_objective = obj_lib.Objective(
+            self.group_par, self.get_group_data_elbo)
+        self.get_data_kl_objective_jac = autograd.jacobian(
+            self.data_kl_objective.fun_vector)
 
     # Set the group parameters from the global parameters and
     # return a vector of the indices within the full model.
-    def set_group_parameters(self, group):
-        set_group_parameters(self.glmm_par, self.group_par, group)
-        set_group_parameters(self.glmm_indices, self.group_indices, group)
-        return self.group_par.get_vector(), self.group_indices.get_vector()
+    def set_group_parameters(self, groups):
+        assert(np.max(groups) < self.model.num_groups)
+        assert(len(groups) == self.num_groups)
+        self.groups = groups
 
-    def set_global_parameters(self):
-        set_global_parameters(self.glmm_par, self.global_par)
-        set_global_parameters(self.glmm_indices, self.global_indices)
-        return self.global_par.get_vector(), self.global_indices.get_vector()
+        set_group_parameters(self.glmm_par, self.group_par, groups)
+        set_group_parameters(self.full_indices, self.group_indices, groups)
+        return self.group_par.get_vector(), self.group_indices.get_vector()
 
     # For a vector of groups, return the subset of the data needed to evaluate
     # the model at those groups, including a y_g vector appropriate to a set
@@ -408,137 +396,142 @@ class SparseModelObjective(LogisticGLMM):
         return all_group_rows, y_g_sub
 
     # Likelihood functions:
-    def get_group_elbo(self, groups):
-        all_group_rows, y_g_sub = self.get_data_for_groups(groups)
-
+    def get_group_kl(self):
+        all_group_rows, y_g_sub = self.get_data_for_groups(self.groups)
         data_log_lik = np.sum(get_data_log_lik_terms(
             glmm_par = self.group_par,
             y_g_vec = y_g_sub,
-            x_mat = self.x_mat[all_group_rows, :],
-            y_vec = self.y_vec[all_group_rows],
-            gh_x = self.gh_x,
-            gh_w = self.gh_w))
+            x_mat = self.model.x_mat[all_group_rows, :],
+            y_vec = self.model.y_vec[all_group_rows],
+            gh_x = self.model.gh_x,
+            gh_w = self.model.gh_w))
         re_log_lik = get_re_log_lik(self.group_par)
         u_entropy = get_local_entropy(self.group_par)
 
-        return np.squeeze(data_log_lik + re_log_lik + u_entropy)
+        return -1 * np.squeeze(data_log_lik + re_log_lik + u_entropy)
 
-    def get_group_data_log_lik(self, groups):
-        # Each entry returned by get_data_log_lik_terms corresponds to a
-        # single data point.
-        all_group_rows, y_g_sub = self.get_data_for_groups(groups)
+    # Each entry returned by get_data_log_lik_terms corresponds to a
+    # single data point.  This is intended to be the derivative of the
+    # elbo with respect to weights on each data point.
+    def get_group_data_elbo(self):
+        all_group_rows, y_g_sub = self.get_data_for_groups(self.groups)
         data_log_lik = get_data_log_lik_terms(
             glmm_par = self.group_par,
             y_g_vec = y_g_sub,
-            x_mat = self.x_mat[all_group_rows, :],
-            y_vec = self.y_vec[all_group_rows],
-            gh_x = self.gh_x,
-            gh_w = self.gh_w)
+            x_mat = self.model.x_mat[all_group_rows, :],
+            y_vec = self.model.y_vec[all_group_rows],
+            gh_x = self.model.gh_x,
+            gh_w = self.model.gh_w)
 
-        return np.squeeze(data_log_lik)
+        return -1 * np.squeeze(data_log_lik)
 
-    def get_global_elbo(self):
-        return np.squeeze(
-            get_global_entropy(self.global_par) + \
-            get_e_log_prior(self.global_par, self.prior_par))
-
-    def get_group_elbo_from_vec(self, group_par_vec, group):
-        self.group_par.set_vector(group_par_vec)
-        return self.get_group_elbo(group)
-
-    def get_group_data_log_lik_from_vec(self, group_par_vec, group):
-        self.group_par.set_vector(group_par_vec)
-        return self.get_group_data_log_lik(group)
-
-    def get_global_elbo_from_vec(self, global_par_vec):
-        self.global_par.set_vector(global_par_vec)
-        return self.get_global_elbo()
-
-    def get_elbo_from_vec(self, par_vec):
-        self.glmm_par.set_vector(par_vec)
-        return self.get_elbo()
-
-    def get_sparse_weight_vector_jacobian(self, print_every_n=10):
-        free_param_size = self.glmm_par.free_size()
-        n_obs = self.x_mat.shape[0]
-        weight_indices = np.arange(0, n_obs)
-        sparse_weight_jacobian = \
-            osp.sparse.csr_matrix((n_obs, free_param_size))
-        NG = np.max(self.y_g_vec) + 1
-        for g in range(NG):
-            if g % print_every_n == 0:
-                print('Group {} of {}'.format(g, NG))
-            group_weight_indices = weight_indices[self.group_rows[g]]
-            group_par_vec, group_indices = self.set_group_parameters([g])
-            group_obs_jac = np.atleast_2d(
-                self.get_group_weight_jacobian(group_par_vec, [g]))
-            # print('Group indices: ', group_indices)
-            # print('Weight indices: ', group_weight_indices)
-            # print('Shape: ', sparse_weight_jacobian.shape)
-            # print('nobs: ', n_obs)
-            sparse_weight_jacobian += \
-                obj_lib.get_sparse_sub_matrix(
-                    sub_matrix = group_obs_jac,
-                    col_indices = group_indices,
-                    row_indices = group_weight_indices,
-                    col_dim = free_param_size,
-                    row_dim = n_obs)
-
-        return sparse_weight_jacobian
-
-    def get_sparse_weight_free_jacobian(
-        self, vector_jac=None, print_every_n=10):
-
-        if vector_jac is None:
-            vector_jac = self.get_sparse_weight_vector_jacobian(
-                print_every_n=print_every_n)
-        free_to_vec_jacobian = \
-            self.glmm_par.free_to_vector_jac(self.glmm_par.get_free())
-        return vector_jac * free_to_vec_jacobian
-
-    def get_sparse_vector_hessian(self, print_every_n=10):
-        print('Calculating global hessian:')
+    # This is as a function of vector parameters.
+    def get_sparse_kl_vec_hessian(self, print_every_n=-1):
         full_hess_dim = self.glmm_par.vector_size()
-
-        global_par_vec, global_indices = self.set_global_parameters()
-        global_vec_hessian = self.get_global_vector_hessian(global_par_vec)
-        sparse_global_hess = obj_lib.get_sparse_sub_hessian(
-            sub_hessian = global_vec_hessian,
-            full_indices = global_indices,
-            full_hess_dim = full_hess_dim)
-
-        print('Calculating local hessian:')
-        NG = np.max(self.y_g_vec) + 1
         sparse_group_hess = \
             osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
-        for g in range(NG):
+        for g in range(self.num_groups):
             if g % print_every_n == 0:
-                print('Group {} of {}.'.format(g, NG - 1))
+                print('Group {} of {}.'.format(g, self.num_groups - 1))
             group_par_vec, group_indices = self.set_group_parameters([g])
-            group_vec_hessian = self.get_group_vector_hessian(
-                group_par_vec, [g])
+            group_vec_hessian = \
+                self.kl_objective.fun_vector_hessian(group_par_vec)
             sparse_group_hess += \
                 obj_lib.get_sparse_sub_hessian(
                     sub_hessian = group_vec_hessian,
                     full_indices = group_indices,
                     full_hess_dim = full_hess_dim)
+        return sparse_group_hess
 
-        return sparse_group_hess + sparse_global_hess
+    # This is as a function of the vector parameters.
+    def get_sparse_weight_vec_jacobian(self, print_every_n=-1):
+        vector_param_size = self.glmm_par.vector_size()
+        n_obs = self.model.x_mat.shape[0]
+        weight_indices = np.arange(0, n_obs)
+        sparse_weight_jacobian = \
+            osp.sparse.csr_matrix((n_obs, vector_param_size))
+        for g in range(self.num_groups):
+            if g % print_every_n == 0:
+                print('Group {} of {}'.format(g, self.num_groups - 1))
+            group_weight_indices = weight_indices[self.group_rows[g]]
+            group_par_vec, group_indices = self.set_group_parameters([g])
+            group_obs_jac = np.atleast_2d(
+                self.get_data_kl_objective_jac(group_par_vec))
+            sparse_weight_jacobian += \
+                obj_lib.get_sparse_sub_matrix(
+                    sub_matrix = group_obs_jac,
+                    col_indices = group_indices,
+                    row_indices = group_weight_indices,
+                    col_dim = vector_param_size,
+                    row_dim = n_obs)
 
-    def get_free_hessian(self, vector_hess=None):
-        if vector_hess is None:
-            vector_hess = self.get_sparse_vector_hessian()
-        vector_grad = self.get_vector_grad(self.glmm_par.get_vector())
-        return convert_vector_to_free_hessian(
-            self.glmm_par,
-            self.glmm_par.get_free(),
-            vector_grad,
-            vector_hess)
+        return sparse_weight_jacobian
+
+
+# Evaluate the global part of the model only.
+class GlobalModel(object):
+    def __init__(self, model):
+        self.model = model
+        self.glmm_par = self.model.glmm_par
+        self.full_indices = obj_lib.make_index_param(self.glmm_par)
+        self.global_par = get_global_parameters(self.model.beta_dim)
+        self.global_indices = obj_lib.make_index_param(self.global_par)
+
+        self.kl_objective = obj_lib.Objective(
+            self.global_par, self.get_global_kl)
+
+    def set_global_parameters(self):
+        set_global_parameters(self.glmm_par, self.global_par)
+        set_global_parameters(self.full_indices, self.global_indices)
+        return self.global_par.get_vector(), self.global_indices.get_vector()
+
+    def get_global_kl(self):
+        return -1 * np.squeeze(
+            get_global_entropy(self.global_par) + \
+            get_e_log_prior(self.global_par, self.model.prior_par))
+
+    # This is as a function of the vector parameters.
+    def get_sparse_kl_vec_hessian(self, print_every_n=-1):
+        full_hess_dim = self.glmm_par.vector_size()
+        global_par_vec, global_indices = self.set_global_parameters()
+        global_vec_hessian = \
+            self.kl_objective.fun_vector_hessian(global_par_vec)
+        sparse_global_hess = obj_lib.get_sparse_sub_hessian(
+            sub_hessian = global_vec_hessian,
+            full_indices = global_indices,
+            full_hess_dim = full_hess_dim)
+        return sparse_global_hess
+
+
+def get_sparse_weight_jacobian(group_model, vector_jac=None, print_every_n=-1):
+    if vector_jac is None:
+        vector_jac = group_model.get_sparse_weight_vec_jacobian(
+            print_every_n=print_every_n)
+    free_to_vec_jacobian = \
+        group_model.glmm_par.free_to_vector_jac(group_model.glmm_par.get_free())
+    return vector_jac * free_to_vec_jacobian
+
+
+def get_free_hessian(glmm_model, group_model, global_model,
+                     vector_hess=None, print_every_n=-1):
+    if vector_hess is None:
+        group_vec_hess = group_model.get_sparse_kl_vec_hessian(
+            print_every_n=print_every_n)
+        global_vec_hess = global_model.get_sparse_kl_vec_hessian()
+        vector_hess = global_vec_hess + group_vec_hess
+
+    vector_grad = glmm_model.objective.fun_vector_grad(
+        glmm_model.glmm_par.get_vector())
+
+    return convert_vector_to_free_hessian(
+        glmm_model.glmm_par,
+        glmm_model.glmm_par.get_free(),
+        vector_grad,
+        vector_hess)
 
 
 ###################################
 # MLE (MAP) estimators
-
 
 def get_mle_parameters(K, NG):
     mle_par = vb.ModelParamsDict('GLMER Parameters')
