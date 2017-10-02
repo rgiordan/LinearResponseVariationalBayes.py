@@ -347,18 +347,18 @@ def set_global_parameters(glmm_par, global_par):
 
 # Evaluate the model at only a certain select set of groups.
 class SubGroupsModel(object):
-    def __init__(self, model, num_groups=1):
+    def __init__(self, model, num_sub_groups=1):
         self.model = model
         self.glmm_par = self.model.glmm_par
-        self.num_groups = num_groups
+        self.num_sub_groups = num_sub_groups
 
         self.full_indices = obj_lib.make_index_param(self.glmm_par)
 
         self.group_par = get_group_parameters(
-            self.model.beta_dim, self.num_groups)
+            self.model.beta_dim, self.num_sub_groups)
         self.group_indices = obj_lib.make_index_param(self.group_par)
 
-        self.set_group_parameters(np.arange(0, num_groups))
+        self.set_group_parameters(np.arange(0, self.num_sub_groups))
 
         self.group_rows = [ self.model.y_g_vec == g \
                             for g in range(np.max(self.model.y_g_vec) + 1)]
@@ -375,7 +375,7 @@ class SubGroupsModel(object):
     # return a vector of the indices within the full model.
     def set_group_parameters(self, groups):
         assert(np.max(groups) < self.model.num_groups)
-        assert(len(groups) == self.num_groups)
+        assert(len(groups) == self.num_sub_groups)
         self.groups = groups
 
         set_group_parameters(self.glmm_par, self.group_par, groups)
@@ -430,9 +430,9 @@ class SubGroupsModel(object):
         full_hess_dim = self.glmm_par.vector_size()
         sparse_group_hess = \
             osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
-        for g in range(self.num_groups):
-            if g % print_every_n == 0:
-                print('Group {} of {}.'.format(g, self.num_groups - 1))
+        for g in range(self.model.num_groups):
+            if g % print_every_n == print_every_n:
+                print('Group {} of {}.'.format(g, self.model.num_groups - 1))
             group_par_vec, group_indices = self.set_group_parameters([g])
             group_vec_hessian = \
                 self.kl_objective.fun_vector_hessian(group_par_vec)
@@ -450,9 +450,9 @@ class SubGroupsModel(object):
         weight_indices = np.arange(0, n_obs)
         sparse_weight_jacobian = \
             osp.sparse.csr_matrix((n_obs, vector_param_size))
-        for g in range(self.num_groups):
-            if g % print_every_n == 0:
-                print('Group {} of {}'.format(g, self.num_groups - 1))
+        for g in range(self.model.num_groups):
+            if g % print_every_n == print_every_n:
+                print('Group {} of {}'.format(g, self.model.num_groups - 1))
             group_weight_indices = weight_indices[self.group_rows[g]]
             group_par_vec, group_indices = self.set_group_parameters([g])
             group_obs_jac = np.atleast_2d(
@@ -503,7 +503,8 @@ class GlobalModel(object):
         return sparse_global_hess
 
 
-def get_sparse_weight_jacobian(group_model, vector_jac=None, print_every_n=-1):
+def get_sparse_weight_free_jacobian(
+    group_model, vector_jac=None, print_every_n=-1):
     if vector_jac is None:
         vector_jac = group_model.get_sparse_weight_vec_jacobian(
             print_every_n=print_every_n)
