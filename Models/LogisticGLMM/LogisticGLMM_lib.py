@@ -213,6 +213,9 @@ class LogisticGLMM(object):
         self.get_prior_hess = \
             autograd.jacobian(self.get_prior_model_grad, argnum=1)
 
+        self.group_model = SubGroupsModel(self, num_sub_groups=1)
+        self.global_model = GlobalModel(self)
+
     def set_gh_points(self, num_gh_points):
         self.num_gh_points = num_gh_points
         self.gh_x, self.gh_w = onp.polynomial.hermite.hermgauss(num_gh_points)
@@ -273,6 +276,19 @@ class LogisticGLMM(object):
             options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
         return vb_opt
 
+    def get_sparse_free_hessian(self, free_par, print_every_n=-1):
+        self.glmm_par.set_free(free_par)
+        self.group_model.glmm_par.set_free(free_par)
+        self.global_model.glmm_par.set_free(free_par)
+        return get_free_hessian(
+            self, self.group_model, self.global_model,
+            print_every_n=print_every_n)
+
+    def get_sparse_weight_free_jacobian(self, free_par, print_every_n=-1):
+        self.glmm_par.set_free(free_par)
+        self.group_model.glmm_par.set_free(free_par)
+        return get_sparse_weight_free_jacobian(
+            self.group_model, print_every_n=print_every_n)
 
 class MomentWrapper(object):
     def __init__(self, glmm_par):

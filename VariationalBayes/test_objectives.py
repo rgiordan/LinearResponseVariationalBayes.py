@@ -106,12 +106,16 @@ class TestObjectiveClass(unittest.TestCase):
             err_msg='Conditioned Hessian vector product values')
 
 
-    def test_optimization(self):
+    def run_optimization_tests(self, use_sparse=False):
         model = Model(dim=3)
         objective = obj_lib.Objective(par=model.x, fun=model.f)
         preconditioner = 2.0 * np.eye(model.dim)
         preconditioner[model.dim - 1, 0] = 0.1 # Add asymmetry for testing!
-        objective.preconditioner = preconditioner
+
+        if use_sparse:
+            objective.preconditioner = preconditioner
+        else:
+            objective.preconditioner = sp.sparse.csr_matrix(preconditioner)
 
         model.set_inits()
         x0 = model.x.get_free()
@@ -156,7 +160,6 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             model.opt_x, model.x.get_vector(), err_msg='BFGS')
 
-
         opt_result = sp.optimize.minimize(
             fun=lambda par: objective.fun_free_cond(par, verbose=False),
             jac=objective.fun_free_grad_cond,
@@ -169,9 +172,35 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             model.opt_x, model.x.get_vector(), err_msg='Newton')
 
+    def test_optimization(self):
+        self.run_optimization_tests(use_sparse=True)
+        self.run_optimization_tests(use_sparse=False)
 
 
 class TestSparsePacking(unittest.TestCase):
+    def test_safe_matmul(self):
+        def safe_matmul_todense(a, b):
+            result = obj_lib.safe_matmul(a, b)
+            if sp.sparse.issparse(result):
+                return np.asarray(result.todense())
+            else:
+                return np.asarray(result)
+
+        a = np.random.random((3, 3))
+        b = np.random.random((3, 3))
+        ab = np.matmul(a, b)
+
+        np_test.assert_array_almost_equal(
+            ab, safe_matmul_todense(a, b))
+        np_test.assert_array_almost_equal(
+            ab, safe_matmul_todense(sp.sparse.csr_matrix(a), b))
+        np_test.assert_array_almost_equal(
+            ab, safe_matmul_todense(a, sp.sparse.csr_matrix(b)))
+        np_test.assert_array_almost_equal(
+            ab, safe_matmul_todense(np.matrix(a), b))
+        np_test.assert_array_almost_equal(
+            ab, safe_matmul_todense(a, np.matrix(b)))
+
     def test_packing(self):
         dense_mat = np.zeros((3, 3))
         dense_mat[0, 0] = 2.0
@@ -187,7 +216,6 @@ class TestSparsePacking(unittest.TestCase):
 
 
 class TestIndexParams(unittest.TestCase):
-
     def test_index_params(self):
         dim = 3
         param = vb.ModelParamsDict('test')

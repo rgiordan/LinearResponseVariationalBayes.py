@@ -14,6 +14,19 @@ from copy import deepcopy
 import time
 
 
+# Apparently this can be replaced by the @ operator in Python 3.6.
+def safe_matmul(x, y):
+    if sp.sparse.issparse(x) or sp.sparse.issparse(y):
+        return x * y
+    else:
+        return np.matmul(x, y)
+
+def compress(x):
+    if sp.sparse.issparse(x):
+        return np.squeeze(np.asarray(x.todense()))
+    else:
+        return np.squeeze(np.asarray(x))
+
 class Logger(object):
     def __init__(self, print_every=1):
         self.print_every = print_every
@@ -91,7 +104,7 @@ class Objective(object):
     # they are evaluted is assumed to include the preconditioner, i.e.
     # to be free_val = a * x
     def get_conditioned_x(self, free_val):
-        return np.squeeze(np.array(np.matmul(self.preconditioner, free_val)))
+        return safe_matmul(self.preconditioner, free_val)
 
     def fun_free_cond(self, free_val, verbose=False):
         assert self.preconditioner is not None
@@ -102,26 +115,26 @@ class Objective(object):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         grad = self.fun_free_grad(y)
-        return np.matmul(self.preconditioner.T, grad)
+        return safe_matmul(self.preconditioner.T, grad)
 
     def fun_free_hessian_cond(self, free_val):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         hess = self.fun_free_hessian(y)
-        return np.matmul(self.preconditioner.T,
-                         np.matmul(hess, self.preconditioner))
+        return safe_matmul(self.preconditioner.T,
+                           safe_matmul(hess, self.preconditioner))
 
     def fun_free_hvp_cond(self, free_val, vec):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
-        return np.matmul(
+        return safe_matmul(
             self.preconditioner.T,
-            self.fun_free_hvp(y, np.matmul(self.preconditioner, vec)))
+            self.fun_free_hvp(y, safe_matmul(self.preconditioner, vec)))
 
     # Convert the optimum of the conditioned problem to the
     # value (with tests to be sure you're doing it right).
     def uncondition_x(self, cond_x):
-        return np.matmul(self.preconditioner, cond_x)
+        return safe_matmul(self.preconditioner, cond_x)
 
 
 # It's useful, especially when constructing sparse Hessians, to know
