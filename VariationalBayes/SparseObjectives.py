@@ -145,25 +145,6 @@ def get_sparse_sub_hessian(sub_hessian, full_indices, full_hess_dim):
         row_dim=full_hess_dim,
         col_dim=full_hess_dim)
 
-    # hess_vals = [] # These will be the entries of the Hessian
-    # hess_rows = [] # These will be the z indices
-    # hess_cols = [] # These will be the data indices
-    #
-    # # Get the dimension using the first element of the group_range.
-    # group_hess_dim = sub_hessian.shape[0]
-    # assert(sub_hessian.shape[0] == sub_hessian.shape[1])
-    #
-    # for row in range(group_hess_dim):
-    #     for col in range(group_hess_dim):
-    #         if sub_hessian[row, col] != 0:
-    #             hess_vals.append(sub_hessian[row, col])
-    #             hess_rows.append(int(full_indices[row]))
-    #             hess_cols.append(int(full_indices[col]))
-    #
-    # return sp.sparse.csr_matrix(
-    #     (hess_vals, (hess_rows, hess_cols)),
-    #     (full_hess_dim, full_hess_dim))
-
 
 # Return a sparse matrix of size (full_hess_dim, full_hess_dim), where
 # the entries of the dense matrix sub_hessian are in the locations

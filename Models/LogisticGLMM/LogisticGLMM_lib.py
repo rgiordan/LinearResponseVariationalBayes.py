@@ -458,7 +458,7 @@ class SparseModelObjective(LogisticGLMM):
         self.glmm_par.set_vector(par_vec)
         return self.get_elbo()
 
-    def get_sparse_weight_vector_jacobian(self):
+    def get_sparse_weight_vector_jacobian(self, print_every_n=10):
         free_param_size = self.glmm_par.free_size()
         n_obs = self.x_mat.shape[0]
         weight_indices = np.arange(0, n_obs)
@@ -466,10 +466,12 @@ class SparseModelObjective(LogisticGLMM):
             osp.sparse.csr_matrix((n_obs, free_param_size))
         NG = np.max(self.y_g_vec) + 1
         for g in range(NG):
+            if g % print_every_n == 0:
+                print('Group {} of {}'.format(g, NG))
             group_weight_indices = weight_indices[self.group_rows[g]]
             group_par_vec, group_indices = self.set_group_parameters([g])
-            group_obs_jac = self.get_group_weight_jacobian(
-                group_par_vec, [g])
+            group_obs_jac = np.atleast_2d(
+                self.get_group_weight_jacobian(group_par_vec, [g]))
             # print('Group indices: ', group_indices)
             # print('Weight indices: ', group_weight_indices)
             # print('Shape: ', sparse_weight_jacobian.shape)
@@ -484,9 +486,12 @@ class SparseModelObjective(LogisticGLMM):
 
         return sparse_weight_jacobian
 
-    def get_sparse_weight_free_jacobian(self, vector_jac=None):
+    def get_sparse_weight_free_jacobian(
+        self, vector_jac=None, print_every_n=10):
+
         if vector_jac is None:
-            vector_jac = self.get_sparse_weight_vector_jacobian()
+            vector_jac = self.get_sparse_weight_vector_jacobian(
+                print_every_n=print_every_n)
         free_to_vec_jacobian = \
             self.glmm_par.free_to_vector_jac(self.glmm_par.get_free())
         return vector_jac * free_to_vec_jacobian
