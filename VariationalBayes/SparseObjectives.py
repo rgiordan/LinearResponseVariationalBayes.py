@@ -124,81 +124,68 @@ class Objective(object):
         return np.matmul(self.preconditioner, cond_x)
 
 
+# It's useful, especially when constructing sparse Hessians, to know
+# which location in the parameter vector each variable goes.  The
+# index parameter tells you that.
 def make_index_param(param):
     index_param = deepcopy(param)
     index_param.set_vector(np.arange(0, index_param.vector_size()))
     return index_param
 
-# A helper function to get sparse Hessians from models.
-#
-# Args:
-#   - set_parameters_fun: A function taking a single argument (group) and
-#     returning a vector of group parameters and a vector of indices in the
-#     full model.
-#   - get_group_hessian: A function taking a vector of group parameters and
-#     returning a dense hessian for that group.
-#   - group_range: The range of the group variable.
-#   - full_hess_dim: The size of the full Hessian.
-#   - print_every: Every n groups, print a little message.
-#
-# Returns:
-#   - A sparse matrix consisting of the sum of all of the group hessians,
-#     with entries in the appropriate locations for the full model.
-# TODO: formally test this
-def get_sparse_hessian(
-    set_parameters_fun, get_group_hessian, group_range, full_hess_dim,
-    print_every=20):
 
-    hess_vals = [] # These will be the entries of the Hessian
-    hess_rows = [] # These will be the z indices
-    hess_cols = [] # These will be the data indices
+# Return a sparse matrix of size (full_hess_dim, full_hess_dim), where
+# the entries of the dense matrix sub_hessian are in the locations
+# indicated by the vector full_indices.
+# TODO: test this formally.
+def get_sparse_sub_hessian(sub_hessian, full_indices, full_hess_dim):
+    return get_sparse_sub_matrix(
+        sub_matrix=sub_hessian,
+        row_indices=full_indices,
+        col_indices=full_indices,
+        row_dim=full_hess_dim,
+        col_dim=full_hess_dim)
 
-    # Get the dimension using the first element of the group_range.
-    group_vector, full_indices = set_parameters_fun(group_range[0])
-    group_hess_dim = len(group_vector)
-
-    group_ind = 0
-    for group in group_range:
-        group_ind += 1
-        if group_ind % print_every == 0:
-            print('Group {} of {}'.format(group_ind, len(group_range) - 1))
-        group_vector, full_indices = set_parameters_fun(group)
-        row_hess_val = np.squeeze(get_group_hessian(group_vector, group))
-
-        for row in range(group_hess_dim):
-            for col in range(group_hess_dim):
-                if row_hess_val[row, col] != 0:
-                    hess_vals.append(row_hess_val[row, col])
-                    hess_rows.append(int(full_indices[row]))
-                    hess_cols.append(int(full_indices[col]))
-
-    print('Done.')
-    return sp.sparse.csr_matrix(
-        (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
+    # hess_vals = [] # These will be the entries of the Hessian
+    # hess_rows = [] # These will be the z indices
+    # hess_cols = [] # These will be the data indices
+    #
+    # # Get the dimension using the first element of the group_range.
+    # group_hess_dim = sub_hessian.shape[0]
+    # assert(sub_hessian.shape[0] == sub_hessian.shape[1])
+    #
+    # for row in range(group_hess_dim):
+    #     for col in range(group_hess_dim):
+    #         if sub_hessian[row, col] != 0:
+    #             hess_vals.append(sub_hessian[row, col])
+    #             hess_rows.append(int(full_indices[row]))
+    #             hess_cols.append(int(full_indices[col]))
+    #
+    # return sp.sparse.csr_matrix(
+    #     (hess_vals, (hess_rows, hess_cols)),
+    #     (full_hess_dim, full_hess_dim))
 
 
 # Return a sparse matrix of size (full_hess_dim, full_hess_dim), where
-# the entries of the dense matrix sub_hessian are in the locations indicated
-# by the vector full_indices.
+# the entries of the dense matrix sub_hessian are in the locations
+# indicated by the vector full_indices.
 # TODO: test this formally.
-def get_sparse_sub_hessian(sub_hessian, full_indices, full_hess_dim):
-    hess_vals = [] # These will be the entries of the Hessian
-    hess_rows = [] # These will be the z indices
-    hess_cols = [] # These will be the data indices
+def get_sparse_sub_matrix(
+    sub_matrix, row_indices, col_indices, row_dim, col_dim):
 
-    # Get the dimension using the first element of the group_range.
-    group_hess_dim = sub_hessian.shape[0]
-    assert(sub_hessian.shape[0] == sub_hessian.shape[1])
+    mat_vals = [] # These will be the entries of the Hessian
+    mat_rows = [] # These will be the z indices
+    mat_cols = [] # These will be the data indices
 
-    for row in range(group_hess_dim):
-        for col in range(group_hess_dim):
-            if sub_hessian[row, col] != 0:
-                hess_vals.append(sub_hessian[row, col])
-                hess_rows.append(int(full_indices[row]))
-                hess_cols.append(int(full_indices[col]))
+    for row in range(sub_matrix.shape[0]):
+        for col in range(sub_matrix.shape[1]):
+            if sub_matrix[row, col] != 0:
+                mat_vals.append(sub_matrix[row, col])
+                mat_rows.append(int(row_indices[row]))
+                mat_cols.append(int(col_indices[col]))
 
     return sp.sparse.csr_matrix(
-        (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
+        (mat_vals, (mat_rows, mat_cols)), (row_dim, col_dim))
+
 
 
 # Utilities for pickling and unpickling sparse matrices.

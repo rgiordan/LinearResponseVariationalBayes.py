@@ -3,6 +3,7 @@ import VariationalBayes as vb
 import LogisticGLMM_lib as logit_glmm
 import VariationalBayes.SparseObjectives as obj_lib
 
+import autograd
 import unittest
 import numpy.testing as np_test
 import numpy as np
@@ -134,14 +135,46 @@ class TestModel(unittest.TestCase):
             err_msg='Sparse vector Hessian equality')
 
         # Check that the free Hessian is equal.
-        sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
+        #sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
+        sparse_hess = sparse_model.get_free_hessian()
         full_hess = -1 * objective.fun_free_hessian(
             sparse_model.glmm_par.get_free())
 
         np_test.assert_array_almost_equal(
             full_hess,
-            np.array(sparse_hess.todense()),
+            np.asarray(sparse_hess.todense()),
             err_msg='Sparse free Hessian equality')
+
+        # Check that the weight jacobian is equal.
+        sparse_jac = sparse_model.get_sparse_weight_vector_jacobian()
+        def get_data_terms_vec(glmm_par_vec):
+            model.glmm_par.set_vector(glmm_par_vec)
+            return model.get_data_log_lik_terms()
+        def get_data_terms_free(glmm_par_free):
+            model.glmm_par.set_free(glmm_par_free)
+            return model.get_data_log_lik_terms()
+
+        get_full_jac = autograd.jacobian(get_data_terms_vec)
+        full_jac = get_full_jac(model.glmm_par.get_vector())
+
+        self.assertEqual(full_jac.shape, sparse_jac.shape)
+        np_test.assert_array_almost_equal(
+            full_jac,
+            np.asarray(sparse_jac.todense()),
+            err_msg='Sparse vector Jacobian equality')
+
+        sparse_free_jac = sparse_model.get_sparse_weight_free_jacobian()
+
+        get_full_free_jac = autograd.jacobian(get_data_terms_free)
+        full_free_jac = get_full_free_jac(model.glmm_par.get_free())
+
+        self.assertEqual(full_free_jac.shape, sparse_free_jac.shape)
+        np_test.assert_array_almost_equal(
+            full_free_jac,
+            np.asarray(sparse_free_jac.todense()),
+            err_msg='Sparse free Jacobian equality')
+
+
 
 
 if __name__ == '__main__':

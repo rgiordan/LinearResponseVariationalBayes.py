@@ -379,6 +379,9 @@ class SparseModelObjective(LogisticGLMM):
         self.get_vector_hessian = \
             autograd.hessian(self.get_elbo_from_vec)
 
+        self.get_group_weight_jacobian = \
+            autograd.jacobian(self.get_group_data_log_lik_from_vec)
+
     # Set the group parameters from the global parameters and
     # return a vector of the indices within the full model.
     def set_group_parameters(self, group):
@@ -420,6 +423,20 @@ class SparseModelObjective(LogisticGLMM):
 
         return np.squeeze(data_log_lik + re_log_lik + u_entropy)
 
+    def get_group_data_log_lik(self, groups):
+        # Each entry returned by get_data_log_lik_terms corresponds to a
+        # single data point.
+        all_group_rows, y_g_sub = self.get_data_for_groups(groups)
+        data_log_lik = get_data_log_lik_terms(
+            glmm_par = self.group_par,
+            y_g_vec = y_g_sub,
+            x_mat = self.x_mat[all_group_rows, :],
+            y_vec = self.y_vec[all_group_rows],
+            gh_x = self.gh_x,
+            gh_w = self.gh_w)
+
+        return np.squeeze(data_log_lik)
+
     def get_global_elbo(self):
         return np.squeeze(
             get_global_entropy(self.global_par) + \
@@ -429,6 +446,10 @@ class SparseModelObjective(LogisticGLMM):
         self.group_par.set_vector(group_par_vec)
         return self.get_group_elbo(group)
 
+    def get_group_data_log_lik_from_vec(self, group_par_vec, group):
+        self.group_par.set_vector(group_par_vec)
+        return self.get_group_data_log_lik(group)
+
     def get_global_elbo_from_vec(self, global_par_vec):
         self.global_par.set_vector(global_par_vec)
         return self.get_global_elbo()
@@ -437,7 +458,40 @@ class SparseModelObjective(LogisticGLMM):
         self.glmm_par.set_vector(par_vec)
         return self.get_elbo()
 
-    def get_sparse_vector_hessian(self, print_every_n):
+    def get_sparse_weight_vector_jacobian(self):
+        free_param_size = self.glmm_par.free_size()
+        n_obs = self.x_mat.shape[0]
+        weight_indices = np.arange(0, n_obs)
+        sparse_weight_jacobian = \
+            osp.sparse.csr_matrix((n_obs, free_param_size))
+        NG = np.max(self.y_g_vec) + 1
+        for g in range(NG):
+            group_weight_indices = weight_indices[self.group_rows[g]]
+            group_par_vec, group_indices = self.set_group_parameters([g])
+            group_obs_jac = self.get_group_weight_jacobian(
+                group_par_vec, [g])
+            # print('Group indices: ', group_indices)
+            # print('Weight indices: ', group_weight_indices)
+            # print('Shape: ', sparse_weight_jacobian.shape)
+            # print('nobs: ', n_obs)
+            sparse_weight_jacobian += \
+                obj_lib.get_sparse_sub_matrix(
+                    sub_matrix = group_obs_jac,
+                    col_indices = group_indices,
+                    row_indices = group_weight_indices,
+                    col_dim = free_param_size,
+                    row_dim = n_obs)
+
+        return sparse_weight_jacobian
+
+    def get_sparse_weight_free_jacobian(self, vector_jac=None):
+        if vector_jac is None:
+            vector_jac = self.get_sparse_weight_vector_jacobian()
+        free_to_vec_jacobian = \
+            self.glmm_par.free_to_vector_jac(self.glmm_par.get_free())
+        return vector_jac * free_to_vec_jacobian
+
+    def get_sparse_vector_hessian(self, print_every_n=10):
         print('Calculating global hessian:')
         full_hess_dim = self.glmm_par.vector_size()
 
@@ -447,12 +501,6 @@ class SparseModelObjective(LogisticGLMM):
             sub_hessian = global_vec_hessian,
             full_indices = global_indices,
             full_hess_dim = full_hess_dim)
-        # sparse_global_hess = get_sparse_hessian(
-        #     set_parameters_fun = self.set_global_parameters,
-        #     get_group_hessian = self.get_global_vector_hessian,
-        #     group_range = [0],
-        #     full_hess_dim = self.glmm_par.vector_size(),
-        #     print_every = 1)
 
         print('Calculating local hessian:')
         NG = np.max(self.y_g_vec) + 1
@@ -470,16 +518,11 @@ class SparseModelObjective(LogisticGLMM):
                     full_indices = group_indices,
                     full_hess_dim = full_hess_dim)
 
-            # sparse_group_hess = get_sparse_hessian(
-            #     set_parameters_fun = self.set_group_parameters,
-            #     get_group_hessian = self.get_group_vector_hessian,
-            #     group_range = [[g] for g in range(NG)],
-            #     full_hess_dim = self.glmm_par.vector_size(),
-            #     print_every = print_every_n)
-
         return sparse_group_hess + sparse_global_hess
 
-    def get_free_hessian(self, vector_hess):
+    def get_free_hessian(self, vector_hess=None):
+        if vector_hess is None:
+            vector_hess = self.get_sparse_vector_hessian()
         vector_grad = self.get_vector_grad(self.glmm_par.get_vector())
         return convert_vector_to_free_hessian(
             self.glmm_par,
