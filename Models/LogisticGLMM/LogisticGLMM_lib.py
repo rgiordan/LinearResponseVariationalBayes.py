@@ -98,7 +98,8 @@ def simulate_data(N, NG, true_beta, true_mu, true_tau):
     true_rho = Logistic(np.matmul(x_mat, true_beta) + true_u[y_g_vec])
     y_vec = np.random.random(NObs) < true_rho
 
-    return np.array(x_mat), np.array(y_g_vec), np.array(y_vec), true_rho, true_u
+    return np.array(x_mat), np.array(y_g_vec), np.array(y_vec), \
+           true_rho, true_u
 
 
 def get_default_prior_params(K):
@@ -201,6 +202,22 @@ def get_e_log_prior(glmm_par, prior_par):
     return e_log_p_beta + e_log_p_mu + e_log_p_tau
 
 
+def initialize_glmm_pars(glmm_par):
+    glmm_par['mu']['mean'].set(0.0)
+    glmm_par['mu']['info'].set(1.0)
+
+    glmm_par['tau']['shape'].set(2.0)
+    glmm_par['tau']['rate'].set(2.0)
+
+    beta_dim = glmm_par['beta']['mean'].size()
+    glmm_par['beta']['mean'].set(np.full(beta_dim, 0.0))
+    glmm_par['beta']['info'].set(np.ones(beta_dim))
+
+    num_groups = glmm_par['u']['mean'].size()
+    glmm_par['u']['mean'].set(np.full(num_groups, 0.0))
+    glmm_par['u']['info'].set(np.full(num_groups, 1.0))
+
+
 class LogisticGLMM(object):
     def __init__(
         self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points):
@@ -230,6 +247,8 @@ class LogisticGLMM(object):
 
         self.group_model = SubGroupsModel(self, num_sub_groups=1)
         self.global_model = GlobalModel(self)
+
+        self.moment_wrapper = MomentWrapper(self.glmm_par)
 
     def set_gh_points(self, num_gh_points):
         self.num_gh_points = num_gh_points
@@ -276,36 +295,38 @@ class LogisticGLMM(object):
         self.prior_par.set_vector(prior_vec)
         return self.get_e_log_prior()
 
-    def tr_optimize(self, trust_init, num_gh_points,
-                    print_every=5, gtol=1e-6, maxiter=500):
-        self.set_gh_points(num_gh_points)
+    def tr_optimize(self, trust_init, num_gh_points=None,
+                    print_every=5, gtol=1e-6, maxiter=500, verbose=True):
+        if not num_gh_points is None:
+            self.set_gh_points(num_gh_points)
         self.objective.logger.initialize()
         self.objective.logger.print_every = print_every
         vb_opt = osp.optimize.minimize(
-            lambda par: self.objective.fun_free(par, verbose=True),
+            lambda par: self.objective.fun_free(par, verbose=verbose),
             x0=trust_init,
             method='trust-ncg',
             jac=self.objective.fun_free_grad,
             hessp=self.objective.fun_free_hvp,
             tol=1e-6,
-            options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
+            options={'maxiter': maxiter, 'disp': verbose, 'gtol': gtol })
         return vb_opt
 
-    def tr_optimize_cond(self, trust_init, num_gh_points,
-                         preconditioner,
-                         print_every=5, gtol=1e-6, maxiter=500):
-        self.set_gh_points(num_gh_points)
+    def tr_optimize_cond(self, trust_init, preconditioner,
+                         num_gh_points=None,
+                         print_every=5, gtol=1e-6, maxiter=500, verbose=True):
+        if not num_gh_points is None:
+            self.set_gh_points(num_gh_points)
         self.objective.preconditioner = preconditioner
         self.objective.logger.initialize()
         self.objective.logger.print_every = print_every
         vb_opt = osp.optimize.minimize(
-            lambda par: self.objective.fun_free_cond(par, verbose=True),
+            lambda par: self.objective.fun_free_cond(par, verbose=verbose),
             x0=trust_init,
             method='trust-ncg',
             jac=self.objective.fun_free_grad_cond,
             hessp=self.objective.fun_free_hvp_cond,
             tol=1e-6,
-            options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
+            options={'maxiter': maxiter, 'disp': verbose, 'gtol': gtol })
         return vb_opt
 
     def get_sparse_free_hessian(self, free_par, print_every_n=-1):
@@ -324,7 +345,7 @@ class LogisticGLMM(object):
 
 class MomentWrapper(object):
     def __init__(self, glmm_par):
-        self.glmm_par = copy.deepcopy(glmm_par)
+        self.glmm_par = glmm_par
         K = glmm_par['beta']['mean'].size()
         NG =  glmm_par['u']['mean'].size()
         self.moment_par = vb.ModelParamsDict('Moment Parameters')
