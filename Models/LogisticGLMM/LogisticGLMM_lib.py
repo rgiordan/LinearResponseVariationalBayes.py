@@ -85,21 +85,54 @@ def get_glmm_parameters(
     return glmm_par
 
 
-def simulate_data(N, NG, true_beta, true_mu, true_tau):
+def simulate_random_effects(
+    true_mu, true_tau, beta_dim, num_groups):
+
+    return np.random.normal(true_mu, 1 / np.sqrt(true_tau), num_groups)
+
+
+def simulate_data(num_obs_per_group, num_groups, true_beta,
+                  true_mu, true_tau, true_u=None):
+
     def Logistic(u):
         return np.exp(u) / (1 + np.exp(u))
 
-    K = len(true_beta)
-    NObs = NG * N
-    true_u = np.random.normal(true_mu, 1 / np.sqrt(true_tau), NG)
+    beta_dim = len(true_beta)
+    num_obs = num_groups * num_obs_per_group
+    if true_u is None:
+        true_u = simulate_random_effects(
+            true_mu, true_tau, beta_dim, num_groups)
 
-    x_mat = np.random.random(K * NObs).reshape(NObs, K) - 0.5
-    y_g_vec = [ g for g in range(NG) for n in range(N) ]
+    x_mat = np.random.random(
+        beta_dim * num_obs).reshape(num_obs, beta_dim) - 0.5
+    y_g_vec = [ g for g in range(num_groups) for n in range(num_obs_per_group) ]
     true_rho = Logistic(np.matmul(x_mat, true_beta) + true_u[y_g_vec])
-    y_vec = np.random.random(NObs) < true_rho
+    y_vec = np.random.random(num_obs) < true_rho
 
     return np.array(x_mat), np.array(y_g_vec), np.array(y_vec), \
            true_rho, true_u
+
+class TrueParameters(object):
+    def __init__(self, num_obs_per_group, num_groups, true_beta, true_mu, true_tau):
+        self.num_obs_per_group = num_obs_per_group
+        self.num_groups = num_groups
+        self.true_beta = true_beta
+        self.true_mu = true_mu
+        self.true_tau = true_tau
+        self.beta_dim = len(self.true_beta)
+        self.true_u = None
+
+    def generate_data(self, new_u=False):
+        if new_u:
+            true_u = None
+        else:
+            true_u = self.true_u
+        x_mat, y_g_vec, y_vec, self.true_rho, self.true_u = \
+            simulate_data(
+                self.num_obs_per_group, self.num_groups,
+                self.true_beta, self.true_mu, self.true_tau,
+                true_u=true_u)
+        return x_mat, y_g_vec, y_vec
 
 
 def get_default_prior_params(K):
