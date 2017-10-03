@@ -13,8 +13,23 @@ import scipy as osp
 from scipy import sparse
 import numpy as onp
 
+import time
+
 import json
 import copy
+
+
+# An object to save various runtimes.
+class Timer(object):
+    def __init__(self):
+        self.time_dict = {}
+    def tic(self):
+        self.tic_time = time.time()
+    def toc(self, time_name):
+        self.time_dict[time_name] = time.time() - self.tic_time
+    def __str__(self):
+        return str(self.time_dict)
+
 
 def load_json_data(json_filename):
     json_file = open(json_filename, 'r')
@@ -662,3 +677,68 @@ class LogisticGLMMMaximumLikelihood(object):
 
     def get_log_loss(self):
         return -1 * self.get_log_lik()
+
+
+
+#########################
+# Don't know what this is good for but I did it for some reason.
+
+class LogisticGLMMLogPosterior(object):
+    def __init__(
+        self, glmm_par_draw, prior_par, x_mat, y_vec, y_g_vec):
+
+        self.glmm_par_draw = copy.deepcopy(glmm_par_draw)
+        self.prior_par = copy.deepcopy(prior_par)
+        self.x_mat = x_mat
+        self.y_vec = y_vec
+        self.y_g_vec = y_g_vec
+        self.K = x_mat.shape[1]
+
+        assert np.min(y_g_vec) == 0
+        assert np.max(y_g_vec) == self.glmm_par_draw['u'].size() - 1
+
+    def get_log_prior(self):
+        beta = self.glmm_par_draw['beta'].get()
+        mu = self.glmm_par_draw['mu'].get()
+        tau = self.glmm_par_draw['tau'].get()
+        log_tau = np.log(tau)
+
+        cov_beta = np.zeros((self.K, self.K))
+        beta_prior_info = self.prior_par['beta_prior_info'].get()
+        beta_prior_mean = self.prior_par['beta_prior_mean'].get()
+        log_p_beta = ef.mvn_prior(
+            beta_prior_mean, beta_prior_info, beta, cov_beta)
+
+        log_p_mu = ef.uvn_prior(
+            self.prior_par['mu_prior_mean'].get(),
+            self.prior_par['mu_prior_info'].get(), mu, 0.0)
+
+        tau_prior_shape = self.prior_par['tau_prior_alpha'].get()
+        tau_prior_rate = self.prior_par['tau_prior_beta'].get()
+        log_p_tau = ef.gamma_prior(
+            tau_prior_shape, tau_prior_rate, tau, log_tau)
+
+        return log_p_beta + log_p_mu + log_p_tau
+
+    def get_log_lik(self):
+        beta = self.glmm_par_draw['beta'].get()
+        u = self.glmm_par_draw['u'].get()
+        mu = self.glmm_par_draw['mu'].get()
+        tau = self.glmm_par_draw['tau'].get()
+        log_tau = np.log(tau)
+
+        log_lik = 0.
+
+        # Log likelihood from data.
+        z = u[self.y_g_vec] + np.matmul(self.x_mat, beta)
+        log_lik += np.sum(self.y_vec * z - np.log1p(np.exp(z)))
+
+        # Log likelihood from random effect terms.
+        log_lik += -0.5 * tau * np.sum((mu - u) ** 2) + 0.5 * log_tau * len(u)
+
+        return log_lik
+
+    def get_log_posterior(self):
+        return np.squeeze(
+            self.get_log_lik() + \
+            self.get_log_prior())

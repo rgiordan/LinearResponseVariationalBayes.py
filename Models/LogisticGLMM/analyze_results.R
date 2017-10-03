@@ -69,10 +69,6 @@ pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
 vb_pert_results = pickle.load(pkl_file)
 pkl_file.close()
 
-pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
-vb_pert_results = pickle.load(pkl_file)
-pkl_file.close()
-
 pkl_file = open('" %_% python_map_filename %_% "', 'rb')
 vb_map_results = pickle.load(pkl_file)
 pkl_file.close()
