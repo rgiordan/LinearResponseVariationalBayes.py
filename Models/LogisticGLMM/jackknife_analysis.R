@@ -100,14 +100,12 @@ def get_jackknife_moments(obs):
   lr_diff = np.squeeze(np.asarray(param_boot_mat[:, obs].todense()))
   return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
 
-#timer.tic()
 moment_par_jackknife_list = []
 num_obs = model.x_mat.shape[0]
 for obs in range(num_obs):
   if obs % 5000 == 0:
     print('Obs {} of {}'.format(obs, num_obs))
   moment_par_jackknife_list.append(get_jackknife_moments(obs))
-#timer.toc('lr_jackknife_time')
 moment_par_jacknnife = np.array(moment_par_jackknife_list)
 ")
 
@@ -115,6 +113,31 @@ moment_par_jacknnife <- py_main$moment_par_jacknnife
 n_obs <- nrow(moment_par_jacknnife)
 jackknife_sd <- sqrt(n_obs - 1) * apply(moment_par_jacknnife, MARGIN=2, sd)
 jackknife_mean <- apply(moment_par_jacknnife, MARGIN=2, mean)
+
+
+
+### Infinitesimal bootstrap
+
+reticulate::py_run_string("
+num_obs = model.x_mat.shape[0]
+def get_bootstrap_moments():
+  weight_diff = np.random.multinomial(num_obs, [1. / num_obs] * num_obs, size=1) - 1.0
+  lr_diff = param_boot_mat * np.squeeze(np.asarray(weight_diff))
+  print(lr_diff.shape)
+  return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
+
+moment_par_bootstrap_list = []
+num_bootstraps = 200
+for boot_sample in range(num_bootstraps):
+  moment_par_bootstrap_list.append(get_bootstrap_moments())
+moment_par_bootstrap = np.array(moment_par_bootstrap_list)
+")
+
+moment_par_bootstrap <- py_main$moment_par_bootstrap
+bootstrap_sd <- apply(moment_par_bootstrap, MARGIN=2, sd)
+bootstrap_mean <- apply(moment_par_bootstrap, MARGIN=2, mean)
+
+
 
 ### Truth
 
@@ -142,6 +165,10 @@ results <- rbind(
     mutate(method="jackknife", metric="mean"),
   ConvertPythonMomentVectorToDF(jackknife_sd, py_main$glmm_par) %>%
     mutate(method="jackknife", metric="sd"),
+  ConvertPythonMomentVectorToDF(bootstrap_mean, py_main$glmm_par) %>%
+    mutate(method="bootstrap", metric="mean"),
+  ConvertPythonMomentVectorToDF(bootstrap_sd, py_main$glmm_par) %>%
+    mutate(method="bootstrap", metric="sd"),
   ConvertPythonMomentVectorToDF(resample_sd, py_main$glmm_par) %>%
     mutate(method="truth", metric="sd"),
   ConvertPythonMomentVectorToDF(resample_mean, py_main$glmm_par) %>%
@@ -164,6 +191,7 @@ grid.arrange(
 ,
   ggplot(filter(results_cast, metric == "sd")) + 
     geom_point(aes(x=truth, y=jackknife, shape=par, color="jackknife"), size=3) +
+    geom_point(aes(x=truth, y=bootstrap, shape=par, color="bootstrap"), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle("SD accuracy")
 , ncol=3)
