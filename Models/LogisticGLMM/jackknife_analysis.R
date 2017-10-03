@@ -24,12 +24,11 @@ save_results <- TRUE
 results_file <- file.path(data_directory,
                           paste(analysis_name, "jackknife.Rdata", sep="_"))
 
+#################
+# Load the python data
+
 InitializePython()
 py_main <- reticulate::import_main()
-
-# Original results
-# python_filename <- file.path(
-#   data_directory, paste(analysis_name, "_python_vb_results.pkl", sep=""))
 
 # Results evaluating the jacknnife
 python_jackknife_filename <- file.path(
@@ -78,10 +77,26 @@ lrvb_cov = np.matmul(moment_jac, moment_jac_sens)
 mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(glmm_par_free)
 ")
 
+##################
+# Load the Stan data
+
+stan_draws_file <- file.path(
+  data_directory, paste(analysis_name, "_mcmc_draws.Rdata", sep=""))
+stan_results <- LoadIntoEnvironment(stan_draws_file)
+draws_mat <- as.matrix(stan_results$stan_sim)
+
+mcmc_sd_vec <- apply(draws_mat, sd, MARGIN=2)
+
+stan_results <- rbind(
+  ConvertStanVectorToDF(colMeans(draws_mat), colnames(draws_mat), py_main$glmm_par) %>%
+    mutate(method="mcmc", metric="mean"),
+  ConvertStanVectorToDF(mcmc_sd_vec, colnames(draws_mat), py_main$glmm_par) %>%
+    mutate(method="mcmc", metric="sd")
+)
+
+
 ########################################
 # Get different standard deviations.
-
-
 
 ### LRVB
 
@@ -92,7 +107,7 @@ mfvb_sd <- sqrt(GetMFVBCovVector(py_main$glmm_par))
 ### Jackknife
 
 reticulate::py_run_string("
-param_boot_mat = kl_hess_chol.solve_A(weight_jacobian.T)
+param_boot_mat = kl_hess_chol.solve_A(weight_jac.T)
 ")
 
 reticulate::py_run_string("
@@ -172,11 +187,27 @@ results <- rbind(
   ConvertPythonMomentVectorToDF(resample_sd, py_main$glmm_par) %>%
     mutate(method="truth", metric="sd"),
   ConvertPythonMomentVectorToDF(resample_mean, py_main$glmm_par) %>%
-    mutate(method="truth", metric="mean")
+    mutate(method="truth", metric="mean"),
+  stan_results
 )
 
 
 results_cast <- dcast(results, par + component + metric ~ method, value.var = "val")
+
+grid.arrange(
+  ggplot(filter(results_cast, metric == "mean")) + 
+    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="vb")) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("Mean accuracy")
+,
+  ggplot(filter(results_cast, metric == "sd")) + 
+    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb")) +
+    geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb")) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("SD accuracy")
+, ncol=2
+)
+
 grid.arrange(
   ggplot(filter(results_cast, metric == "mean")) + 
     geom_point(aes(x=truth, y=mfvb, shape=par, color="vb")) +
