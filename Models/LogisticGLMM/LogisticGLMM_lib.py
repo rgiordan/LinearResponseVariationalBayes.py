@@ -276,6 +276,23 @@ class LogisticGLMM(object):
             options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
         return vb_opt
 
+    def tr_optimize_cond(self, trust_init, num_gh_points,
+                         preconditioner,
+                         print_every=5, gtol=1e-6, maxiter=500):
+        self.set_gh_points(num_gh_points)
+        self.objective.preconditioner = preconditioner
+        self.objective.logger.initialize()
+        self.objective.logger.print_every = print_every
+        vb_opt = osp.optimize.minimize(
+            lambda par: self.objective.fun_free_cond(par, verbose=True),
+            x0=trust_init,
+            method='trust-ncg',
+            jac=self.objective.fun_free_grad_cond,
+            hessp=self.objective.fun_free_hvp_cond,
+            tol=1e-6,
+            options={'maxiter': maxiter, 'disp': True, 'gtol': gtol })
+        return vb_opt
+
     def get_sparse_free_hessian(self, free_par, print_every_n=-1):
         self.glmm_par.set_free(free_par)
         self.group_model.glmm_par.set_free(free_par)
@@ -442,12 +459,14 @@ class SubGroupsModel(object):
         return -1 * np.squeeze(data_log_lik)
 
     # This is as a function of vector parameters.
-    def get_sparse_kl_vec_hessian(self, print_every_n=-1):
+    def get_sparse_kl_vec_hessian(self, print_every_n=None):
         full_hess_dim = self.glmm_par.vector_size()
         sparse_group_hess = \
             osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
+        if print_every_n is None:
+            print_every_n = self.model.num_groups - 1
         for g in range(self.model.num_groups):
-            if g % print_every_n == print_every_n:
+            if g % print_every_n == 0:
                 print('Group {} of {}.'.format(g, self.model.num_groups - 1))
             group_par_vec, group_indices = self.set_group_parameters([g])
             group_vec_hessian = \
@@ -460,14 +479,16 @@ class SubGroupsModel(object):
         return sparse_group_hess
 
     # This is as a function of the vector parameters.
-    def get_sparse_weight_vec_jacobian(self, print_every_n=-1):
+    def get_sparse_weight_vec_jacobian(self, print_every_n=None):
         vector_param_size = self.glmm_par.vector_size()
         n_obs = self.model.x_mat.shape[0]
         weight_indices = np.arange(0, n_obs)
         sparse_weight_jacobian = \
             osp.sparse.csr_matrix((n_obs, vector_param_size))
+        if print_every_n is None:
+            print_every_n = self.model.num_groups - 1
         for g in range(self.model.num_groups):
-            if g % print_every_n == print_every_n:
+            if g % print_every_n == 0:
                 print('Group {} of {}'.format(g, self.model.num_groups - 1))
             group_weight_indices = weight_indices[self.group_rows[g]]
             group_par_vec, group_indices = self.set_group_parameters([g])
