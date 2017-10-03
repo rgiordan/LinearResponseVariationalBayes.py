@@ -71,16 +71,52 @@ model = logit_glmm.LogisticGLMM(
 
 reticulate::py_run_string("
 kl_hess = obj_lib.unpack_csr_matrix(vb_jackknife_results['kl_hess'])
+weight_jac = obj_lib.unpack_csr_matrix(vb_jackknife_results['weight_jac'])
 kl_hess_chol = cholesky(kl_hess)
 moment_jac_sens = kl_hess_chol.solve_A(moment_jac.T)
 lrvb_cov = np.matmul(moment_jac, moment_jac_sens)
 mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(glmm_par_free)
 ")
 
+########################################
 # Get different standard deviations.
+
+
+
+### LRVB
+
 lrvb_cov <- py_main$lrvb_cov
 lrvb_sd <- sqrt(diag(lrvb_cov))
 mfvb_sd <- sqrt(GetMFVBCovVector(py_main$glmm_par))
+
+### Jackknife
+
+reticulate::py_run_string("
+param_boot_mat = kl_hess_chol.solve_A(weight_jacobian.T)
+")
+
+reticulate::py_run_string("
+def get_jackknife_moments(obs):
+  lr_diff = np.squeeze(np.asarray(param_boot_mat[:, obs].todense()))
+  return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
+
+#timer.tic()
+moment_par_jackknife_list = []
+num_obs = model.x_mat.shape[0]
+for obs in range(num_obs):
+  if obs % 5000 == 0:
+    print('Obs {} of {}'.format(obs, num_obs))
+  moment_par_jackknife_list.append(get_jackknife_moments(obs))
+#timer.toc('lr_jackknife_time')
+moment_par_jacknnife = np.array(moment_par_jackknife_list)
+")
+
+moment_par_jacknnife <- py_main$moment_par_jacknnife
+n_obs <- nrow(moment_par_jacknnife)
+jackknife_sd <- sqrt(n_obs - 1) * apply(moment_par_jacknnife, MARGIN=2, sd)
+jackknife_mean <- apply(moment_par_jacknnife, MARGIN=2, mean)
+
+### Truth
 
 reticulate::py_run_string("
 moment_vec_samples = [ \
@@ -92,6 +128,9 @@ class(moment_vec_samples)
 resample_sd <- apply(moment_vec_samples, MARGIN=2, sd)
 resample_mean <- apply(moment_vec_samples, MARGIN=2, mean)
 
+
+### Combine and inspect
+
 results <- rbind(
   ConvertPythonMomentVectorToDF(py_main$mfvb_mean, py_main$glmm_par) %>%
     mutate(method="mfvb", metric="mean"),
@@ -99,6 +138,10 @@ results <- rbind(
     mutate(method="lrvb", metric="sd"),
   ConvertPythonMomentVectorToDF(mfvb_sd, py_main$glmm_par) %>%
     mutate(method="mfvb", metric="sd"),
+  ConvertPythonMomentVectorToDF(jackknife_mean, py_main$glmm_par) %>%
+    mutate(method="jackknife", metric="mean"),
+  ConvertPythonMomentVectorToDF(jackknife_sd, py_main$glmm_par) %>%
+    mutate(method="jackknife", metric="sd"),
   ConvertPythonMomentVectorToDF(resample_sd, py_main$glmm_par) %>%
     mutate(method="truth", metric="sd"),
   ConvertPythonMomentVectorToDF(resample_mean, py_main$glmm_par) %>%
@@ -109,7 +152,7 @@ results <- rbind(
 results_cast <- dcast(results, par + component + metric ~ method, value.var = "val")
 grid.arrange(
   ggplot(filter(results_cast, metric == "mean")) + 
-    geom_point(aes(x=truth, y=mfvb, color=par)) +
+    geom_point(aes(x=truth, y=mfvb, shape=par, color="vb")) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle("Mean accuracy")
 ,
@@ -118,4 +161,9 @@ grid.arrange(
     geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle("SD accuracy")
-, ncol=2)
+,
+  ggplot(filter(results_cast, metric == "sd")) + 
+    geom_point(aes(x=truth, y=jackknife, shape=par, color="jackknife"), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("SD accuracy")
+, ncol=3)
