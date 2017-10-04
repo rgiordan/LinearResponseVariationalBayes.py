@@ -184,6 +184,7 @@ def get_sparse_sub_matrix(
 
 # Utilities for pickling and unpickling sparse matrices.
 def pack_csr_matrix(sp_mat):
+    sp_mat = sp.sparse.csr_matrix(sp_mat)
     return { 'data': sp_mat.data,
              'indices': sp_mat.indices,
              'indptr': sp_mat.indptr,
