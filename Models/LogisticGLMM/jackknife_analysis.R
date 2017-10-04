@@ -151,7 +151,7 @@ bootstrap_moment_list = []
 for free_par in boot_free_par_list:
   moment_vec = model.moment_wrapper.get_moment_vector_from_free(free_par)
   bootstrap_moment_list.append(moment_vec)
-bootstrap_moments = np.array(lr_bootstrap_moment_list)
+bootstrap_moments = np.array(bootstrap_moment_list)
 ")
 
 lr_bootstrap_moments <- py_main$lr_bootstrap_moments
@@ -161,6 +161,32 @@ lr_bootstrap_mean <- apply(lr_bootstrap_moments, MARGIN=2, mean)
 bootstrap_moments <- py_main$bootstrap_moments
 bootstrap_sd <- apply(bootstrap_moments, MARGIN=2, sd)
 bootstrap_mean <- apply(bootstrap_moments, MARGIN=2, mean)
+
+
+### Look at bootstrap distributions.
+GetSampleRowDataframe <- function(moment_vec, sample, method, metric) {
+  ConvertPythonMomentVectorToDF(moment_vec, py_main$glmm_par) %>%
+    mutate(method=method, metric=metric, sample=sample)
+}
+
+GetSampleDataframe <- function(moment_vec_array, method, metric) {
+  df_list <- lapply(1:nrow(bootstrap_moments),
+                     function(rownum) {
+                       GetSampleRowDataframe(moment_vec_array[rownum, ], sample=rownum,
+                                             method=method, metric=metric)
+                      })
+  return(do.call(rbind, df_list))
+}
+
+bootstrap_samples <-
+  rbind(
+    GetSampleDataframe(bootstrap_moments, method="bootstrap", metric="value"),
+    GetSampleDataframe(lr_bootstrap_moments, method="lr_bootstrap", metric="value"))
+
+ggplot(filter(bootstrap_samples, par == "e_beta")) + 
+  geom_histogram(aes(x=val), bins=50) +
+  facet_grid(method ~ component, scales="free")
+
 
 
 ### Combine and inspect
@@ -192,7 +218,9 @@ results <- rbind(
 )
 
 
-results_cast <- dcast(results, par + component + metric ~ method, value.var = "val")
+results_cast <-
+  dcast(results, par + component + metric ~ method, value.var = "val") %>%
+  mutate(is_re=par == "e_u")
 
 grid.arrange(
   ggplot(filter(results_cast, metric == "mean")) + 
@@ -209,20 +237,42 @@ grid.arrange(
 )
 
 grid.arrange(
-  ggplot(filter(results_cast, metric == "mean")) + 
+  ggplot(filter(results_cast, metric == "mean", !is_re)) + 
     geom_point(aes(x=bootstrap, y=mfvb, shape=par, color="mfvb"), size=3) +
+    geom_point(aes(x=bootstrap, y=lr_bootstrap, shape=par, color="lr_bootstrap"), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle("Mean accuracy")
 ,
-  ggplot(filter(results_cast, metric == "sd")) + 
+  ggplot(filter(results_cast, metric == "sd", !is_re)) + 
     geom_point(aes(x=bootstrap, y=lrvb, shape=par, color="lrvb"), size=3) +
     geom_point(aes(x=bootstrap, y=mfvb, shape=par, color="mfvb"), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
     ggtitle("SD accuracy based on Hessian")
 ,
-  ggplot(filter(results_cast, metric == "sd")) + 
+  ggplot(filter(results_cast, metric == "sd", !is_re)) + 
     geom_point(aes(x=bootstrap, y=lr_jackknife, shape=par, color="linear jackknife"), size=3) +
     geom_point(aes(x=bootstrap, y=lr_bootstrap, shape=par, color="linear bootstrap"), size=3) +
     geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy based on infinitesimal jackknife and bootstrap")
+    ggtitle("SD accuracy based on linearization")
 , ncol=3)
+
+
+grid.arrange(
+  ggplot(filter(results_cast, metric == "mean", is_re)) + 
+    geom_point(aes(x=bootstrap, y=mfvb, shape=par, color="mfvb"), size=3) +
+    geom_point(aes(x=bootstrap, y=lr_bootstrap, shape=par, color="lr_bootstrap"), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("Mean accuracy")
+  ,
+  ggplot(filter(results_cast, metric == "sd", is_re)) + 
+    geom_point(aes(x=bootstrap, y=lrvb, shape=par, color="lrvb"), size=3) +
+    geom_point(aes(x=bootstrap, y=mfvb, shape=par, color="mfvb"), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("SD accuracy based on Hessian")
+  ,
+  ggplot(filter(results_cast, metric == "sd", is_re)) + 
+    geom_point(aes(x=bootstrap, y=lr_jackknife, shape=par, color="linear jackknife"), size=3) +
+    geom_point(aes(x=bootstrap, y=lr_bootstrap, shape=par, color="linear bootstrap"), size=3) +
+    geom_abline(aes(slope=1, intercept=0)) +
+    ggtitle("SD accuracy based on linearization")
+  , ncol=3)
