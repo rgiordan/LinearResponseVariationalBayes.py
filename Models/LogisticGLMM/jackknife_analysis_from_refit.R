@@ -15,7 +15,9 @@ data_directory <- file.path(project_directory, "data/")
 
 source(file.path(project_directory, "logit_glmm_lib.R"))
 
-analysis_name <- "simulated_data_for_refit"
+# 2, 5, 20, 40, 60
+num_obs_per_group <- 2
+analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -33,8 +35,7 @@ python_jackknife_filename <- file.path(
   data_directory,
   paste(analysis_name, "_python_refit_jackknife_results.pkl", sep=""))
 
-reticulate::py_run_string(
-  "
+reticulate::py_run_string("
 pkl_file = open('" %_% python_jackknife_filename %_% "', 'rb')
 vb_jackknife_results = pickle.load(pkl_file)
 pkl_file.close()
@@ -47,6 +48,8 @@ import VariationalBayes.SparseObjectives as obj_lib
 from scikits.sparse.cholmod import cholesky
 import numpy as np
 ")
+
+names(py_main$vb_jackknife_results)
 
 reticulate::py_run_string("
 glmm_par_sims = vb_jackknife_results['glmm_par_sims']

@@ -637,6 +637,35 @@ def get_free_hessian(glmm_model, group_model, global_model,
         vector_hess)
 
 
+#################################
+# A diagonal Hessian for preconditioning.  Not actually used.
+
+class DiagonalModel(object):
+    def __init__(self, model):
+        self.model = model
+        self.glmm_par = model.glmm_par
+        self.free_par = model.glmm_par.get_free()
+        self.get_single_par_hessian = autograd.hessian(self.get_single_par_kl)
+
+    def get_single_par_kl(self, single_free_par, ind):
+        free_par = np.concatenate(
+            [ self.free_par[:ind],
+              np.atleast_1d(single_free_par),
+              self.free_par[(ind + 1):]])
+        self.glmm_par.set_free(free_par)
+        return model.get_kl()
+
+    def get_hessian_diag(self, free_par, print_every=100):
+        self.glmm_par.set_free(free_par)
+        self.free_par = model.glmm_par.get_free()
+        hess_diag = []
+        free_size = self.glmm_par.free_size()
+        for ind in range(free_size):
+            if ind % print_every == 0:
+                print('Ind {} of {}'.format(ind, free_size - 1))
+            hess_diag.append(self.get_single_par_hessian(self.free_par[ind], ind))
+        return hess_diag
+
 ###################################
 # MLE (MAP) estimators
 

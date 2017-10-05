@@ -19,7 +19,9 @@ project_directory <- file.path(
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-analysis_name <- "simulated_data_for_refit"
+# 2, 5, 20, 40, 60
+num_obs_per_group <- 2
+analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
 
 
 #######################
@@ -31,7 +33,7 @@ py_main <- reticulate::import_main()
 # Results evaluating the jacknnife
 python_jackknife_filename <- file.path(
   data_directory,
-  paste(analysis_name, "_python_jackknife_results.pkl", sep=""))
+  paste(analysis_name, "_python_refit_jackknife_results.pkl", sep=""))
 
 reticulate::py_run_string(
   "
@@ -87,10 +89,10 @@ model_file <- file.path(
   stan_directory, paste(stan_model_name, "stan", sep="."))
 model_file_rdata <- file.path(
   stan_directory, paste(stan_model_name, "Rdata", sep="."))
-if (file.exists(model_file_rdata)) {
-  print("Loading pre-compiled Stan model.")
-  load(model_file_rdata)
-} else {
+# if (file.exists(model_file_rdata)) {
+#   print("Loading pre-compiled Stan model.")
+#   load(model_file_rdata)
+# } else {
   # Run this to force re-compilation of the model.
   print("Compiling Stan model.")
   # In the stan directory run
@@ -100,7 +102,7 @@ if (file.exists(model_file_rdata)) {
   stan_sensitivity_model <- GetStanSensitivityModel(
     file.path(stan_directory, "logit_glmm"), stan_dat)
   save(model, stan_sensitivity_model, file=model_file_rdata)
-}
+# }
 
 
 # Some knobs we can tweak.  Note that we need many iterations to accurately assess
@@ -152,3 +154,4 @@ save(stan_sim, mcmc_time, stan_dat,
      stan_map, map_time,
      chains, cores,
      file=stan_draws_file)
+print(stan_draws_file)
