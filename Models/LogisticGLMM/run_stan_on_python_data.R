@@ -19,8 +19,8 @@ project_directory <- file.path(
   "LinearResponseVariationalBayes.py/Models/LogisticGLMM")
 data_directory <- file.path(project_directory, "data/")
 
-# 2, 5, 20, 40, 60
-num_obs_per_group <- 2
+# 2, 5, 10, 20, 40, 60
+num_obs_per_group <- 10
 analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
 
 
