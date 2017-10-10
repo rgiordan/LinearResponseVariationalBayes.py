@@ -362,7 +362,7 @@ class LogisticGLMM(object):
             options={'maxiter': maxiter, 'disp': verbose, 'gtol': gtol })
         return vb_opt
 
-    def get_sparse_free_hessian(self, free_par, print_every_n=-1):
+    def get_sparse_free_hessian(self, free_par, print_every_n=None):
         self.glmm_par.set_free(free_par)
         self.group_model.glmm_par.set_free(free_par)
         self.global_model.glmm_par.set_free(free_par)
@@ -370,7 +370,7 @@ class LogisticGLMM(object):
             self, self.group_model, self.global_model,
             print_every_n=print_every_n)
 
-    def get_sparse_weight_free_jacobian(self, free_par, print_every_n=-1):
+    def get_sparse_weight_free_jacobian(self, free_par, print_every_n=None):
         self.glmm_par.set_free(free_par)
         self.group_model.glmm_par.set_free(free_par)
         return get_sparse_weight_free_jacobian(
@@ -430,21 +430,22 @@ def get_global_parameters(K):
     global_par.push_param(vb.UVNParamVector('beta', K))
     return global_par
 
-def set_group_parameters(glmm_par, group_par, groups):
-    # Stupid assert fails with integers.  Why can't an integer just have
-    # len() == 1?
-    assert(len(groups) == group_par['u'].size())
-    group_par['beta'].set_vector(glmm_par['beta'].get_vector())
-    group_par['mu'].set_vector(glmm_par['mu'].get_vector())
-    group_par['tau'].set_vector(glmm_par['tau'].get_vector())
 
+def set_re_parameters(glmm_par, group_par, groups):
+    assert(len(groups) == group_par['u'].size())
     group_par['u']['mean'].set(glmm_par['u']['mean'].get()[groups])
     group_par['u']['info'].set(glmm_par['u']['info'].get()[groups])
+
 
 def set_global_parameters(glmm_par, global_par):
     global_par['beta'].set_vector(glmm_par['beta'].get_vector())
     global_par['mu'].set_vector(glmm_par['mu'].get_vector())
     global_par['tau'].set_vector(glmm_par['tau'].get_vector())
+
+
+def set_group_parameters(glmm_par, group_par, groups):
+    set_global_parameters(glmm_par, group_par)
+    set_re_parameters(glmm_par, group_par, groups)
 
 
 # Evaluate the model at only a certain select set of groups.
@@ -455,6 +456,9 @@ class SubGroupsModel(object):
         self.num_sub_groups = num_sub_groups
 
         self.full_indices = obj_lib.make_index_param(self.glmm_par)
+
+        self.global_par = get_global_parameters(self.model.beta_dim)
+        self.global_indices = obj_lib.make_index_param(self.global_par)
 
         self.group_par = get_group_parameters(
             self.model.beta_dim, self.num_sub_groups)
@@ -468,10 +472,29 @@ class SubGroupsModel(object):
         self.kl_objective = obj_lib.Objective(
             self.group_par, self.get_group_kl)
 
+        # self.kl_global_objective = obj_lib.Objective(
+        #     self.global_par, self.get_global_kl)
+
         self.data_kl_objective = obj_lib.Objective(
             self.group_par, self.get_group_data_elbo)
         self.get_data_kl_objective_jac = autograd.jacobian(
             self.data_kl_objective.fun_vector)
+
+    # Set only the random effects parameters.
+    def set_re_parameters(self, groups):
+        assert(np.max(groups) < self.model.num_groups)
+        assert(len(groups) == self.num_sub_groups)
+        self.groups = groups
+
+        set_re_parameters(self.glmm_par, self.group_par, groups)
+        set_re_parameters(self.full_indices, self.group_indices, groups)
+        return self.group_par['u'].get_vector(), \
+               self.group_indices['u'].get_vector()
+
+    def set_global_parameters(self):
+        set_global_parameters(self.glmm_par, self.global_par)
+        set_global_parameters(self.full_indices, self.global_indices)
+        return self.global_par.get_vector(), self.global_indices.get_vector()
 
     # Set the group parameters from the global parameters and
     # return a vector of the indices within the full model.
@@ -497,20 +520,27 @@ class SubGroupsModel(object):
                               for ig in range(len(groups))])
         return all_group_rows, y_g_sub
 
-    # Likelihood functions:
+    # Evaluate the KL divergence for data from self.groups using the parameters
+    # in self.group_par.
     def get_group_kl(self):
         all_group_rows, y_g_sub = self.get_data_for_groups(self.groups)
         data_log_lik = np.sum(get_data_log_lik_terms(
-            glmm_par = self.group_par,
-            y_g_vec = y_g_sub,
-            x_mat = self.model.x_mat[all_group_rows, :],
-            y_vec = self.model.y_vec[all_group_rows],
-            gh_x = self.model.gh_x,
-            gh_w = self.model.gh_w))
+                glmm_par = self.group_par,
+                y_g_vec = y_g_sub,
+                x_mat = self.model.x_mat[all_group_rows, :],
+                y_vec = self.model.y_vec[all_group_rows],
+                gh_x = self.model.gh_x,
+                gh_w = self.model.gh_w))
+
         re_log_lik = get_re_log_lik(self.group_par)
+
         u_entropy = get_local_entropy(self.group_par)
 
         return -1 * np.squeeze(data_log_lik + re_log_lik + u_entropy)
+        # entropy = get_global_entropy(self.group_par) + \
+        #           get_local_entropy(self.group_par)
+        # e_log_prior = get_e_log_prior(self.group_par, self.model.prior_par)
+        # return -1 * np.squeeze(group_log_lik + entropy + e_log_prior)
 
     # Each entry returned by get_data_log_lik_terms corresponds to a
     # single data point.  This is intended to be the derivative of the
@@ -528,7 +558,7 @@ class SubGroupsModel(object):
         return -1 * np.squeeze(data_log_lik)
 
     # This is as a function of vector parameters.
-    def get_sparse_kl_vec_hessian(self, print_every_n=None):
+    def get_sparse_kl_vec_hessian_old(self, print_every_n=None):
         full_hess_dim = self.glmm_par.vector_size()
         sparse_group_hess = \
             osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
@@ -545,6 +575,60 @@ class SubGroupsModel(object):
                     sub_hessian = group_vec_hessian,
                     full_indices = group_indices,
                     full_hess_dim = full_hess_dim)
+        return sparse_group_hess
+
+    # Evaluate the group kl at a certain value of global and re vectorized
+    # parameters.
+    # Objective classes don't currently support multiple arguments.
+    def get_group_kl_from_vectors(self, global_vec, re_vec):
+        self.global_par.set_vector(global_vec)
+        set_global_parameters(self.global_par, self.group_par)
+        self.group_par['u'].set_vector(re_vec)
+        return self.get_group_kl()
+
+    # This is as a function of vector parameters.
+    def get_sparse_kl_vec_hessian(self, print_every_n=None):
+        get_kl_re_grad = autograd.grad(
+            self.get_group_kl_from_vectors, argnum=1)
+        get_kl_offdiag_hess = autograd.jacobian(get_kl_re_grad, argnum=0)
+        get_kl_re_hess = autograd.hessian(
+            self.get_group_kl_from_vectors, argnum=1)
+
+        full_hess_dim = self.glmm_par.vector_size()
+        sparse_group_hess = \
+            osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
+
+        global_par_vec, global_indices = self.set_global_parameters()
+        if print_every_n is None:
+            print_every_n = self.model.num_groups - 1
+        for g in range(self.model.num_groups):
+            if g % print_every_n == 0:
+                print('Group {} of {}.'.format(g, self.model.num_groups - 1))
+            # Set the global parameters within the group.
+            self.set_group_parameters([g])
+            re_par_vec, re_indices = self.set_re_parameters([g])
+            offdiag_hessian = \
+                np.atleast_2d(get_kl_offdiag_hess(global_par_vec, re_par_vec))
+            re_hessian = \
+                np.atleast_2d(get_kl_re_hess(global_par_vec, re_par_vec))
+
+            sp_offdiag_hessian = obj_lib.get_sparse_sub_matrix(
+                sub_matrix = offdiag_hessian,
+                row_indices = re_indices,
+                col_indices = global_indices,
+                row_dim = full_hess_dim,
+                col_dim = full_hess_dim)
+
+            sp_re_hessian = obj_lib.get_sparse_sub_matrix(
+                sub_matrix = re_hessian,
+                row_indices = re_indices,
+                col_indices = re_indices,
+                row_dim = full_hess_dim,
+                col_dim = full_hess_dim)
+
+            sparse_group_hess += \
+                sp_offdiag_hessian + sp_offdiag_hessian.T + sp_re_hessian
+
         return sparse_group_hess
 
     # This is as a function of the vector parameters.
@@ -592,12 +676,19 @@ class GlobalModel(object):
         return self.global_par.get_vector(), self.global_indices.get_vector()
 
     def get_global_kl(self):
-        return -1 * np.squeeze(
-            get_global_entropy(self.global_par) + \
-            get_e_log_prior(self.global_par, self.model.prior_par))
+        # Since we're using the self.model kl function, we actually
+        # need to set the global parameters in self.model.glmm_par
+        # from the values in self.global_par.
+        set_global_parameters(self.global_par, self.model.glmm_par)
+        return self.model.get_kl()
+
+    # def get_global_kl(self):
+    #     return -1 * np.squeeze(
+    #         get_global_entropy(self.global_par) + \
+    #         get_e_log_prior(self.global_par, self.model.prior_par))
 
     # This is as a function of the vector parameters.
-    def get_sparse_kl_vec_hessian(self, print_every_n=-1):
+    def get_sparse_kl_vec_hessian(self, print_every_n=None):
         full_hess_dim = self.glmm_par.vector_size()
         global_par_vec, global_indices = self.set_global_parameters()
         global_vec_hessian = \
@@ -610,7 +701,7 @@ class GlobalModel(object):
 
 
 def get_sparse_weight_free_jacobian(
-    group_model, vector_jac=None, print_every_n=-1):
+    group_model, vector_jac=None, print_every_n=None):
     if vector_jac is None:
         vector_jac = group_model.get_sparse_weight_vec_jacobian(
             print_every_n=print_every_n)
@@ -620,7 +711,7 @@ def get_sparse_weight_free_jacobian(
 
 
 def get_free_hessian(glmm_model, group_model, global_model,
-                     vector_hess=None, print_every_n=-1):
+                     vector_hess=None, print_every_n=None):
     if vector_hess is None:
         group_vec_hess = group_model.get_sparse_kl_vec_hessian(
             print_every_n=print_every_n)

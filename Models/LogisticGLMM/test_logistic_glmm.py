@@ -96,24 +96,29 @@ class TestModel(unittest.TestCase):
             group_model.group_par.get_vector(),
             err_msg='Group model parameter equality')
 
+        ######
+        # These tests were from when the group and global kl partitioned
+        # the model: {
+
         # Checking that a single group is equal.
-        single_group_kl = single_group_model.get_kl()
-        sparse_kl = \
-            global_model.get_global_kl() + \
-            group_model.get_group_kl()
-
-        np_test.assert_array_almost_equal(
-            single_group_kl, sparse_kl,
-            err_msg="Group model kl equality")
-
-        # Checking the full kl is equal.
-        sparse_kl = global_model.get_global_kl()
-        for g in range(NG):
-            group_model.set_group_parameters([g])
-            sparse_kl += group_model.get_group_kl()
-
-        np_test.assert_array_almost_equal(
-            model.objective.fun_free(free_par), sparse_kl)
+        # single_group_kl = single_group_model.get_kl()
+        # sparse_kl = \
+        #     global_model.get_global_kl() + \
+        #     group_model.get_group_kl()
+        #
+        # np_test.assert_array_almost_equal(
+        #     single_group_kl, sparse_kl,
+        #     err_msg="Group model kl equality")
+        #
+        # # Checking the full kl is equal.
+        # sparse_kl = global_model.get_global_kl()
+        # for g in range(NG):
+        #     group_model.set_group_parameters([g])
+        #     sparse_kl += group_model.get_group_kl()
+        #
+        # np_test.assert_array_almost_equal(
+        #     model.objective.fun_free(free_par), sparse_kl)
+        # }
 
         # Check that the vector Hessian is equal.
         model.glmm_par.set_free(free_par)
@@ -121,7 +126,7 @@ class TestModel(unittest.TestCase):
         group_model.glmm_par.set_free(free_par)
 
         sparse_vector_hess = \
-            group_model.get_sparse_kl_vec_hessian(print_every_n=-1) + \
+            group_model.get_sparse_kl_vec_hessian() + \
             global_model.get_sparse_kl_vec_hessian()
         full_vector_hess = \
             model.objective.fun_vector_hessian(model.glmm_par.get_vector())
