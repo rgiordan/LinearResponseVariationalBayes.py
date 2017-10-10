@@ -509,7 +509,9 @@ class SubGroupsModel(object):
         return all_group_rows, y_g_sub
 
     # Evaluate the KL divergence for data from self.groups using the parameters
-    # in self.group_par.
+    # in self.group_par.  Since this will only be used to calculate terms of
+    # the Hessian involving a random effect, do not include terms that only
+    # depend on the global parameters.
     def get_group_kl(self):
         all_group_rows, y_g_sub = self.get_data_for_groups(self.groups)
         data_log_lik = np.sum(get_data_log_lik_terms(
@@ -525,10 +527,6 @@ class SubGroupsModel(object):
         u_entropy = get_local_entropy(self.group_par)
 
         return -1 * np.squeeze(data_log_lik + re_log_lik + u_entropy)
-        # entropy = get_global_entropy(self.group_par) + \
-        #           get_local_entropy(self.group_par)
-        # e_log_prior = get_e_log_prior(self.group_par, self.model.prior_par)
-        # return -1 * np.squeeze(group_log_lik + entropy + e_log_prior)
 
     # Each entry returned by get_data_log_lik_terms corresponds to a
     # single data point.  This is intended to be the derivative of the
@@ -544,26 +542,6 @@ class SubGroupsModel(object):
             gh_w = self.model.gh_w)
 
         return -1 * np.squeeze(data_log_lik)
-
-    # This is as a function of vector parameters.
-    def get_sparse_kl_vec_hessian_old(self, print_every_n=None):
-        full_hess_dim = self.glmm_par.vector_size()
-        sparse_group_hess = \
-            osp.sparse.csr_matrix((full_hess_dim, full_hess_dim))
-        if print_every_n is None:
-            print_every_n = self.model.num_groups - 1
-        for g in range(self.model.num_groups):
-            if g % print_every_n == 0:
-                print('Group {} of {}.'.format(g, self.model.num_groups - 1))
-            group_par_vec, group_indices = self.set_group_parameters([g])
-            group_vec_hessian = \
-                self.kl_objective.fun_vector_hessian(group_par_vec)
-            sparse_group_hess += \
-                obj_lib.get_sparse_sub_hessian(
-                    sub_hessian = group_vec_hessian,
-                    full_indices = group_indices,
-                    full_hess_dim = full_hess_dim)
-        return sparse_group_hess
 
     # Evaluate the group kl at a certain value of global and re vectorized
     # parameters.
