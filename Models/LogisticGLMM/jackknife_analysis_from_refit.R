@@ -189,9 +189,10 @@ moment_vec_samples = np.array(moment_vec_samples)
 
 ## Graphs
 
-# 2, 5, 20, 40, 60
+# 2, 5, 20, 40, 60, 100
 results_list <- list()
-for (num_obs_per_group in c(2, 5, 20, 40, 60)) {
+for (num_obs_per_group in c(2, 5, 20, 40, 60, 100)) {
+  print(num_obs_per_group)
   results_list[[length(results_list) + 1]] <- read_analysis_results(num_obs_per_group)
 }
 results <- do.call(rbind, results_list)
@@ -201,36 +202,3 @@ results_file <- file.path(data_directory, "jackknife_summary.Rdata")
 save(results, file=results_file)
 
 
-
-grid.arrange(
-  ggplot(filter(results_cast, metric == "mean")) + 
-    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="vb")) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("Mean accuracy")
-,
-  ggplot(filter(results_cast, metric == "sd")) + 
-    geom_point(aes(x=mcmc, y=mfvb, shape=par, color="mfvb")) +
-    geom_point(aes(x=mcmc, y=lrvb, shape=par, color="lrvb")) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy")
-, ncol=2
-)
-
-grid.arrange(
-  ggplot(filter(results_cast, metric == "mean")) + 
-    geom_point(aes(x=truth, y=mfvb, shape=par, color="vb")) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("Mean accuracy")
-,
-  ggplot(filter(results_cast, metric == "sd")) + 
-    geom_point(aes(x=truth, y=lrvb, shape=par, color="lrvb"), size=3) +
-    geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
-    geom_point(aes(x=truth, y=mcmc, shape=par, color="mcmc"), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy based on Hessian")
-,
-  ggplot(filter(results_cast, metric == "sd")) + 
-    geom_point(aes(x=truth, y=jackknife, shape=par, color="jackknife"), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy based on infinitesimal jackknife")
-, ncol=3)

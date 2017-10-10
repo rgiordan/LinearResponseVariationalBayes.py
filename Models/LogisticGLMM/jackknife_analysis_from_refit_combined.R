@@ -36,9 +36,9 @@ results_cast <-
   mutate(n_scaling = 1 / sqrt(num_obs_per_group))
 
 
-results_re_mean <- filter(results_cast, metric == "sd", par == "e_u")
+results_re_sd <- filter(results_cast, metric == "sd", par == "e_u")
 
-ggplot(results_re_mean) + 
+ggplot(results_re_sd) + 
   geom_boxplot(aes(x=num_obs_per_group, y=mfvb, group=num_obs_per_group, color="mfvb")) +
   geom_boxplot(aes(x=num_obs_per_group, y=lrvb, group=num_obs_per_group, color="lrvb")) +
   geom_boxplot(aes(x=num_obs_per_group, y=jackknife, group=num_obs_per_group, color="jackknife")) +
@@ -68,21 +68,3 @@ grid.arrange(
   , ncol=2
 )
 
-grid.arrange(
-  ggplot(filter(results_cast, metric == "mean")) + 
-    geom_point(aes(x=truth, y=mfvb, shape=par, color="vb")) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("Mean accuracy")
-  ,
-  ggplot(filter(results_cast, metric == "sd")) + 
-    geom_point(aes(x=truth, y=lrvb, shape=par, color="lrvb"), size=3) +
-    geom_point(aes(x=truth, y=mfvb, shape=par, color="mfvb"), size=3) +
-    geom_point(aes(x=truth, y=mcmc, shape=par, color="mcmc"), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy based on Hessian")
-  ,
-  ggplot(filter(results_cast, metric == "sd")) + 
-    geom_point(aes(x=truth, y=jackknife, shape=par, color="jackknife"), size=3) +
-    geom_abline(aes(slope=1, intercept=0)) +
-    ggtitle("SD accuracy based on infinitesimal jackknife")
-  , ncol=3)
