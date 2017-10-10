@@ -27,6 +27,21 @@ def compress(x):
     else:
         return np.squeeze(np.asarray(x))
 
+
+# An object to save various runtimes.
+class Timer(object):
+    def __init__(self):
+        self.time_dict = {}
+    def tic(self):
+        self.tic_time = time.time()
+    def toc(self, time_name, verbose=True):
+        self.time_dict[time_name] = time.time() - self.tic_time
+        if verbose:
+            print('{}: {} seconds'.format(time_name, self.time_dict[time_name]))
+    def __str__(self):
+        return str(self.time_dict)
+
+
 class Logger(object):
     def __init__(self, print_every=1):
         self.print_every = print_every

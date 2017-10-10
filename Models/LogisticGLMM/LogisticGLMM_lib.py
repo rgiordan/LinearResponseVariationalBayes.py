@@ -19,18 +19,6 @@ import json
 import copy
 
 
-# An object to save various runtimes.
-class Timer(object):
-    def __init__(self):
-        self.time_dict = {}
-    def tic(self):
-        self.tic_time = time.time()
-    def toc(self, time_name):
-        self.time_dict[time_name] = time.time() - self.tic_time
-    def __str__(self):
-        return str(self.time_dict)
-
-
 def load_json_data(json_filename):
     json_file = open(json_filename, 'r')
     json_dat = json.load(json_file)
