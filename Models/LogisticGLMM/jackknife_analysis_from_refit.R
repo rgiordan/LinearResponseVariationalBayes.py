@@ -47,30 +47,30 @@ import numpy as np
   reticulate::py_run_string("
 glmm_par_sims = vb_jackknife_results['glmm_par_sims']
 true_params = vb_jackknife_results['true_params']
-glmm_par_free = vb_jackknife_results['glmm_par_free']
-glmm_par = logit_glmm.get_glmm_parameters(K=true_params.beta_dim, NG=true_params.num_groups)
-glmm_par.set_free(glmm_par_free)
-prior_par = logit_glmm.get_default_prior_params(true_params.beta_dim)
+model = logit_glmm.load_model_from_pickle(vb_jackknife_results)
 moment_jac = vb_jackknife_results['moment_jac']
-model = logit_glmm.LogisticGLMM(
-    glmm_par=glmm_par,
-    prior_par=prior_par,
-    x_mat=vb_jackknife_results['x_mat'],
-    y_vec=vb_jackknife_results['y_vec'],
-    y_g_vec=vb_jackknife_results['y_g_vec'],
-    num_gh_points=vb_jackknife_results['num_gh_points'])
-  ")
-  
-  
-  reticulate::py_run_string("
+
 kl_hess = obj_lib.unpack_csr_matrix(vb_jackknife_results['kl_hess'])
 weight_jac = obj_lib.unpack_csr_matrix(vb_jackknife_results['weight_jac'])
 kl_hess_chol = cholesky(kl_hess)
 moment_jac_sens = kl_hess_chol.solve_A(moment_jac.T)
 lrvb_cov = np.matmul(moment_jac, moment_jac_sens)
 mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(glmm_par_free)
-  ")
-  
+param_boot_mat = kl_hess_chol.solve_A(weight_jac.T)
+
+#glmm_par_free = vb_jackknife_results['glmm_par_free']
+#glmm_par = logit_glmm.get_glmm_parameters(K=true_params.beta_dim, NG=true_params.num_groups)
+#glmm_par.set_free(glmm_par_free)
+#prior_par = logit_glmm.get_default_prior_params(true_params.beta_dim)
+#model = logit_glmm.LogisticGLMM(
+#    glmm_par=glmm_par,
+#    prior_par=prior_par,
+#    x_mat=vb_jackknife_results['x_mat'],
+#    y_vec=vb_jackknife_results['y_vec'],
+#    y_g_vec=vb_jackknife_results['y_g_vec'],
+#    num_gh_points=vb_jackknife_results['num_gh_points'])
+")
+
   ##################
   # Load the Stan data
   
@@ -98,31 +98,6 @@ mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(glmm_par_free)
   lrvb_sd <- sqrt(diag(lrvb_cov))
   mfvb_sd <- sqrt(GetMFVBCovVector(py_main$glmm_par))
   
-  ### Jackknife
-  
-  reticulate::py_run_string("
-param_boot_mat = kl_hess_chol.solve_A(weight_jac.T)
-")
-  
-  reticulate::py_run_string("
-def get_jackknife_moments(obs):
-  lr_diff = np.squeeze(np.asarray(param_boot_mat[:, obs].todense()))
-  return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
-  
-moment_par_jackknife_list = []
-num_obs = model.x_mat.shape[0]
-for obs in range(num_obs):
-  if obs % 5000 == 0:
-    print('Obs {} of {}'.format(obs, num_obs))
-  moment_par_jackknife_list.append(get_jackknife_moments(obs))
-moment_par_jacknnife = np.array(moment_par_jackknife_list)
-")
-  
-  moment_par_jacknnife <- py_main$moment_par_jacknnife
-  n_obs <- nrow(moment_par_jacknnife)
-  jackknife_sd <- sqrt(n_obs - 1) * apply(moment_par_jacknnife, MARGIN=2, sd)
-  jackknife_mean <- apply(moment_par_jacknnife, MARGIN=2, mean)
-  
   ### Infinitesimal bootstrap
   
   reticulate::py_run_string("
@@ -130,7 +105,6 @@ num_obs = model.x_mat.shape[0]
 def get_bootstrap_moments():
   weight_diff = np.random.multinomial(num_obs, [1. / num_obs] * num_obs, size=1) - 1.0
   lr_diff = param_boot_mat * np.squeeze(np.asarray(weight_diff))
-  print(lr_diff.shape)
   return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
   
 moment_par_bootstrap_list = []
@@ -167,10 +141,6 @@ moment_vec_samples = np.array(moment_vec_samples)
       mutate(method="lrvb", metric="sd"),
     ConvertPythonMomentVectorToDF(mfvb_sd, py_main$glmm_par) %>%
       mutate(method="mfvb", metric="sd"),
-    ConvertPythonMomentVectorToDF(jackknife_mean, py_main$glmm_par) %>%
-      mutate(method="jackknife", metric="mean"),
-    ConvertPythonMomentVectorToDF(jackknife_sd, py_main$glmm_par) %>%
-      mutate(method="jackknife", metric="sd"),
     ConvertPythonMomentVectorToDF(bootstrap_mean, py_main$glmm_par) %>%
       mutate(method="bootstrap", metric="mean"),
     ConvertPythonMomentVectorToDF(bootstrap_sd, py_main$glmm_par) %>%
