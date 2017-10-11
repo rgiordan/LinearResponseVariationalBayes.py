@@ -365,8 +365,9 @@ class LogisticGLMM(object):
             self.group_model, print_every_n=print_every_n)
 
 class MomentWrapper(object):
-    def __init__(self, glmm_par):
+    def __init__(self, glmm_par, global_only=False):
         self.glmm_par = glmm_par
+        self.__global_only = global_only
         K = glmm_par['beta']['mean'].size()
         NG =  glmm_par['u']['mean'].size()
         self.moment_par = vb.ModelParamsDict('Moment Parameters')
@@ -374,7 +375,9 @@ class MomentWrapper(object):
         self.moment_par.push_param(vb.ScalarParam('e_mu'))
         self.moment_par.push_param(vb.ScalarParam('e_tau'))
         self.moment_par.push_param(vb.ScalarParam('e_log_tau'))
-        self.moment_par.push_param(vb.VectorParam('e_u', NG))
+
+        if not self.__global_only:
+            self.moment_par.push_param(vb.VectorParam('e_u', NG))
 
         self.get_moment_jacobian = \
             autograd.jacobian(self.get_moment_vector_from_free)
@@ -388,7 +391,8 @@ class MomentWrapper(object):
         self.moment_par['e_mu'].set(self.glmm_par['mu'].e())
         self.moment_par['e_tau'].set(self.glmm_par['tau'].e())
         self.moment_par['e_log_tau'].set(self.glmm_par['tau'].e_log())
-        self.moment_par['e_u'].set(self.glmm_par['u'].e())
+        if not self.__global_only:
+            self.moment_par['e_u'].set(self.glmm_par['u'].e())
 
     # Return a posterior moment of interest as a function of unconstrained parameters.
     def get_moment_vector_from_free(self, free_par_vec):
