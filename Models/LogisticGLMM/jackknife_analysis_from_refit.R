@@ -21,54 +21,50 @@ py_main <- reticulate::import_main()
 read_analysis_results <- function(analysis_name) {
   #################
   # Load the python data
-  analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
 
   # Results evaluating the jacknnife
-  python_jackknife_filename <- file.path(
-    data_directory,
-    paste(analysis_name, "_python_refit_jackknife_results.pkl", sep=""))
+  #python_jackknife_filename = os.path.join(data_dir, '%s_python_vb_jackknife_results.pkl' % analysis_name)
+  #python_simulation_filename = os.path.join(data_dir, '%s_python_refit_jackknife_results.pkl' % analysis_name)
   
-  reticulate::py_run_string("
-pkl_file = open('" %_% python_jackknife_filename %_% "', 'rb')
-vb_jackknife_results = pickle.load(pkl_file)
-pkl_file.close()
-  ")
-  
-  names(py_main$vb_jackknife_results)
+  python_jackknife_filename <-
+    file.path(data_directory, sprintf('%s_python_vb_jackknife_results.pkl', analysis_name))
+  python_simulation_filename <-
+    file.path(data_directory, sprintf("%s_python_refit_jackknife_results.pkl", analysis_name))
   
   reticulate::py_run_string("
 import VariationalBayes.SparseObjectives as obj_lib
 from scikits.sparse.cholmod import cholesky
 import numpy as np
-  ")
+
+pkl_file = open('" %_% python_jackknife_filename %_% "', 'rb')
+vb_jackknife_results = pickle.load(pkl_file)
+pkl_file.close()
+
+pkl_file = open('" %_% python_simulation_filename %_% "', 'rb')
+vb_sim_results = pickle.load(pkl_file)
+pkl_file.close()
+")
   
+  names(py_main$vb_sim_results)
   names(py_main$vb_jackknife_results)
   
   reticulate::py_run_string("
-glmm_par_sims = vb_jackknife_results['glmm_par_sims']
-true_params = vb_jackknife_results['true_params']
-model = logit_glmm.load_model_from_pickle(vb_jackknife_results)
-moment_jac = vb_jackknife_results['moment_jac']
-
-kl_hess = obj_lib.unpack_csr_matrix(vb_jackknife_results['kl_hess'])
-weight_jac = obj_lib.unpack_csr_matrix(vb_jackknife_results['weight_jac'])
+glmm_par_sims = vb_sim_results['glmm_par_sims']
+true_params = vb_sim_results['true_params']
+model = logit_glmm.load_model_from_pickle(vb_sim_results)
+moment_jac = vb_sim_results['moment_jac']
+kl_hess = obj_lib.unpack_csr_matrix(vb_sim_results['kl_hess_packed'])
+weight_jac = obj_lib.unpack_csr_matrix(vb_sim_results['weight_jac'])
 kl_hess_chol = cholesky(kl_hess)
 moment_jac_sens = kl_hess_chol.solve_A(moment_jac.T)
 lrvb_cov = np.matmul(moment_jac, moment_jac_sens)
-mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(glmm_par_free)
+mfvb_mean = model.moment_wrapper.get_moment_vector_from_free(model.glmm_par.get_free())
 param_boot_mat = kl_hess_chol.solve_A(weight_jac.T)
 
-#glmm_par_free = vb_jackknife_results['glmm_par_free']
-#glmm_par = logit_glmm.get_glmm_parameters(K=true_params.beta_dim, NG=true_params.num_groups)
-#glmm_par.set_free(glmm_par_free)
-#prior_par = logit_glmm.get_default_prior_params(true_params.beta_dim)
-#model = logit_glmm.LogisticGLMM(
-#    glmm_par=glmm_par,
-#    prior_par=prior_par,
-#    x_mat=vb_jackknife_results['x_mat'],
-#    y_vec=vb_jackknife_results['y_vec'],
-#    y_g_vec=vb_jackknife_results['y_g_vec'],
-#    num_gh_points=vb_jackknife_results['num_gh_points'])
+lr_boot_moment_vec_list_long = np.array(vb_jackknife_results['lr_boot_moment_vec_list_long'])
+boot_moment_vec_list = np.array(vb_jackknife_results['boot_moment_vec_list'])
+
+glmm_par = model.glmm_par
 ")
 
   ##################
@@ -98,39 +94,27 @@ param_boot_mat = kl_hess_chol.solve_A(weight_jac.T)
   lrvb_sd <- sqrt(diag(lrvb_cov))
   mfvb_sd <- sqrt(GetMFVBCovVector(py_main$glmm_par))
   
-  ### Infinitesimal bootstrap
+  ### Infinitesimal and full bootstrap
   
-  reticulate::py_run_string("
-num_obs = model.x_mat.shape[0]
-def get_bootstrap_moments():
-  weight_diff = np.random.multinomial(num_obs, [1. / num_obs] * num_obs, size=1) - 1.0
-  lr_diff = param_boot_mat * np.squeeze(np.asarray(weight_diff))
-  return model.moment_wrapper.get_moment_vector_from_free(glmm_par_free - lr_diff)
+  lr_boot_moment_vec_list_long <- py_main$lr_boot_moment_vec_list_long
+  lr_bootstrap_sd <- apply(lr_boot_moment_vec_list_long, MARGIN=2, sd)
+  lr_bootstrap_mean <- apply(lr_boot_moment_vec_list_long, MARGIN=2, mean)
   
-moment_par_bootstrap_list = []
-num_bootstraps = 200
-for boot_sample in range(num_bootstraps):
-  moment_par_bootstrap_list.append(get_bootstrap_moments())
-moment_par_bootstrap = np.array(moment_par_bootstrap_list)
-")
+  full_moment_par_bootstrap <- py_main$boot_moment_vec_list
+  full_bootstrap_sd <- apply(moment_par_bootstrap, MARGIN=2, sd)
+  full_bootstrap_mean <- apply(moment_par_bootstrap, MARGIN=2, mean)
   
-  moment_par_bootstrap <- py_main$moment_par_bootstrap
-  bootstrap_sd <- apply(moment_par_bootstrap, MARGIN=2, sd)
-  bootstrap_mean <- apply(moment_par_bootstrap, MARGIN=2, mean)
-  
-
   ### Truth
   
   reticulate::py_run_string("
 moment_vec_samples = [ \
-  model.moment_wrapper.get_moment_vector_from_free(opt_x) for opt_x in  glmm_par_sims ]
+  model.moment_wrapper.get_moment_vector_from_free(opt_x) for opt_x in glmm_par_sims ]
 moment_vec_samples = np.array(moment_vec_samples)
   ")
   moment_vec_samples <- py_main$moment_vec_samples
   class(moment_vec_samples)
   resample_sd <- apply(moment_vec_samples, MARGIN=2, sd)
   resample_mean <- apply(moment_vec_samples, MARGIN=2, mean)
-  
   
   ### Combine and inspect
   
@@ -141,10 +125,17 @@ moment_vec_samples = np.array(moment_vec_samples)
       mutate(method="lrvb", metric="sd"),
     ConvertPythonMomentVectorToDF(mfvb_sd, py_main$glmm_par) %>%
       mutate(method="mfvb", metric="sd"),
-    ConvertPythonMomentVectorToDF(bootstrap_mean, py_main$glmm_par) %>%
+    
+    ConvertPythonMomentVectorToDF(lr_bootstrap_mean, py_main$glmm_par) %>%
       mutate(method="bootstrap", metric="mean"),
-    ConvertPythonMomentVectorToDF(bootstrap_sd, py_main$glmm_par) %>%
+    ConvertPythonMomentVectorToDF(lr_bootstrap_sd, py_main$glmm_par) %>%
       mutate(method="bootstrap", metric="sd"),
+    
+    ConvertPythonMomentVectorToDF(full_bootstrap_mean, py_main$glmm_par) %>%
+      mutate(method="bootstrap", metric="mean"),
+    ConvertPythonMomentVectorToDF(full_bootstrap_sd, py_main$glmm_par) %>%
+      mutate(method="bootstrap", metric="sd"),
+    
     ConvertPythonMomentVectorToDF(resample_sd, py_main$glmm_par) %>%
       mutate(method="truth", metric="sd"),
     ConvertPythonMomentVectorToDF(resample_mean, py_main$glmm_par) %>%
@@ -157,8 +148,15 @@ moment_vec_samples = np.array(moment_vec_samples)
 }
 
 
-## Graphs
+# Debugging
+num_obs_per_group = 2
+analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
+results <- read_analysis_results(analysis_name)
 
+
+## Graphs
+if (FALSE) {
+  
 # 2, 5, 20, 40, 60, 100
 results_list <- list()
 for (num_obs_per_group in c(2, 5, 20, 40, 60, 100)) {
@@ -170,5 +168,8 @@ results <- do.call(rbind, results_list)
 # If true, save the results to a file readable by knitr.
 results_file <- file.path(data_directory, "jackknife_summary.Rdata")
 save(results, file=results_file)
+
+}
+
 
 
