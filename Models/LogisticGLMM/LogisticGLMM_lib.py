@@ -57,6 +57,40 @@ def load_json_data(json_filename):
     return y_g_vec, y_vec, x_mat, glmm_par, prior_par
 
 
+# Get a dictionary for pickling from a model at the optimum.
+def get_pickle_dictionary(model, kl_hess, moment_jac):
+    pickle_result_dict = {
+        'glmm_par_free': model.glmm_par.get_free(),
+        'glmm_par_vector': model.glmm_par.get_vector(),
+        'kl_hess_packed': obj_lib.pack_csr_matrix(kl_hess),
+        'moment_jac': np.squeeze(moment_jac),
+        'prior_par_vec': model.prior_par.get_vector(),
+        'num_groups': model.num_groups,
+        'beta_dim': model.beta_dim,
+        'num_gh_points': model.num_gh_points,
+        'y_g_vec': model.y_g_vec,
+        'y_vec': model.y_vec,
+        'x_mat': model.x_mat }
+
+    return pickle_result_dict
+
+
+# The vb_results should be the dictionary loaded from a pickle.
+def load_model_from_pickle(pickle_dict):
+    glmm_par = get_glmm_parameters(
+        K=pickle_dict['beta_dim'], NG=pickle_dict['num_groups'])
+    glmm_par.set_free(pickle_dict['glmm_par_free'])
+    assert(np.max(np.abs(
+        glmm_par.get_vector() - pickle_dict['glmm_par_vector'])) < 1e-8)
+    prior_par = get_default_prior_params(pickle_dict['beta_dim'])
+    prior_par.set_vector(pickle_dict['prior_par_vec'])
+    model = LogisticGLMM(
+        glmm_par, prior_par,
+        pickle_dict['x_mat'], pickle_dict['y_vec'],
+        pickle_dict['y_g_vec'], pickle_dict['num_gh_points'])
+    return model
+
+
 def get_glmm_parameters(
     K, NG,
     mu_info_min=0.0, tau_alpha_min=0.0, tau_beta_min=0.0,
