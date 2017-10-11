@@ -100,9 +100,9 @@ glmm_par = model.glmm_par
   lr_bootstrap_sd <- apply(lr_boot_moment_vec_list_long, MARGIN=2, sd)
   lr_bootstrap_mean <- apply(lr_boot_moment_vec_list_long, MARGIN=2, mean)
   
-  full_moment_par_bootstrap <- py_main$boot_moment_vec_list
-  full_bootstrap_sd <- apply(moment_par_bootstrap, MARGIN=2, sd)
-  full_bootstrap_mean <- apply(moment_par_bootstrap, MARGIN=2, mean)
+  boot_moment_vec_list <- py_main$boot_moment_vec_list
+  full_bootstrap_sd <- apply(boot_moment_vec_list, MARGIN=2, sd)
+  full_bootstrap_mean <- apply(boot_moment_vec_list, MARGIN=2, mean)
   
   ### Truth
   
@@ -127,9 +127,9 @@ moment_vec_samples = np.array(moment_vec_samples)
       mutate(method="mfvb", metric="sd"),
     
     ConvertPythonMomentVectorToDF(lr_bootstrap_mean, py_main$glmm_par) %>%
-      mutate(method="bootstrap", metric="mean"),
+      mutate(method="lr_bootstrap", metric="mean"),
     ConvertPythonMomentVectorToDF(lr_bootstrap_sd, py_main$glmm_par) %>%
-      mutate(method="bootstrap", metric="sd"),
+      mutate(method="lr_bootstrap", metric="sd"),
     
     ConvertPythonMomentVectorToDF(full_bootstrap_mean, py_main$glmm_par) %>%
       mutate(method="bootstrap", metric="mean"),
@@ -149,27 +149,24 @@ moment_vec_samples = np.array(moment_vec_samples)
 
 
 # Debugging
-num_obs_per_group = 2
-analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
-results <- read_analysis_results(analysis_name)
+# num_obs_per_group <- 2
+# results <- read_analysis_results(analysis_name)
 
 
-## Graphs
-if (FALSE) {
-  
 # 2, 5, 20, 40, 60, 100
 results_list <- list()
-for (num_obs_per_group in c(2, 5, 20, 40, 60, 100)) {
+#group_sizes <- c(2, 5, 20, 40, 60, 100)
+group_sizes <- c(2, 5, 20, 40, 60)
+for (num_obs_per_group in group_sizes) {
   print(num_obs_per_group)
-  results_list[[length(results_list) + 1]] <- read_analysis_results(num_obs_per_group)
+  analysis_name <- sprintf("simulated_data_for_refit_%d", num_obs_per_group)
+  results_list[[length(results_list) + 1]] <- read_analysis_results(analysis_name)
 }
 results <- do.call(rbind, results_list)
 
 # If true, save the results to a file readable by knitr.
 results_file <- file.path(data_directory, "jackknife_summary.Rdata")
 save(results, file=results_file)
-
-}
 
 
 
