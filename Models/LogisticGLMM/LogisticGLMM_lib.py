@@ -275,7 +275,8 @@ def initialize_glmm_pars(glmm_par):
 
 class LogisticGLMM(object):
     def __init__(
-        self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points):
+        self, glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points,
+        use_prior=True):
 
         self.glmm_par = copy.deepcopy(glmm_par)
         self.prior_par = copy.deepcopy(prior_par)
@@ -283,6 +284,7 @@ class LogisticGLMM(object):
         self.y_vec = np.array(y_vec)
         self.y_g_vec = np.array(y_g_vec)
         self.set_gh_points(num_gh_points)
+        self.use_prior = use_prior
 
         self.beta_dim = self.x_mat.shape[1]
         self.num_groups = np.max(self.y_g_vec) + 1
@@ -310,7 +312,10 @@ class LogisticGLMM(object):
         self.gh_x, self.gh_w = onp.polynomial.hermite.hermgauss(num_gh_points)
 
     def get_e_log_prior(self):
-        return get_e_log_prior(self.glmm_par, self.prior_par)
+        if self.use_prior:
+            return get_e_log_prior(self.glmm_par, self.prior_par)
+        else:
+            return 0.0
 
     def get_data_log_lik_terms(self):
         return get_data_log_lik_terms(
@@ -346,9 +351,12 @@ class LogisticGLMM(object):
         return -1 * self.get_elbo()
 
     def get_e_log_prior_from_args(self, prior_vec, free_par):
-        self.glmm_par.set_free(free_par)
-        self.prior_par.set_vector(prior_vec)
-        return self.get_e_log_prior()
+        if self.use_prior:
+            self.glmm_par.set_free(free_par)
+            self.prior_par.set_vector(prior_vec)
+            return self.get_e_log_prior()
+        else:
+            return 0.0
 
     def tr_optimize(self, trust_init, num_gh_points=None,
                     print_every=5, gtol=1e-6, maxiter=500, verbose=True):
@@ -685,11 +693,6 @@ class GlobalModel(object):
         # from the values in self.global_par.
         set_global_parameters(self.global_par, self.model.glmm_par)
         return self.model.get_kl()
-
-    # def get_global_kl(self):
-    #     return -1 * np.squeeze(
-    #         get_global_entropy(self.global_par) + \
-    #         get_e_log_prior(self.global_par, self.model.prior_par))
 
     # This is as a function of the vector parameters.
     def get_sparse_kl_vec_hessian(self, print_every_n=None):
