@@ -179,7 +179,7 @@ def expected_ljk_prior(lkj_param, df, v):
               np.sum(e_log_inv_wishart_diag(df, v))
     return (lkj_param - 1) * e_log_r
 
-def get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos, \
+def get_e_dp_prior_logitnorm_approx(alpha, lognorm_means, lognorm_infos, \
                             loc = gh_loc, weights = gh_weights) :
     # get the expectation of the dp prior with a logit normal approximation
     # for the beta sticks
