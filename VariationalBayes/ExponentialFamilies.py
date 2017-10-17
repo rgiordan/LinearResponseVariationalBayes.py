@@ -1,6 +1,7 @@
 import autograd.numpy as np
 import autograd.scipy as sp
 import math
+from numpy.polynomial.hermite import hermgauss
 
 def multivariate_digamma(x, size):
     x_vec = x - 0.5 * np.linspace(0, size - 1., size)
@@ -116,6 +117,37 @@ def get_e_log_dirichlet(alpha):
     digamma_sum = sp.special.digamma(np.sum(alpha, 0, keepdims=True))
     return sp.special.digamma(alpha) - digamma_sum
 
+gh_loc, gh_weights = hermgauss(4)
+def get_e_logitnormal(lognorm_means, lognorm_infos, \
+            loc = gh_loc, weights = gh_weights):
+    # get the expectation of a logit normal distribution
+    e_sticks = np.array([np.dot(1/np.sqrt(np.pi) * weights,  \
+                sp.special.expit(np.sqrt(2) * loc * \
+                1/np.sqrt(lognorm_infos[k]) +\
+                lognorm_means[k])) \
+                for k in range(np.size(lognorm_means))])
+
+    return e_sticks
+
+def get_e_log_logitnormal(lognorm_means, lognorm_infos,\
+                            loc = gh_loc, weights = gh_weights):
+    # get expectation of Elog(X) and Elog(1-X), when X follows a logit normal
+
+    log_v = lambda x : np.log(sp.special.expit(x))
+    log_1mv = lambda x : np.log(1 - sp.special.expit(x))
+
+    e_log_v = np.array([np.dot(1/np.sqrt(np.pi) * weights,  \
+                log_v(np.sqrt(2) * loc * 1/np.sqrt(lognorm_infos[k]) +\
+                lognorm_means[k])) \
+                for k in range(np.size(lognorm_means))])
+
+    e_log_1mv = np.array([np.dot(1/np.sqrt(np.pi) * weights,  \
+                log_1mv(np.sqrt(2) * loc * 1/np.sqrt(lognorm_infos[k]) +\
+                lognorm_means[k])) \
+                for k in range(np.size(lognorm_means))])
+
+    return e_log_v, e_log_1mv
+
 
 #############################
 # Priors
@@ -146,3 +178,19 @@ def expected_ljk_prior(lkj_param, df, v):
     e_log_r = -1 * e_log_det_wishart(df, v) - \
               np.sum(e_log_inv_wishart_diag(df, v))
     return (lkj_param - 1) * e_log_r
+
+def get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos, \
+                            loc = gh_loc, weights = gh_weights) :
+    # get the expectation of the dp prior with a logit normal approximation
+    # for the beta sticks
+
+    prior_density = lambda x : (1 - alpha) * np.log(1 - x)
+
+    # this is our integrand
+    prior_density_sigmoid = lambda x : prior_density(sp.special.expit(x))
+
+    return np.sum(np.dot(1/np.sqrt(np.pi) * weights,  \
+                prior_density_sigmoid(np.sqrt(2) * loc *\
+                1 / np.sqrt(lognorm_infos[k]) +\
+                lognorm_means[k])) \
+                for k in range(np.size(lognorm_means)))

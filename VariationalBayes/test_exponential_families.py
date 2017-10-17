@@ -4,6 +4,7 @@ import autograd.numpy as np
 from autograd import grad, jacobian, hessian
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as model
+
 import unittest
 import numpy.testing as np_test
 import scipy as sp
@@ -102,6 +103,45 @@ class TestMoments(unittest.TestCase):
             np.mean(wishart_log_det_r_draws),
             ef.expected_ljk_prior(lkj_param, df, v),
             atol=moment_tolerance)
+
+    def test_logitnormal_moments(self):
+        # log normal parameters
+        lognorm_means = np.random.random(5)
+        lognorm_infos = np.random.random(5)**2 + 1
+        alpha = 2 # dp parameter
+
+        # draw samples
+        num_draws = 10**5
+        samples = np.random.multivariate_normal(lognorm_means,
+                        np.diag(1/lognorm_infos), num_draws)
+        logit_norm_samples = sp.special.expit(samples)
+
+        # test lognormal means
+        np_test.assert_allclose(
+            np.mean(logit_norm_samples, axis = 0),
+            ef.get_e_logitnormal(lognorm_means, lognorm_infos),
+            atol = 3 * np.std(logit_norm_samples) / np.sqrt(num_draws))
+
+        # test Elog(x) and Elog(1-x)
+        log_logistic_norm = np.mean(np.log(logit_norm_samples), axis = 0)
+        log_1m_logistic_norm = np.mean(np.log(1 - logit_norm_samples), axis = 0)
+
+        np_test.assert_allclose(
+            log_logistic_norm,
+            ef.get_e_log_logitnormal(lognorm_means, lognorm_infos)[0],
+            atol = 0.005)
+        np_test.assert_allclose(
+            log_1m_logistic_norm,
+            ef.get_e_log_logitnormal(lognorm_means, lognorm_infos)[1],
+            atol = 0.005)
+
+        # test prior, that is, E(1-alpha)log(x)
+        prior_samples = np.sum((1 - alpha) *
+                            np.log(1 - logit_norm_samples), axis = 1)
+        np_test.assert_allclose(
+            np.mean(prior_samples),
+            ef.get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos),
+            atol = 3 * np.std(prior_samples)/np.sqrt(num_draws))
 
 
 class TestModelingFunctions(unittest.TestCase):
