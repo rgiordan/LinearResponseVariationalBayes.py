@@ -25,8 +25,8 @@ data_directory <- file.path(project_directory, "data/")
 source(file.path(project_directory, "logit_glmm_lib.R"))
 # source(file.path(project_directory, "densities_lib.R"))
 
-analysis_name <- "criteo_subsampled"
-#analysis_name <- "simulated_data_small"
+#analysis_name <- "criteo_subsampled"
+analysis_name <- "simulated_data_small"
 
 # If true, save the results to a file readable by knitr.
 save_results <- TRUE
@@ -63,10 +63,6 @@ reticulate::py_run_string(
 "
 pkl_file = open('" %_% python_filename %_% "', 'rb')
 vb_results = pickle.load(pkl_file)
-pkl_file.close()
-
-pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')
-vb_pert_results = pickle.load(pkl_file)
 pkl_file.close()
 
 pkl_file = open('" %_% python_perturbed_filename %_% "', 'rb')

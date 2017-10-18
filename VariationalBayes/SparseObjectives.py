@@ -9,7 +9,37 @@ import autograd.numpy as np
 import scipy as sp
 from scipy import sparse
 
+from copy import deepcopy
+
 import time
+
+
+# Apparently this can be replaced by the @ operator in Python 3.6.
+def safe_matmul(x, y):
+    if sp.sparse.issparse(x) or sp.sparse.issparse(y):
+        return x * y
+    else:
+        return np.matmul(x, y)
+
+def compress(x):
+    if sp.sparse.issparse(x):
+        return np.squeeze(np.asarray(x.todense()))
+    else:
+        return np.squeeze(np.asarray(x))
+
+
+# An object to save various runtimes.
+class Timer(object):
+    def __init__(self):
+        self.time_dict = {}
+    def tic(self):
+        self.tic_time = time.time()
+    def toc(self, time_name, verbose=True):
+        self.time_dict[time_name] = time.time() - self.tic_time
+        if verbose:
+            print('{}: {} seconds'.format(time_name, self.time_dict[time_name]))
+    def __str__(self):
+        return str(self.time_dict)
 
 
 class Logger(object):
@@ -89,7 +119,7 @@ class Objective(object):
     # they are evaluted is assumed to include the preconditioner, i.e.
     # to be free_val = a * x
     def get_conditioned_x(self, free_val):
-        return np.squeeze(np.array(np.matmul(self.preconditioner, free_val)))
+        return safe_matmul(self.preconditioner, free_val)
 
     def fun_free_cond(self, free_val, verbose=False):
         assert self.preconditioner is not None
@@ -100,236 +130,76 @@ class Objective(object):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         grad = self.fun_free_grad(y)
-        return np.matmul(self.preconditioner.T, grad)
+        return safe_matmul(self.preconditioner.T, grad)
 
     def fun_free_hessian_cond(self, free_val):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         hess = self.fun_free_hessian(y)
-        return np.matmul(self.preconditioner.T,
-                         np.matmul(hess, self.preconditioner))
+        return safe_matmul(self.preconditioner.T,
+                           safe_matmul(hess, self.preconditioner))
 
     def fun_free_hvp_cond(self, free_val, vec):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
-        return np.matmul(
+        return safe_matmul(
             self.preconditioner.T,
-            self.fun_free_hvp(y, np.matmul(self.preconditioner, vec)))
+            self.fun_free_hvp(y, safe_matmul(self.preconditioner, vec)))
 
     # Convert the optimum of the conditioned problem to the
     # value (with tests to be sure you're doing it right).
     def uncondition_x(self, cond_x):
-        return np.matmul(self.preconditioner, cond_x)
+        return safe_matmul(self.preconditioner, cond_x)
 
 
-# Note: the function get_sparse_hessian, with the associated template in
-# LogisticGLMM, probably makes this class unnecessary.
-#
-# As before, fun() should evaluate to a float but now should be bound
-# to both global_par and local_par.  fun_grad_local() and fun_hess_local()
-# should take no arguments, be bound to the values of global_par and local_par,
-# and respectively return gradients and hessians of fun() with respect
-# to the vector representations of the local parameters.  This is most useful
-# when the local grad and / or hessian are sparse.
-# class SparseObjective(object):
-#     def __init__(self, par, fun,
-#                  global_par_name='global',
-#                  local_par_name='local',
-#                  fun_vector_local_grad=None,
-#                  fun_vector_local_hessian=None):
-#
-#         self.par = par
-#         self.global_par = self.par[global_par_name]
-#         self.local_par = self.par[local_par_name]
-#         self.fun = fun
-#
-#         # par should contain only the global and local params, and in
-#         # that order.
-#         assert len(self.par.param_dict.items()) == 2
-#         par_keys = list(self.par.param_dict.keys())
-#         assert par_keys[0] == global_par_name
-#         assert par_keys[1] == local_par_name
-#
-#         # Use the dense autograd defaults if the local gradients and
-#         # Hessian are not specified.
-#         if not fun_vector_local_grad:
-#             self.fun_vector_local_grad = \
-#                 autograd.grad(self.fun_vector_split, argnum=1)
-#         else:
-#             self.fun_vector_local_grad = fun_vector_local_grad
-#
-#         if not fun_vector_local_hessian:
-#             self.fun_vector_local_hessian = \
-#                 autograd.hessian(self.fun_vector_split, argnum=1)
-#         else:
-#             self.fun_vector_local_hessian = fun_vector_local_hessian
-#
-#         # Use autograd to define the global derivatives.
-#         self.fun_free_global_grad = \
-#             autograd.grad(self.fun_free_split, argnum=0)
-#         self.fun_free_global_hessian = \
-#             autograd.hessian(self.fun_free_split, argnum=0)
-#
-#         # Use autograd for the Hessian vector product.
-#         self.fun_free_hvp = \
-#             autograd.hessian_vector_product(self.fun_free)
-#
-#         self.fun_vector_global_grad = \
-#             autograd.grad(self.fun_vector_split, argnum=0)
-#         self.fun_vector_global_hessian = \
-#             autograd.hessian(self.fun_vector_split, argnum=0)
-#
-#         # Calculate the vector Hessian cross term using autograd.
-#         # TODO: I can't remember which direction is most efficient.
-#         # I think differentiating the big vector first is best, but maybe
-#         # it's the other way around.
-#         # Note: I'm using the dense version here to avoid requiring the user-
-#         # defined on to be differentiable by autograd.
-#         # self.fun_vector_local_grad_dense = \
-#         #     autograd.grad(self.fun_vector_split, argnum=1)
-#         # self.fun_vector_cross_hessian = autograd.jacobian(
-#         #     self.fun_vector_local_grad_dense, argnum=0)
-#
-#         self.fun_vector_cross_hessian = autograd.jacobian(
-#             self.fun_vector_global_grad, argnum=1)
-#
-#     def fun_free(self, free_val, verbose=False):
-#         self.par.set_free(free_val)
-#         val = self.fun()
-#         if verbose:
-#             print('Value: ', val)
-#         return val
-#
-#     def fun_free_split(self, global_free_val, local_free_val):
-#         self.global_par.set_free(global_free_val)
-#         self.local_par.set_free(local_free_val)
-#         return self.fun()
-#
-#     def fun_vector(self, vec_val):
-#         self.par.set_vector(vec_val)
-#         return self.fun()
-#
-#     # Define the vector derivatives.
-#     def fun_vector_split(self, global_vec_val, local_vec_val):
-#         self.global_par.set_vector(global_vec_val)
-#         self.local_par.set_vector(local_vec_val)
-#         return self.fun()
-#
-#     def fun_vector_grad_split(self, global_vec_val, local_vec_val):
-#         sp_grad = sparse.hstack([
-#             self.fun_vector_global_grad(global_vec_val, local_vec_val),
-#             self.fun_vector_local_grad(global_vec_val, local_vec_val) ])
-#
-#         # TODO: maybe sometimes you want the sparse version.
-#         return np.squeeze(np.array(sp_grad.T.toarray()))
-#
-#     # Define the free derivatives as trasnforms of the vector derivatives.
-#     def fun_vector_hessian_split(self, global_vec_val, local_vec_val):
-#         self.global_par.set_vector(global_vec_val)
-#         self.local_par.set_vector(local_vec_val)
-#
-#         global_hess = self.fun_vector_global_hessian(
-#             global_vec_val, local_vec_val)
-#
-#         cross_hess = self.fun_vector_cross_hessian(
-#             global_vec_val, local_vec_val).T
-#
-#         local_hess = self.fun_vector_local_hessian(
-#             global_vec_val, local_vec_val)
-#         sp_hess =  sp.sparse.bmat([ [global_hess,  cross_hess.T],
-#                                     [cross_hess,   local_hess]], format='csr')
-#
-#         # TODO: maybe sometimes you want the sparse version.
-#         return np.array(sp_hess.toarray())
-#
-#     # Use the sparse transforms to change the vector gradiend into a free
-#     # gradient.
-#     def fun_free_grad_sparse(self, free_val):
-#         self.par.set_free(free_val)
-#         global_vec_val = self.global_par.get_vector()
-#         local_vec_val = self.local_par.get_vector()
-#
-#         fun_vector_grad = self.fun_vector_grad_split(
-#             global_vec_val, local_vec_val)
-#         free_to_vec_jacobian = self.par.free_to_vector_jac(free_val)
-#
-#         # If you don't convert to an array, it returns a matrix type, which
-#         # seems to cause mysterious problems with scipy.optimize.minimize.
-#         free_grad = np.squeeze(free_to_vec_jacobian.T * fun_vector_grad)
-#         return free_grad
-#
-#     # Use the sparse transforms to change the vector Hessian into a free
-#     # Hessian.
-#     def fun_free_hessian_sparse(self, free_val):
-#         self.par.set_free(free_val)
-#         global_vec_val = self.global_par.get_vector()
-#         local_vec_val = self.local_par.get_vector()
-#
-#         fun_vector_hessian = self.fun_vector_hessian_split(
-#             global_vec_val, local_vec_val)
-#
-#         fun_vector_grad = self.fun_vector_grad_split(
-#             global_vec_val, local_vec_val)
-#
-#         # This is taking most of the time.
-#         fun_hessian_sparse = convert_vector_to_free_hessian(
-#             self.par, free_val, fun_vector_grad, fun_vector_hessian)
-#
-#         # If you don't convert to an array, it returns a matrix type, which
-#         # seems to cause mysterious problems with scipy.optimize.minimize.
-#         return np.array(fun_hessian_sparse)
+# It's useful, especially when constructing sparse Hessians, to know
+# which location in the parameter vector each variable goes.  The
+# index parameter tells you that.
+def make_index_param(param):
+    index_param = deepcopy(param)
+    index_param.set_vector(np.arange(0, index_param.vector_size()))
+    return index_param
 
 
-# A helper function to get sparse Hessians from models.
-#
-# Args:
-#   - set_parameters_fun: A function taking a single argument (group) and
-#     returning a vector of group parameters and a vector of indices in the
-#     full model.
-#   - get_group_hessian: A function taking a vector of group parameters and
-#     returning a dense hessian for that group.
-#   - group_range: The range of the group variable.
-#   - full_hess_dim: The size of the full Hessian.
-#   - print_every: Every n groups, print a little message.
-#
-# Returns:
-#   - A sparse matrix consisting of the sum of all of the group hessians,
-#     with entries in the appropriate locations for the full model.
-# TODO: formally test this
-def get_sparse_hessian(
-    set_parameters_fun, get_group_hessian, group_range, full_hess_dim,
-    print_every=20):
+# Return a sparse matrix of size (full_hess_dim, full_hess_dim), where
+# the entries of the dense matrix sub_hessian are in the locations
+# indicated by the vector full_indices.
+# TODO: test this formally.
+def get_sparse_sub_hessian(sub_hessian, full_indices, full_hess_dim):
+    return get_sparse_sub_matrix(
+        sub_matrix=sub_hessian,
+        row_indices=full_indices,
+        col_indices=full_indices,
+        row_dim=full_hess_dim,
+        col_dim=full_hess_dim)
 
-    hess_vals = [] # These will be the entries of the Hessian
-    hess_rows = [] # These will be the z indices
-    hess_cols = [] # These will be the data indices
 
-    # Get the dimension using the first element of the group_range.
-    group_vector, full_indices = set_parameters_fun(group_range[0])
-    group_hess_dim = len(group_vector)
+# Return a sparse matrix of size (full_hess_dim, full_hess_dim), where
+# the entries of the dense matrix sub_hessian are in the locations
+# indicated by the vector full_indices.
+# TODO: test this formally.
+def get_sparse_sub_matrix(
+    sub_matrix, row_indices, col_indices, row_dim, col_dim):
 
-    group_ind = 0
-    for group in group_range:
-        group_ind += 1
-        if group_ind % print_every == 0:
-            print('Group {} of {}'.format(group_ind, len(group_range) - 1))
-        group_vector, full_indices = set_parameters_fun(group)
-        row_hess_val = np.squeeze(get_group_hessian(group_vector, group))
+    mat_vals = [] # These will be the entries of the Hessian
+    mat_rows = [] # These will be the z indices
+    mat_cols = [] # These will be the data indices
 
-        for row in range(group_hess_dim):
-            for col in range(group_hess_dim):
-                if row_hess_val[row, col] != 0:
-                    hess_vals.append(row_hess_val[row, col])
-                    hess_rows.append(int(full_indices[row]))
-                    hess_cols.append(int(full_indices[col]))
+    for row in range(sub_matrix.shape[0]):
+        for col in range(sub_matrix.shape[1]):
+            if sub_matrix[row, col] != 0:
+                mat_vals.append(sub_matrix[row, col])
+                mat_rows.append(int(row_indices[row]))
+                mat_cols.append(int(col_indices[col]))
 
-    print('Done.')
     return sp.sparse.csr_matrix(
-        (hess_vals, (hess_rows, hess_cols)), (full_hess_dim, full_hess_dim))
+        (mat_vals, (mat_rows, mat_cols)), (row_dim, col_dim))
+
 
 
 # Utilities for pickling and unpickling sparse matrices.
 def pack_csr_matrix(sp_mat):
+    sp_mat = sp.sparse.csr_matrix(sp_mat)
     return { 'data': sp_mat.data,
              'indices': sp_mat.indices,
              'indptr': sp_mat.indptr,

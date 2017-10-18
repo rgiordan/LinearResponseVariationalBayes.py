@@ -148,6 +148,8 @@ class TestParameterMethods(unittest.TestCase):
         par.var_exp()
         par.e2_exp()
         par.entropy()
+        par.size()
+
 
     def test_gamma(self):
         execute_required_methods(self, GammaParam(), test_sparse_transform=True)

@@ -1,9 +1,9 @@
 #!/usr/bin/python3
 import VariationalBayes as vb
 import LogisticGLMM_lib as logit_glmm
-from VariationalBayes.SparseObjectives import \
-    Objective, SparseObjective, pack_csr_matrix
+import VariationalBayes.SparseObjectives as obj_lib
 
+import autograd
 import unittest
 import numpy.testing as np_test
 import numpy as np
@@ -36,20 +36,19 @@ class TestModel(unittest.TestCase):
         model = logit_glmm.LogisticGLMM(
             glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4)
 
-        objective = Objective(model.glmm_par, model.get_kl)
         free_par = np.random.random(model.glmm_par.free_size())
         model.glmm_par.set_free(free_par)
-        objective.fun_free(free_par)
-        obj_grad = objective.fun_free_grad(free_par)
-        obj_hess = objective.fun_free_hessian(free_par)
-        obj_hvp = objective.fun_free_hvp(free_par, obj_grad)
+        model.objective.fun_free(free_par)
+        obj_grad = model.objective.fun_free_grad(free_par)
+        obj_hess = model.objective.fun_free_hessian(free_par)
+        obj_hvp = model.objective.fun_free_hvp(free_par, obj_grad)
 
         np_test.assert_array_almost_equal(
             np.matmul(obj_hess, obj_grad), obj_hvp,
             err_msg='Hessian vector product equals Hessian')
 
         moment_wrapper = logit_glmm.MomentWrapper(glmm_par)
-        moment_wrapper.get_moment_vector(free_par)
+        moment_wrapper.get_moment_vector_from_free(free_par)
 
     def test_sparse_model(self):
         N = 17
@@ -63,21 +62,18 @@ class TestModel(unittest.TestCase):
         model = logit_glmm.LogisticGLMM(
             glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4)
         moment_wrapper = logit_glmm.MomentWrapper(glmm_par)
-        objective = Objective(model.glmm_par, model.get_kl)
 
         free_par = np.random.random(model.glmm_par.free_size())
 
-        sparse_model = logit_glmm.SparseModelObjective(
-            glmm_par, prior_par, x_mat, y_vec, y_g_vec, num_gh_points=4,
-            num_groups=1)
-
-        sparse_model.glmm_par.set_free(free_par)
+        model.glmm_par.set_free(free_par)
+        group_model = logit_glmm.SubGroupsModel(model)
+        global_model = logit_glmm.GlobalModel(model)
 
         ################################
         # Test get_data_for_groups
 
         g = 2
-        group_rows, y_g_select = sparse_model.get_data_for_groups([g])
+        group_rows, y_g_select = group_model.get_data_for_groups([g])
         np_test.assert_array_almost_equal(
             x_mat[group_rows, :], x_mat[y_g_vec == g, :])
         np_test.assert_array_almost_equal(
@@ -89,60 +85,116 @@ class TestModel(unittest.TestCase):
 
         # Testing the sparse objective.
         g = 2
-        sparse_model.set_global_parameters()
-        sparse_model.set_group_parameters([g])
+        global_model.set_global_parameters()
+        group_model.set_group_parameters([g])
         single_group_model = logit_glmm.LogisticGLMM(
-            sparse_model.group_par, prior_par,
+            group_model.group_par, prior_par,
             x_mat[group_rows, :], y_vec[group_rows], y_g_select,
-            num_gh_points=4)
+            num_gh_points = model.num_gh_points)
         np_test.assert_array_almost_equal(
             single_group_model.glmm_par.get_vector(),
-            sparse_model.group_par.get_vector(),
+            group_model.group_par.get_vector(),
             err_msg='Group model parameter equality')
 
+        ######
+        # These tests were from when the group and global kl partitioned
+        # the model: {
+
         # Checking that a single group is equal.
-        single_group_elbo = single_group_model.get_elbo()
-        sparse_elbo = sparse_model.get_global_elbo() + \
-            sparse_model.get_group_elbo([g])
-
-        np_test.assert_array_almost_equal(
-            single_group_elbo, sparse_elbo,
-            err_msg="Group model elbo equality")
-
-        # Checking the full elbo is equal.
-        sparse_elbo = sparse_model.get_global_elbo()
-        for g in range(NG):
-            sparse_model.set_group_parameters([g])
-            sparse_elbo += sparse_model.get_group_elbo([g])
-
-        elbo = -1 * objective.fun_free(free_par)
-        np_test.assert_array_almost_equal(elbo, sparse_elbo)
+        # single_group_kl = single_group_model.get_kl()
+        # sparse_kl = \
+        #     global_model.get_global_kl() + \
+        #     group_model.get_group_kl()
+        #
+        # np_test.assert_array_almost_equal(
+        #     single_group_kl, sparse_kl,
+        #     err_msg="Group model kl equality")
+        #
+        # # Checking the full kl is equal.
+        # sparse_kl = global_model.get_global_kl()
+        # for g in range(NG):
+        #     group_model.set_group_parameters([g])
+        #     sparse_kl += group_model.get_group_kl()
+        #
+        # np_test.assert_array_almost_equal(
+        #     model.objective.fun_free(free_par), sparse_kl)
+        # }
 
         # Check that the vector Hessian is equal.
         model.glmm_par.set_free(free_par)
-        sparse_model.glmm_par.set_free(free_par)
+        global_model.glmm_par.set_free(free_par)
+        group_model.glmm_par.set_free(free_par)
+
         sparse_vector_hess = \
-            sparse_model.get_sparse_vector_hessian(print_every_n=1000)
-        sparse_vector_hess_dense = \
-            np.array(sparse_vector_hess.todense())
+            group_model.get_sparse_kl_vec_hessian() + \
+            global_model.get_sparse_kl_vec_hessian()
         full_vector_hess = \
-            -1 * objective.fun_vector_hessian(
-                sparse_model.glmm_par.get_vector())
+            model.objective.fun_vector_hessian(model.glmm_par.get_vector())
 
         np_test.assert_array_almost_equal(
             full_vector_hess,
-            sparse_vector_hess_dense,
+            np.array(sparse_vector_hess.todense()),
             err_msg='Sparse vector Hessian equality')
 
         # Check that the free Hessian is equal.
-        sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
-        full_hess = -1 * objective.fun_free_hessian(
-            sparse_model.glmm_par.get_free())
+        #sparse_hess = sparse_model.get_free_hessian(sparse_vector_hess)
+        sparse_hess = logit_glmm.get_free_hessian(
+            model, group_model=group_model, global_model=global_model)
+        full_hess = model.objective.fun_free_hessian(
+            model.glmm_par.get_free())
 
         np_test.assert_array_almost_equal(
             full_hess,
-            np.array(sparse_hess.todense()),
+            np.asarray(sparse_hess.todense()),
             err_msg='Sparse free Hessian equality')
+
+        # Check that the weight jacobian is equal.
+        sparse_jac = group_model.get_sparse_weight_vec_jacobian()
+        def get_data_terms_vec(glmm_par_vec):
+            model.glmm_par.set_vector(glmm_par_vec)
+            return model.get_data_log_lik_terms()
+        def get_data_terms_free(glmm_par_free):
+            model.glmm_par.set_free(glmm_par_free)
+            return model.get_data_log_lik_terms()
+
+        model.use_weights = True
+        def get_weighted_kl_vec(weights, vec_par):
+            model.glmm_par.set_vector(vec_par)
+            model.weights = weights
+            return model.get_kl()
+
+        def get_weighted_kl_free(weights, free_par):
+            model.glmm_par.set_free(free_par)
+            model.weights = weights
+            return model.get_kl()
+
+        get_weighted_kl_vec_grad = autograd.grad(get_weighted_kl_vec, argnum=0)
+        get_weighted_kl_vec_jac = autograd.jacobian(
+            get_weighted_kl_vec_grad, argnum=1)
+        full_jac = get_weighted_kl_vec_jac(
+            model.weights, model.glmm_par.get_vector())
+
+        self.assertEqual(full_jac.shape, sparse_jac.shape)
+        np_test.assert_array_almost_equal(
+            full_jac,
+            np.asarray(sparse_jac.todense()),
+            err_msg='Sparse vector Jacobian equality')
+
+        sparse_free_jac = \
+            logit_glmm.get_sparse_weight_free_jacobian(group_model)
+        get_weighted_kl_free_grad = autograd.grad(get_weighted_kl_free, argnum=0)
+        get_weighted_kl_free_jac = autograd.jacobian(
+            get_weighted_kl_free_grad, argnum=1)
+        full_free_jac = get_weighted_kl_free_jac(
+            model.weights, model.glmm_par.get_free())
+
+        self.assertEqual(full_free_jac.shape, sparse_free_jac.shape)
+        np_test.assert_array_almost_equal(
+            full_free_jac,
+            np.asarray(sparse_free_jac.todense()),
+            err_msg='Sparse free Jacobian equality')
+
+
 
 
 if __name__ == '__main__':

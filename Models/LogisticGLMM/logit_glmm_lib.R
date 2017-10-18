@@ -134,20 +134,20 @@ GetMFVBCovVector <- function(glmm_par) {
   cov_param_dict <- cov_moment_par$moment_par$param_dict
   cov_moment_par$moment_par$set_vector(array(Inf, cov_moment_par$moment_par$vector_size()))
 
-  beta_cov <- 1 / glmm_par$param_dict$beta$info$get()
+  beta_cov <- 1 / glmm_par$param_dict$beta$param_dict$info$get()
   cov_param_dict$e_beta$set(array(beta_cov))
 
-  cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$info$get())
+  cov_param_dict$e_mu$set(1.0 / glmm_par$param_dict$mu$param_dict$info$get())
 
-  tau_alpha <- glmm_par$param_dict$tau$shape$get()
-  tau_beta <- glmm_par$param_dict$tau$rate$get()
+  tau_alpha <- glmm_par$param_dict$tau$param_dict$shape$get()
+  tau_beta <- glmm_par$param_dict$tau$param_dict$rate$get()
   tau_var <- tau_alpha / (tau_beta ^ 2)
   cov_param_dict$e_tau$set(tau_var)
 
   log_tau_var <- trigamma(tau_alpha)
   cov_param_dict$e_log_tau$set(log_tau_var)
 
-  u_var <- 1.0 / glmm_par$param_dict$u$info$get()
+  u_var <- 1.0 / glmm_par$param_dict$u$param_dict$info$get()
   cov_param_dict$e_u$set(array(u_var))
 
   return(cov_moment_par$moment_par$get_vector())
