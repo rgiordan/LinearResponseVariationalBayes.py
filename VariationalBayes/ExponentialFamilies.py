@@ -125,13 +125,13 @@ def get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
     change_of_vars = np.sqrt(2) * gh_loc[:, None] * \
                         1/np.sqrt(lognorm_infos[None, :]) + \
                         lognorm_means[None, :]
-    integrand = fun(sp.special.expit(change_of_vars))
+    integrand = fun(change_of_vars)
 
     return np.dot(1/np.sqrt(np.pi) * gh_weights, integrand)
 
 def get_e_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
     # get the expectation of a logit normal distribution
-    identity_fun = lambda x : x
+    identity_fun = lambda x : sp.special.expit(x)
 
     return get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, identity_fun)
@@ -139,8 +139,16 @@ def get_e_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
 def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
     # get expectation of Elog(X) and Elog(1-X), when X follows a logit normal
 
-    log_v = lambda x : np.log(x)
-    log_1mv = lambda x : np.log(1 - x)
+    # the functions below are log(expit(v)) and log(1-expit(v)), respectively
+    log_v = lambda x : np.maximum(-np.log(1 + np.exp(-x)), -1e16) * (x > -1e2)\
+                                + x * (x <= -1e2)
+    log_1mv = lambda x : -x + log_v(x)
+
+    # I believe that the above will avoid the numerical issues. If x is very small,
+    # log(1 + e^(-x)) is basically -x, hence the two cases.
+    # the maximum in the first term is taken so that when
+    # -np.log(1 + np.exp(-x)) = -Inf, it really just returns -1e16;
+    # apparently -Inf * 0.0 is NaN in python.
 
     e_log_v = get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, log_v)

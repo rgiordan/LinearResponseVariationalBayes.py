@@ -9,6 +9,11 @@ import unittest
 import numpy.testing as np_test
 import scipy as sp
 
+from numpy.polynomial.hermite import hermgauss
+
+# global parameters for computing lognormals
+GH_LOC, GH_WEIGHTS = hermgauss(4)
+
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
         mean_par = 2.0
@@ -112,36 +117,48 @@ class TestMoments(unittest.TestCase):
 
         # draw samples
         num_draws = 10**5
-        samples = np.random.multivariate_normal(lognorm_means,
-                        np.diag(1/lognorm_infos), num_draws)
+        samples = np.random.normal(lognorm_means,
+                        1/np.sqrt(lognorm_infos), size = (num_draws, 5))
         logit_norm_samples = sp.special.expit(samples)
 
         # test lognormal means
         np_test.assert_allclose(
             np.mean(logit_norm_samples, axis = 0),
-            ef.get_e_logitnormal(lognorm_means, lognorm_infos),
+            ef.get_e_logitnormal(
+                lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS),
             atol = 3 * np.std(logit_norm_samples) / np.sqrt(num_draws))
+            # I think the integral can only get to be so accurate; it seems
+            # to be good up to three decimal points.
 
         # test Elog(x) and Elog(1-x)
         log_logistic_norm = np.mean(np.log(logit_norm_samples), axis = 0)
         log_1m_logistic_norm = np.mean(np.log(1 - logit_norm_samples), axis = 0)
 
+        tol1 = 3 * np.std(np.log(logit_norm_samples))/ np.sqrt(num_draws)
+        tol2 = 3 * np.std(np.log(1 - logit_norm_samples))/ np.sqrt(num_draws)
+
         np_test.assert_allclose(
             log_logistic_norm,
-            ef.get_e_log_logitnormal(lognorm_means, lognorm_infos)[0],
-            atol = 0.005)
+            ef.get_e_log_logitnormal(
+                lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS)[0],
+            atol = tol1)
+
         np_test.assert_allclose(
             log_1m_logistic_norm,
-            ef.get_e_log_logitnormal(lognorm_means, lognorm_infos)[1],
-            atol = 0.005)
+            ef.get_e_log_logitnormal(
+                        lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS)[1],
+            atol = tol2)
 
         # test prior, that is, E(1-alpha)log(x)
-        prior_samples = np.sum((1 - alpha) *
-                            np.log(1 - logit_norm_samples), axis = 1)
-        np_test.assert_allclose(
-            np.mean(prior_samples),
-            ef.get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos),
-            atol = 3 * np.std(prior_samples)/np.sqrt(num_draws))
+        # we got rid of this function, since expectation of the prior is just
+        # (1-alpha) E(1-V) and we've already evaluated E(1-V)
+
+        # prior_samples = np.sum((1 - alpha) *
+        #                     np.log(1 - logit_norm_samples), axis = 1)
+        # np_test.assert_allclose(
+        #     np.mean(prior_samples),
+        #     ef.get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos),
+        #     atol = 3 * np.std(prior_samples)/np.sqrt(num_draws))
 
 
 class TestModelingFunctions(unittest.TestCase):
