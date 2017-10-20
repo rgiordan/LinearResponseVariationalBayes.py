@@ -144,12 +144,11 @@ def get_e_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
                             gh_loc, gh_weights, identity_fun)
 
 def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
-    # get expectation of Elog(X) and Elog(1-X), when X follows a logit normal
+    # get expectation of Elog(X) and E[1 - log(X)] when X follows a logit normal
 
-    # the functions below are log(expit(v)) and log(1-expit(v)), respectively
+    # the function below is log(expit(v))
     log_v = lambda x : np.maximum(-np.log(1 + np.exp(-x)), -1e16) * (x > -1e2)\
                                 + x * (x <= -1e2)
-    log_1mv = lambda x : -x + log_v(x)
 
     # I believe that the above will avoid the numerical issues. If x is very small,
     # log(1 + e^(-x)) is basically -x, hence the two cases.
@@ -159,10 +158,7 @@ def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
 
     e_log_v = get_e_fun_normal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, log_v)
-
-    e_log_1mv = get_e_fun_normal(lognorm_means, lognorm_infos, \
-                            gh_loc, gh_weights, log_1mv)
-
+    e_log_1mv = - lognorm_means + e_log_v
     return e_log_v, e_log_1mv
 
 
@@ -197,11 +193,11 @@ def expected_ljk_prior(lkj_param, df, v):
     return (lkj_param - 1) * e_log_r
 
 def get_e_dp_prior_logitnorm_approx(alpha, lognorm_means, lognorm_infos, \
-                            gh_loc, gh_weights) :
+                            gh_loc, gh_weights):
     # get the expectation of the dp prior with a logit normal approximation
     # for the beta sticks
 
-    e_log_v, e_log_1mv = \
+    e_log_v, e_log_1mv =\
         get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights)
 
     return (alpha - 1) * e_log_1mv
