@@ -2,6 +2,7 @@
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
+from autograd.util import quick_grad_check
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as model
 
@@ -11,8 +12,6 @@ import scipy as sp
 
 from numpy.polynomial.hermite import hermgauss
 
-# global parameters for computing lognormals
-GH_LOC, GH_WEIGHTS = hermgauss(4)
 
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
@@ -110,6 +109,9 @@ class TestMoments(unittest.TestCase):
             atol=moment_tolerance)
 
     def test_logitnormal_moments(self):
+        # global parameters for computing lognormals
+        gh_loc, gh_weights = hermgauss(4)
+
         # log normal parameters
         lognorm_means = np.random.random((5, 3)) # should work for arrays now
         lognorm_infos = np.random.random((5, 3))**2 + 1
@@ -125,10 +127,8 @@ class TestMoments(unittest.TestCase):
         np_test.assert_allclose(
             np.mean(logit_norm_samples, axis = 0),
             ef.get_e_logitnormal(
-                lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS),
+                lognorm_means, lognorm_infos, gh_loc, gh_weights),
             atol = 3 * np.std(logit_norm_samples) / np.sqrt(num_draws))
-            # I think the integral can only get to be so accurate; it seems
-            # to be good up to three decimal points.
 
         # test Elog(x) and Elog(1-x)
         log_logistic_norm = np.mean(np.log(logit_norm_samples), axis = 0)
@@ -140,13 +140,13 @@ class TestMoments(unittest.TestCase):
         np_test.assert_allclose(
             log_logistic_norm,
             ef.get_e_log_logitnormal(
-                lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS)[0],
+                lognorm_means, lognorm_infos, gh_loc, gh_weights)[0],
             atol = tol1)
 
         np_test.assert_allclose(
             log_1m_logistic_norm,
             ef.get_e_log_logitnormal(
-                        lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS)[1],
+                        lognorm_means, lognorm_infos, gh_loc, gh_weights)[1],
             atol = tol2)
 
         # test prior
@@ -157,17 +157,14 @@ class TestMoments(unittest.TestCase):
         np_test.assert_allclose(
             prior_samples,
             ef.get_e_dp_prior_logitnorm_approx(
-                        alpha, lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS),
+                        alpha, lognorm_means, lognorm_infos, gh_loc, gh_weights),
             atol = tol3)
 
-        # Was this what you meant when you wanted to check the autodiff?
-        x = np.random.normal(0, 1e6, size = 10)
+        x = np.random.normal(0, 1e2, size = 10)
         def e_log_v(x):
-            return ef.get_e_log_logitnormal(\
-                        x[0:5], x[5:10], GH_LOC, GH_WEIGHTS)[0]
-
-        e_log_v_jac = jacobian(e_log_v)
-        jac = e_log_v_jac(x)
+            return np.sum(ef.get_e_log_logitnormal(\
+                        x[0:5], np.abs(x[5:10]), gh_loc, gh_weights)[0])
+        quick_grad_check(e_log_v, x)
 
 
 class TestModelingFunctions(unittest.TestCase):
