@@ -111,14 +111,14 @@ class TestMoments(unittest.TestCase):
 
     def test_logitnormal_moments(self):
         # log normal parameters
-        lognorm_means = np.random.random(5)
-        lognorm_infos = np.random.random(5)**2 + 1
+        lognorm_means = np.random.random((5, 3)) # should work for arrays now
+        lognorm_infos = np.random.random((5, 3))**2 + 1
         alpha = 2 # dp parameter
 
         # draw samples
         num_draws = 10**5
         samples = np.random.normal(lognorm_means,
-                        1/np.sqrt(lognorm_infos), size = (num_draws, 5))
+                        1/np.sqrt(lognorm_infos), size = (num_draws, 5, 3))
         logit_norm_samples = sp.special.expit(samples)
 
         # test lognormal means
@@ -149,16 +149,25 @@ class TestMoments(unittest.TestCase):
                         lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS)[1],
             atol = tol2)
 
-        # test prior, that is, E(1-alpha)log(x)
-        # we got rid of this function, since expectation of the prior is just
-        # (1-alpha) E(1-V) and we've already evaluated E(1-V)
+        # test prior
+        prior_samples = np.mean((alpha - 1) *
+                            np.log(1 - logit_norm_samples), axis = 0)
+        tol3 = 3 * np.std((alpha - 1) * np.log(1 - logit_norm_samples)) \
+                    /np.sqrt(num_draws)
+        np_test.assert_allclose(
+            prior_samples,
+            ef.get_e_dp_prior_logitnorm_approx(
+                        alpha, lognorm_means, lognorm_infos, GH_LOC, GH_WEIGHTS),
+            atol = tol3)
 
-        # prior_samples = np.sum((1 - alpha) *
-        #                     np.log(1 - logit_norm_samples), axis = 1)
-        # np_test.assert_allclose(
-        #     np.mean(prior_samples),
-        #     ef.get_e_dp_prior_lognorm_approx(alpha, lognorm_means, lognorm_infos),
-        #     atol = 3 * np.std(prior_samples)/np.sqrt(num_draws))
+        # Was this what you meant when you wanted to check the autodiff?
+        x = np.random.normal(0, 1e6, size = 10)
+        def e_log_v(x):
+            return ef.get_e_log_logitnormal(\
+                        x[0:5], x[5:10], GH_LOC, GH_WEIGHTS)[0]
+
+        e_log_v_jac = jacobian(e_log_v)
+        jac = e_log_v_jac(x)
 
 
 class TestModelingFunctions(unittest.TestCase):

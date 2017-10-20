@@ -117,23 +117,30 @@ def get_e_log_dirichlet(alpha):
     return sp.special.digamma(alpha) - digamma_sum
 
 
-def get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
-                        gh_loc, gh_weights, fun):
-    # compute E(fun(X)) where X is a vector of lognormals defined by parameters
-    # lognorm_means and lognorm_infos
+def get_e_fun_normal(means, infos, gh_loc, gh_weights, fun):
+    # compute E(fun(X)) where X is an array of normals defined by parameters
+    # means and infos, and fun is a function that can evaluate arrays
+    # componentwise
 
-    change_of_vars = np.sqrt(2) * gh_loc[:, None] * \
-                        1/np.sqrt(lognorm_infos[None, :]) + \
-                        lognorm_means[None, :]
+    # gh_loc and g_weights are sample points and weights, respectively,
+    # chosen such that they will correctly integrate p(x) \exp(-x^2) over
+    # (-Inf, Inf), for any polynomial p of degree 2*deg - 1 or less
+
+    assert means.shape == infos.shape
+    draws_axis = means.ndim
+    change_of_vars = np.sqrt(2) * gh_loc * \
+                1/np.sqrt(np.expand_dims(infos, axis = draws_axis)) + \
+                np.expand_dims(means, axis = draws_axis)
+
     integrand = fun(change_of_vars)
 
-    return np.dot(1/np.sqrt(np.pi) * gh_weights, integrand)
+    return np.sum(1/np.sqrt(np.pi) * gh_weights * integrand, axis = draws_axis)
 
 def get_e_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
     # get the expectation of a logit normal distribution
     identity_fun = lambda x : sp.special.expit(x)
 
-    return get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
+    return get_e_fun_normal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, identity_fun)
 
 def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
@@ -150,10 +157,10 @@ def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
     # -np.log(1 + np.exp(-x)) = -Inf, it really just returns -1e16;
     # apparently -Inf * 0.0 is NaN in python.
 
-    e_log_v = get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
+    e_log_v = get_e_fun_normal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, log_v)
 
-    e_log_1mv = get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
+    e_log_1mv = get_e_fun_normal(lognorm_means, lognorm_infos, \
                             gh_loc, gh_weights, log_1mv)
 
     return e_log_v, e_log_1mv
@@ -194,10 +201,7 @@ def get_e_dp_prior_logitnorm_approx(alpha, lognorm_means, lognorm_infos, \
     # get the expectation of the dp prior with a logit normal approximation
     # for the beta sticks
 
-    prior_density = lambda x : (1 - alpha) * np.log(1 - x)
+    e_log_v, e_log_1mv = \
+        get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights)
 
-    # this is our integrand
-    prior_density_sigmoid = lambda x : prior_density(sp.special.expit(x))
-
-    return get_e_fun_logitnormal(lognorm_means, lognorm_infos, \
-                            gh_loc, gh_weights, prior_density_sigmoid)
+    return (alpha - 1) * e_log_1mv
