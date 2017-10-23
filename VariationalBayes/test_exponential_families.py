@@ -2,11 +2,16 @@
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
+from autograd.util import quick_grad_check
 import VariationalBayes.ExponentialFamilies as ef
 import VariationalBayes.Modeling as model
+
 import unittest
 import numpy.testing as np_test
 import scipy as sp
+
+from numpy.polynomial.hermite import hermgauss
+
 
 class TestEntropy(unittest.TestCase):
     def test_uvn_entropy(self):
@@ -102,6 +107,64 @@ class TestMoments(unittest.TestCase):
             np.mean(wishart_log_det_r_draws),
             ef.expected_ljk_prior(lkj_param, df, v),
             atol=moment_tolerance)
+
+    def test_logitnormal_moments(self):
+        # global parameters for computing lognormals
+        gh_loc, gh_weights = hermgauss(4)
+
+        # log normal parameters
+        lognorm_means = np.random.random((5, 3)) # should work for arrays now
+        lognorm_infos = np.random.random((5, 3))**2 + 1
+        alpha = 2 # dp parameter
+
+        # draw samples
+        num_draws = 10**5
+        samples = np.random.normal(lognorm_means,
+                        1/np.sqrt(lognorm_infos), size = (num_draws, 5, 3))
+        logit_norm_samples = sp.special.expit(samples)
+
+        # test lognormal means
+        np_test.assert_allclose(
+            np.mean(logit_norm_samples, axis = 0),
+            ef.get_e_logitnormal(
+                lognorm_means, lognorm_infos, gh_loc, gh_weights),
+            atol = 3 * np.std(logit_norm_samples) / np.sqrt(num_draws))
+
+        # test Elog(x) and Elog(1-x)
+        log_logistic_norm = np.mean(np.log(logit_norm_samples), axis = 0)
+        log_1m_logistic_norm = np.mean(np.log(1 - logit_norm_samples), axis = 0)
+
+        tol1 = 3 * np.std(np.log(logit_norm_samples))/ np.sqrt(num_draws)
+        tol2 = 3 * np.std(np.log(1 - logit_norm_samples))/ np.sqrt(num_draws)
+
+        np_test.assert_allclose(
+            log_logistic_norm,
+            ef.get_e_log_logitnormal(
+                lognorm_means, lognorm_infos, gh_loc, gh_weights)[0],
+            atol = tol1)
+
+        np_test.assert_allclose(
+            log_1m_logistic_norm,
+            ef.get_e_log_logitnormal(
+                        lognorm_means, lognorm_infos, gh_loc, gh_weights)[1],
+            atol = tol2)
+
+        # test prior
+        prior_samples = np.mean((alpha - 1) *
+                            np.log(1 - logit_norm_samples), axis = 0)
+        tol3 = 3 * np.std((alpha - 1) * np.log(1 - logit_norm_samples)) \
+                    /np.sqrt(num_draws)
+        np_test.assert_allclose(
+            prior_samples,
+            ef.get_e_dp_prior_logitnorm_approx(
+                        alpha, lognorm_means, lognorm_infos, gh_loc, gh_weights),
+            atol = tol3)
+
+        x = np.random.normal(0, 1e2, size = 10)
+        def e_log_v(x):
+            return np.sum(ef.get_e_log_logitnormal(\
+                        x[0:5], np.abs(x[5:10]), gh_loc, gh_weights)[0])
+        quick_grad_check(e_log_v, x)
 
 
 class TestModelingFunctions(unittest.TestCase):
