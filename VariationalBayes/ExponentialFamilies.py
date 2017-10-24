@@ -117,6 +117,9 @@ def get_e_log_dirichlet(alpha):
     return sp.special.digamma(alpha) - digamma_sum
 
 
+##########################
+# Numeric integration functions
+
 def get_e_fun_normal(means, infos, gh_loc, gh_weights, fun):
     # compute E(fun(X)) where X is an array of normals defined by parameters
     # means and infos, and fun is a function that can evaluate arrays
@@ -160,6 +163,17 @@ def get_e_log_logitnormal(lognorm_means, lognorm_infos, gh_loc, gh_weights):
                             gh_loc, gh_weights, log_v)
     e_log_1mv = - lognorm_means + e_log_v
     return e_log_v, e_log_1mv
+
+
+##########################
+# Updating from natural parameters
+
+# Return the mean and info for a univarite normal distribution in x where
+# log p(x) = e_term * x + e2_term * x^2 + C
+def get_uvn_from_natural_parameters(e_term, e2_term):
+    x_info = -2.0 * e2_term
+    x_mean = e_term / x_info
+    return x_mean, x_info
 
 
 #############################

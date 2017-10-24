@@ -197,5 +197,35 @@ class TestModelingFunctions(unittest.TestCase):
             atol=test_se)
 
 
+class TestNaturalParameterUpdates(unittest.TestCase):
+    def test_get_uvn_from_natural_parameters(self):
+        true_mean = 1.5
+        true_info = 0.4
+        true_sd = 1 / np.sqrt(true_info)
+        num_draws = 10000
+
+        e_x = true_mean
+        e_x2 = true_mean ** 2 + true_sd ** 2
+
+        draws = np.random.normal(0, 1, num_draws)
+        def get_log_normal_prob(e_x, e_x2):
+            sd = np.sqrt(e_x2 - e_x ** 2)
+            draws_shift = sd * draws + e_x
+            log_pdf = -0.5 * true_info * (draws_shift - true_mean) ** 2
+            return np.mean(log_pdf)
+
+        get_log_normal_prob_grad_1 = \
+            grad(get_log_normal_prob, argnum=0)
+        get_log_normal_prob_grad_2 = \
+            grad(get_log_normal_prob, argnum=1)
+
+        e_x_term = get_log_normal_prob_grad_1(e_x, e_x2)
+        e_x2_term = get_log_normal_prob_grad_2(e_x, e_x2)
+        mean, info = ef.get_uvn_from_natural_parameters(e_x_term, e_x2_term)
+        atol = 3 * true_sd / np.sqrt(num_draws)
+        np_test.assert_allclose(true_mean, mean, atol=atol, err_msg='mean')
+        np_test.assert_allclose(true_info, info, atol=atol, err_msg='info')
+
+
 if __name__ == '__main__':
     unittest.main()
