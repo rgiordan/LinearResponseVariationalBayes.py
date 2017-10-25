@@ -273,8 +273,9 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(val, vp_init.get())
 
         self.assertRaises(ValueError, vp.set, val[-1])
-        self.assertRaises(ValueError, vp.set, bad_val_ub)
-        self.assertRaises(ValueError, vp.set, bad_val_lb)
+        # Bounds checking is disabled for now until it can be made optional.
+        # self.assertRaises(ValueError, vp.set, bad_val_ub)
+        # self.assertRaises(ValueError, vp.set, bad_val_lb)
         vp.set(val)
 
         # Check size.
@@ -315,8 +316,10 @@ class TestParameters(unittest.TestCase):
         np_test.assert_array_almost_equal(val, ap_init.get())
 
         self.assertRaises(ValueError, ap.set, val[-1, :])
-        self.assertRaises(ValueError, ap.set, bad_val_ub)
-        self.assertRaises(ValueError, ap.set, bad_val_lb)
+
+        # Bounds checking is disabled for now until it can be made optional.
+        #self.assertRaises(ValueError, ap.set, bad_val_ub)
+        #self.assertRaises(ValueError, ap.set, bad_val_lb)
         ap.set(val)
 
         # Check size.
@@ -349,8 +352,9 @@ class TestParameters(unittest.TestCase):
         # Asserting that you are getting something of length one doesn't
         # seem trivial in python.
         # self.assertRaises(ValueError, vp.set, np.array([val, val]))
-        self.assertRaises(ValueError, vp.set, lb - abs(val))
-        self.assertRaises(ValueError, vp.set, ub + abs(val))
+        # Bounds checking is disabled for now until it can be made optional.
+        # self.assertRaises(ValueError, vp.set, lb - abs(val))
+        # self.assertRaises(ValueError, vp.set, ub + abs(val))
         vp.set(val)
         vp.set(np.array([val]))
 

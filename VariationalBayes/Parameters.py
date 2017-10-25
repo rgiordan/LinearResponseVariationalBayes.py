@@ -106,17 +106,13 @@ class ScalarParam(object):
             return self.__val.tolist()
 
     def set(self, val):
-        # Asserting that you are getting something of length one doesn't
-        # seem trivial in python.
-        # if not isinstance(val, numbers.Number):
-        #     if len(val) != 1:
-        #         raise ValueError('val must be a number or length-one array.')
-        if val < self.__lb:
-            error_msg = 'val is less than the lower bound: ' + \
-                str(val) + ' <= ' + str(self.__lb)
-            raise ValueError(error_msg)
-        if val > self.__ub:
-            raise ValueError('val is greater than the upper bound.')
+        # TODO: Make checking an option.
+        # if val < self.__lb:
+        #     error_msg = 'val is less than the lower bound: ' + \
+        #         str(val) + ' <= ' + str(self.__lb)
+        #     raise ValueError(error_msg)
+        # if val > self.__ub:
+        #     raise ValueError('val is greater than the upper bound.')
         self.__val = val
     def get(self):
         return self.__val
@@ -177,10 +173,10 @@ class VectorParam(object):
     def set(self, val):
         if val.size != self.size():
             raise ValueError('Wrong size for vector ' + self.name)
-        if (np.array(val < self.__lb)).any():
-            raise ValueError('Value beneath lower bound.')
-        if (np.array(val > self.__ub)).any():
-            raise ValueError('Value above upper bound.')
+        # if (np.array(val < self.__lb)).any():
+        #     raise ValueError('Value beneath lower bound.')
+        # if (np.array(val > self.__ub)).any():
+        #     raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
         return self.__val
@@ -253,10 +249,10 @@ class ArrayParam(object):
             raise ValueError('Wrong size for array ' + self.name + \
                              ' Expected shape: ' + str(self.shape()) + \
                              ' Got shape: ' + str(val.shape))
-        if (np.array(val < self.__lb)).any():
-            raise ValueError('Value beneath lower bound.')
-        if (np.array(val > self.__ub)).any():
-            raise ValueError('Value above upper bound.')
+        # if (np.array(val < self.__lb)).any():
+        #     raise ValueError('Value beneath lower bound.')
+        # if (np.array(val > self.__ub)).any():
+        #     raise ValueError('Value above upper bound.')
         self.__val = val
     def get(self):
         return self.__val
