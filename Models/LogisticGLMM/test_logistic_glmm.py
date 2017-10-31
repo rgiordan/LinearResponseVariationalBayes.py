@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 import VariationalBayes as vb
 import LogisticGLMM_lib as logit_glmm
 import VariationalBayes.SparseObjectives as obj_lib

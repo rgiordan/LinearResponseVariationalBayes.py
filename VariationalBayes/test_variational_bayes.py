@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
