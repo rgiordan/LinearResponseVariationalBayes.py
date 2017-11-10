@@ -5,8 +5,8 @@ from autograd import numpy as np
 import scipy as sp
 import numpy.testing as np_test
 import unittest
-import VariationalBayes as vb
-import VariationalBayes.SparseObjectives as obj_lib
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.SparseObjectives as obj_lib
 
 class Model(object):
     def __init__(self, dim):

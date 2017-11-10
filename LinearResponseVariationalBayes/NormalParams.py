@@ -1,5 +1,5 @@
-import VariationalBayes as vb
-import VariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
 
 from autograd import numpy as np
 

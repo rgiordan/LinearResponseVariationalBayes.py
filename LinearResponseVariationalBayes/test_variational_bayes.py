@@ -6,25 +6,25 @@ from autograd.util import quick_grad_check
 import copy
 from itertools import product
 import numpy.testing as np_test
-from VariationalBayes import Parameters
-from VariationalBayes import MatrixParameters
-from VariationalBayes import SimplexParams
-from VariationalBayes.Parameters import \
+from LinearResponseVariationalBayes import Parameters
+from LinearResponseVariationalBayes import MatrixParameters
+from LinearResponseVariationalBayes import SimplexParams
+from LinearResponseVariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
-from VariationalBayes.MatrixParameters import \
+from LinearResponseVariationalBayes.MatrixParameters import \
     PosDefMatrixParam, PosDefMatrixParamVector
-from VariationalBayes import ParameterDictionary as par_dict
-from VariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
+from LinearResponseVariationalBayes import ParameterDictionary as par_dict
+from LinearResponseVariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray, UVNParamArray, UVNMomentParamArray
-from VariationalBayes.GammaParams import GammaParam
-from VariationalBayes.WishartParams import WishartParam
-from VariationalBayes.SimplexParams import SimplexParam
-from VariationalBayes.SimplexParams import \
+from LinearResponseVariationalBayes.GammaParams import GammaParam
+from LinearResponseVariationalBayes.WishartParams import WishartParam
+from LinearResponseVariationalBayes.SimplexParams import SimplexParam
+from LinearResponseVariationalBayes.SimplexParams import \
     constrain_simplex_vector, constrain_hess_from_moment, \
     constrain_grad_from_moment
-from VariationalBayes.DirichletParams import DirichletParamArray
+from LinearResponseVariationalBayes.DirichletParams import DirichletParamArray
 
-from VariationalBayes.ProjectionParams import \
+from LinearResponseVariationalBayes.ProjectionParams import \
     SubspaceVectorParam, get_perpendicular_subspace
 
 import unittest

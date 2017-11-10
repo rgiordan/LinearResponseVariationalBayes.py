@@ -1,5 +1,5 @@
-import VariationalBayes as vb
-import VariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
 
 class GammaParam(vb.ModelParamsDict):
     def __init__(self, name='', min_shape=0.0, min_rate=0.0):

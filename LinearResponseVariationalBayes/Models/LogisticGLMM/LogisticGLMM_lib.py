@@ -1,9 +1,9 @@
 
-import VariationalBayes as vb
-import VariationalBayes.ExponentialFamilies as ef
-import VariationalBayes.Modeling as modeling
-import VariationalBayes.SparseObjectives as obj_lib
-from VariationalBayes.Parameters import convert_vector_to_free_hessian
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes.Modeling as modeling
+import LinearResponseVariationalBayes.SparseObjectives as obj_lib
+from LinearResponseVariationalBayes.Parameters import convert_vector_to_free_hessian
 
 import autograd
 import autograd.numpy as np

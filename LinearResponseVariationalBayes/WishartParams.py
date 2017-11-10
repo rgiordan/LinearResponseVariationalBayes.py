@@ -1,5 +1,5 @@
-import VariationalBayes as vb
-import VariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
 
 import numpy as np
 

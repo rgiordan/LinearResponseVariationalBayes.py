@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
-import VariationalBayes as vb
+import LinearResponseVariationalBayes as vb
 import LogisticGLMM_lib as logit_glmm
-import VariationalBayes.SparseObjectives as obj_lib
+import LinearResponseVariationalBayes.SparseObjectives as obj_lib
 
 import autograd
 import unittest

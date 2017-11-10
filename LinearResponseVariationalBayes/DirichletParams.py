@@ -1,6 +1,6 @@
 
-import VariationalBayes as vb
-import VariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes as vb
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
 
 # TODO: deal with arrays of Dirichlet parameters in ExponentialFamilies
 import autograd.scipy as sp

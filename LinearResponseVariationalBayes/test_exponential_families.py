@@ -3,8 +3,8 @@
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
 from autograd.util import quick_grad_check
-import VariationalBayes.ExponentialFamilies as ef
-import VariationalBayes.Modeling as model
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes.Modeling as model
 
 import unittest
 import numpy.testing as np_test
