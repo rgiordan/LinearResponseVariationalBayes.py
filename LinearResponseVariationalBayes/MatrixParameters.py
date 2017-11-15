@@ -5,7 +5,7 @@ import numbers
 import autograd
 import autograd.numpy as np
 import autograd.scipy as sp
-from autograd.core import primitive
+from autograd.core import primitive, defvjp
 
 import scipy as osp
 from scipy.sparse import coo_matrix
@@ -41,11 +41,14 @@ def unvectorize_ld_matrix(vec):
     return mat
 
 
+#def unvectorize_ld_matrix_vjp(g, ans, vs, gvs, vec):
 def unvectorize_ld_matrix_vjp(g, ans, vs, gvs, vec):
     assert g.shape[0] == g.shape[1]
     return vectorize_ld_matrix(g)
 
-unvectorize_ld_matrix.defvjp(unvectorize_ld_matrix_vjp)
+defvjp(unvectorize_ld_matrix,
+       lambda ans, vec: lambda g: unvectorize_ld_matrix_vjp(g))
+#unvectorize_ld_matrix.defvjp(unvectorize_ld_matrix_vjp)
 
 def exp_matrix_diagonal(mat):
     assert mat.shape[0] == mat.shape[1]
