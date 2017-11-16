@@ -30,6 +30,7 @@ from LinearResponseVariationalBayes.ProjectionParams import \
 
 import unittest
 import scipy as sp
+import warnings
 
 
 # Lower and upper bounds for unit tests.
@@ -47,12 +48,19 @@ def check_sparse_transforms(testcase, param):
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
 
     jac = set_free_and_get_vector_jac(free_param)
-    free_to_vector_jac = param.free_to_vector_jac(free_param)
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "^Output seems independent of input\.$", UserWarning)
+        free_to_vector_jac = param.free_to_vector_jac(free_param)
+
     assert sp.sparse.issparse(free_to_vector_jac)
     np_test.assert_array_almost_equal(
         jac, free_to_vector_jac.toarray())
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore", "^Output seems independent of input\.$", UserWarning)
+        hess = set_free_and_get_vector_hess(free_param)
 
-    hess = set_free_and_get_vector_hess(free_param)
     sp_hess = param.free_to_vector_hess(free_param)
     testcase.assertEqual(len(sp_hess), hess.shape[0])
     for vec_row in range(len(sp_hess)):

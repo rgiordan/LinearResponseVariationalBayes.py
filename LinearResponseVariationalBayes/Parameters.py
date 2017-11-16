@@ -10,6 +10,8 @@ from autograd.core import primitive
 import scipy as osp
 from scipy.sparse import coo_matrix, csr_matrix, block_diag
 
+import warnings
+
 def unconstrain_array(vec, lb, ub):
     if not (vec <= ub).all():
         raise ValueError('Elements larger than the upper bound')
@@ -128,7 +130,10 @@ class ScalarParam(object):
     def free_to_vector_jac(self, free_val):
         return coo_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
-        hess_dense = self.free_to_vector_hess_dense(free_val)
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "^Output seems independent of input\.$", UserWarning)
+            hess_dense = self.free_to_vector_hess_dense(free_val)
         return [ coo_matrix(hess_dense[ind, :, :])
                  for ind in range(hess_dense.shape[0]) ]
 
@@ -199,7 +204,11 @@ class VectorParam(object):
                           (self.vector_size(), self.free_size()))
     def free_to_vector_hess(self, free_val):
         def get_ind_hess(vec_ind):
-            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", "^Output seems independent of input\.$", UserWarning)
+                hess = constrain_scalar_hess(
+                    free_val[vec_ind], self.__lb, self.__ub)
             return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
@@ -271,14 +280,22 @@ class ArrayParam(object):
         return self.get_vector()
     def free_to_vector_jac(self, free_val):
         rows_indices = np.array(range(self.vector_size()))
-        grads = [ constrain_scalar_jac(free_val[vec_ind], self.__lb, self.__ub) \
-                  for vec_ind in range(self.vector_size()) ]
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore", "^Output seems independent of input\.$", UserWarning)
+            grads = [ constrain_scalar_jac(
+                        free_val[vec_ind], self.__lb, self.__ub) \
+                      for vec_ind in range(self.vector_size()) ]
         return coo_matrix((grads,
                           (rows_indices, rows_indices)),
                           (self.vector_size(), self.free_size()))
     def free_to_vector_hess(self, free_val):
         def get_ind_hess(vec_ind):
-            hess = constrain_scalar_hess(free_val[vec_ind], self.__lb, self.__ub)
+            with warnings.catch_warnings():
+                warnings.filterwarnings(
+                    "ignore", "Output seems independent of input.", UserWarning)
+                hess = constrain_scalar_hess(
+                    free_val[vec_ind], self.__lb, self.__ub)
             return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
