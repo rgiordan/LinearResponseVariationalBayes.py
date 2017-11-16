@@ -41,14 +41,13 @@ def unvectorize_ld_matrix(vec):
     return mat
 
 
-#def unvectorize_ld_matrix_vjp(g, ans, vs, gvs, vec):
-def unvectorize_ld_matrix_vjp(g, ans, vs, gvs, vec):
+def unvectorize_ld_matrix_vjp(g):
     assert g.shape[0] == g.shape[1]
     return vectorize_ld_matrix(g)
 
 defvjp(unvectorize_ld_matrix,
        lambda ans, vec: lambda g: unvectorize_ld_matrix_vjp(g))
-#unvectorize_ld_matrix.defvjp(unvectorize_ld_matrix_vjp)
+
 
 def exp_matrix_diagonal(mat):
     assert mat.shape[0] == mat.shape[1]
@@ -150,8 +149,8 @@ class PosDefMatrixParam(object):
         return coo_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
         hess_dense = self.free_to_vector_hess_dense(free_val)
-        return np.array([ coo_matrix(hess_dense[ind, :, :])
-                          for  ind in range(hess_dense.shape[0]) ])
+        return [ coo_matrix(hess_dense[ind, :, :])
+                 for ind in range(hess_dense.shape[0]) ]
 
     def set_vector(self, vec_val):
         if vec_val.size != self.__vec_size:

@@ -129,8 +129,8 @@ class ScalarParam(object):
         return coo_matrix(self.free_to_vector_jac_dense(free_val))
     def free_to_vector_hess(self, free_val):
         hess_dense = self.free_to_vector_hess_dense(free_val)
-        return np.array([ coo_matrix(hess_dense[ind, :, :])
-                          for  ind in range(hess_dense.shape[0]) ])
+        return [ coo_matrix(hess_dense[ind, :, :])
+                 for ind in range(hess_dense.shape[0]) ]
 
     def set_vector(self, val):
         self.set(val)
@@ -203,8 +203,8 @@ class VectorParam(object):
             return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
-        return np.array([ get_ind_hess(vec_ind)
-                          for vec_ind in range(self.vector_size()) ])
+        return [ get_ind_hess(vec_ind)
+                 for vec_ind in range(self.vector_size()) ]
 
 
     def set_vector(self, val):
@@ -282,8 +282,8 @@ class ArrayParam(object):
             return coo_matrix(([ hess ],
                                ([vec_ind], [vec_ind])),
                                (self.free_size(), self.vector_size()))
-        return np.array([ get_ind_hess(vec_ind)
-                          for vec_ind in range(self.vector_size()) ])
+        return \
+            [ get_ind_hess(vec_ind) for vec_ind in range(self.vector_size()) ]
 
     def set_vector(self, val):
         if val.size != self.vector_size():
@@ -351,11 +351,13 @@ def offset_sparse_matrix(spmat, offset_shape, full_shape):
 # return the amount by which to increment the offset in the free vector.
 def free_to_vector_hess_offset(
     param, free_vec, hessians, free_offset, full_shape):
+
     free_slice = slice(free_offset, free_offset + param.free_size())
     hess = param.free_to_vector_hess(free_vec[free_slice])
     for vec_ind in range(len(hess)):
+        hess_ind = hess[vec_ind]
         hessians.append(offset_sparse_matrix(
-            hess[vec_ind], (free_offset, free_offset), full_shape))
+            hess_ind, (free_offset, free_offset), full_shape))
     return free_offset + param.free_size()
 
 
@@ -376,8 +378,9 @@ def free_to_vector_hess_offset(
 def convert_vector_to_free_hessian(param, free_val, vector_grad, vector_hess):
     #free_hess = csr_matrix((param.free_size(), param.free_size()))
 
-    param.set_free(free_val)
+    param.set_free(copy.deepcopy(free_val))
     free_to_vec_jacobian = param.free_to_vector_jac(free_val)
+    param.set_free(copy.deepcopy(free_val))
     free_to_vec_hessian = param.free_to_vector_hess(free_val)
 
     # Accumulate the third order terms, which are sparse.  Use the fact

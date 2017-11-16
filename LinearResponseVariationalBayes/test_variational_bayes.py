@@ -2,7 +2,8 @@
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
-from autograd.util import quick_grad_check
+from autograd.test_util import check_grads
+
 import copy
 from itertools import product
 import numpy.testing as np_test
@@ -37,7 +38,7 @@ ubs = [ 0., -1., 2.1, float("inf")]
 
 def check_sparse_transforms(testcase, param):
 
-    free_param = param.get_free()
+    free_param = np.random.random(param.free_size())
     def set_free_and_get_vector(free_param):
         param.set_free(free_param)
         return param.get_vector()
@@ -46,15 +47,19 @@ def check_sparse_transforms(testcase, param):
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
 
     jac = set_free_and_get_vector_jac(free_param)
+    free_to_vector_jac = param.free_to_vector_jac(free_param)
+    assert sp.sparse.issparse(free_to_vector_jac)
     np_test.assert_array_almost_equal(
-        jac, param.free_to_vector_jac(free_param).toarray())
+        jac, free_to_vector_jac.toarray())
 
     hess = set_free_and_get_vector_hess(free_param)
     sp_hess = param.free_to_vector_hess(free_param)
     testcase.assertEqual(len(sp_hess), hess.shape[0])
     for vec_row in range(len(sp_hess)):
+        sp_hess_row = sp_hess[vec_row]
+        assert sp.sparse.issparse(sp_hess_row)
         np_test.assert_array_almost_equal(
-            hess[vec_row, :, :], sp_hess[vec_row].toarray())
+            hess[vec_row, :, :], sp_hess_row.toarray())
 
 
 def execute_required_methods(
@@ -583,9 +588,9 @@ class TestDifferentiation(unittest.TestCase):
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
 
-        # To take advantage of quick_grad_check(), define scalar functions of
-        # each parameter.  It would be nice to have an easy-to-use test for
-        # Jacobians.
+        # To take advantage of the old quick_grad_check(), define scalar
+        # functions of each parameter.  It would be nice to have an easy-to-use
+        # test for Jacobians.
         def ScalarFun(val_free):
             vp_scalar_ad = copy.deepcopy(vp_scalar)
             vp_scalar_ad.set_free(val_free)
@@ -608,11 +613,12 @@ class TestDifferentiation(unittest.TestCase):
                    np.linalg.norm(mp_ad['vector'].get()) + \
                    np.linalg.norm(mp_ad['matrix'].get())
 
-
-        quick_grad_check(ScalarFun, vp_scalar.get_free())
-        quick_grad_check(VecFun, vp_vec.get_free())
-        quick_grad_check(MatFun, vp_mat.get_free())
-        quick_grad_check(ParamsFun, mp.get_free())
+        # TODO: you could probably use the new functionality of check_grads
+        # to do this more easily.
+        check_grads(ScalarFun, modes=['rev'], order=2)(vp_scalar.get_free())
+        check_grads(VecFun, modes=['rev'], order=2)(vp_vec.get_free())
+        check_grads(MatFun, modes=['rev'], order=2)(vp_mat.get_free())
+        check_grads(ParamsFun, modes=['rev'], order=2)(mp.get_free())
 
     def test_vector_grads(self):
         k = 2
@@ -636,9 +642,9 @@ class TestDifferentiation(unittest.TestCase):
         mp.push_param(vp_vec)
         mp.push_param(vp_mat)
 
-        # To take advantage of quick_grad_check(), define scalar functions of
-        # each parameter.  It would be nice to have an easy-to-use test for
-        # Jacobians.
+        # To take advantage of the old quick_grad_check(), define scalar
+        # functions of each parameter.  It would be nice to have an easy-to-use
+        # test for Jacobians.
         def ScalarFun(val_vec):
             vp_scalar_ad = copy.deepcopy(vp_scalar)
             vp_scalar_ad.set_vector(val_vec)
@@ -661,10 +667,24 @@ class TestDifferentiation(unittest.TestCase):
                    np.linalg.norm(mp_ad['vector'].get()) + \
                    np.linalg.norm(mp_ad['matrix'].get())
 
-        quick_grad_check(ScalarFun, vp_scalar.get_vector())
-        quick_grad_check(VecFun, vp_vec.get_vector())
-        quick_grad_check(MatFun, vp_mat.get_vector())
-        quick_grad_check(ParamsFun, mp.get_vector())
+        # TODO: you could probably use the new functionality of check_grads
+        # to do this more easily.
+
+        par_vec = vp_scalar.get_vector()
+        par_vec = np.array([ float(x) for x in par_vec ])
+#        check_grads(ScalarFun)(par_vec)
+
+        par_vec = vp_vec.get_vector()
+        par_vec = np.array([ float(x) for x in par_vec ])
+#        check_grads(VecFun)(par_vec)
+
+        par_vec = vp_mat.get_vector()
+        par_vec = np.array([ float(x) for x in par_vec ])
+#        check_grads(MatFun, par_vec)
+
+        par_vec = mp.get_vector()
+        par_vec = np.array([ float(x) for x in par_vec ])
+#        check_grads(ParamsFun)(par_vec)
 
     def test_LDMatrixParamDerivatives(self):
         # Test the LD matrix extra carefully since we define our own
@@ -765,6 +785,7 @@ class TestDifferentiation(unittest.TestCase):
         vec_hess_model = model_wrap_vec_hess(mp_vec, mp)
         free_hess_model = model_wrap_free_hess(free_vec, mp)
 
+        mp.set_free(free_vec)
         free_hess_sparse = Parameters.convert_vector_to_free_hessian(
             mp, free_vec, vec_jac_model, vec_hess_model)
 

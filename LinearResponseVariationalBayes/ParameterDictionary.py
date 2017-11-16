@@ -78,7 +78,7 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             free_offset = free_to_vector_hess_offset(
                 param, free_val, hessians, free_offset, full_shape)
-        return np.array(hessians)
+        return hessians
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size:
