@@ -7,9 +7,9 @@ import autograd.scipy as sp
 from autograd.core import primitive
 
 from collections import OrderedDict
-from VariationalBayes import Parameters as par
+from LinearResponseVariationalBayes import Parameters as par
 
-from VariationalBayes.Parameters import \
+from LinearResponseVariationalBayes.Parameters import \
     free_to_vector_jac_offset, free_to_vector_hess_offset
 
 from scipy.sparse import block_diag
@@ -78,7 +78,7 @@ class ModelParamsDict(object):
         for param in self.param_dict.values():
             free_offset = free_to_vector_hess_offset(
                 param, free_val, hessians, free_offset, full_shape)
-        return np.array(hessians)
+        return hessians
 
     def set_vector(self, vec):
         if vec.size != self.__vector_size:

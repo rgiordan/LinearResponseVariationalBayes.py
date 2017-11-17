@@ -1,7 +1,10 @@
 # LinearResponseVariationalBayes.py
 
 This is a library (very much still in development) intended to make
-sensitivity analysis easier for optimization problems, particularly
-variational approximations.
+sensitivity analysis and optimization easier for
+variational approximations, though it may be useful in more generality.
 
-See ```Example.ipynb``` for a description an example usage.
+You should be able to install the package with the command
+```pip install LinearResponseVariationalBayes```.
+
+See ```Example.ipynb``` for a description and example usage.

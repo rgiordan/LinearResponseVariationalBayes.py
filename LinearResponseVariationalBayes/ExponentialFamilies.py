@@ -3,12 +3,12 @@ import autograd.scipy as sp
 import math
 
 def multivariate_digamma(x, size):
-    x_vec = x - 0.5 * np.linspace(0, size - 1., size)
+    x_vec = x - 0.5 * np.linspace(0, size - 1., int(size))
     return np.sum(sp.special.digamma(x_vec))
 
 
 def multivariate_gammaln(x, size):
-    x_vec = x - 0.5 * np.linspace(0, size - 1., size)
+    x_vec = x - 0.5 * np.linspace(0, size - 1., int(size))
     return np.sum(sp.special.gammaln(x_vec)) + \
            0.25 * np.log(np.pi) * size * (size - 1.0);
 

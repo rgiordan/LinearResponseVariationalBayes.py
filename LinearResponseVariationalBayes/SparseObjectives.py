@@ -1,7 +1,7 @@
-import VariationalBayes as vb
-from VariationalBayes.Parameters import \
+import LinearResponseVariationalBayes as vb
+from LinearResponseVariationalBayes.Parameters import \
     convert_vector_to_free_hessian
-from VariationalBayes import ModelParamsDict
+from LinearResponseVariationalBayes import ModelParamsDict
 import autograd
 import autograd.numpy as np
 #import autograd.scipy as sp

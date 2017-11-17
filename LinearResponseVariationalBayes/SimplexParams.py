@@ -1,4 +1,4 @@
-import VariationalBayes as vb
+import LinearResponseVariationalBayes as vb
 
 import autograd
 import autograd.numpy as np

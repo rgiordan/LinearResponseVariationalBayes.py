@@ -83,8 +83,8 @@ class SubspaceVectorParam(object):
     def free_to_vector_jac(self, free_val):
         return coo_matrix(self.__proj_basis)
     def free_to_vector_hess(self, free_val):
-        return np.array([ coo_matrix((self.__free_dim, self.__free_dim))
-                          for vec_ind in range(self.vector_size()) ])
+        return [ coo_matrix((self.__free_dim, self.__free_dim))
+                 for vec_ind in range(self.vector_size()) ]
 
 
     def set_vector(self, val):

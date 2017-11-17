@@ -2,9 +2,9 @@
 
 import autograd.numpy as np
 from autograd import grad, jacobian, hessian
-from autograd.util import quick_grad_check
-import VariationalBayes.ExponentialFamilies as ef
-import VariationalBayes.Modeling as model
+from autograd.test_util import check_grads
+import LinearResponseVariationalBayes.ExponentialFamilies as ef
+import LinearResponseVariationalBayes.Modeling as model
 
 import unittest
 import numpy.testing as np_test
@@ -164,7 +164,7 @@ class TestMoments(unittest.TestCase):
         def e_log_v(x):
             return np.sum(ef.get_e_log_logitnormal(\
                         x[0:5], np.abs(x[5:10]), gh_loc, gh_weights)[0])
-        quick_grad_check(e_log_v, x)
+        check_grads(e_log_v, order=2)(x)
 
 
 class TestModelingFunctions(unittest.TestCase):
