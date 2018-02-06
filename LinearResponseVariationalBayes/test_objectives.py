@@ -7,6 +7,8 @@ import numpy.testing as np_test
 import unittest
 import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
+import LinearResponseVariationalBayes.ConjugateGradient as cg
+
 
 class Model(object):
     def __init__(self, dim):
@@ -231,6 +233,51 @@ class TestIndexParams(unittest.TestCase):
                 self.assertAlmostEqual(
                     param[pname].get()[d],
                     param_vec[index_par[pname].get()[d]])
+
+
+class TestConjugateGradient(unittest.TestCase):
+    def test_masking(self):
+        masks = cg.get_masks(20, 3)
+        self.assertTrue(np.max([ np.sum(m) for m in masks]) <= 3)
+        all_m = np.full(20, False)
+        no_m = np.full(20, True)
+        for m in masks:
+            all_m = np.logical_or(all_m, m)
+            no_m = np.logical_xor(no_m, m)
+        self.assertTrue(np.all(all_m))
+        self.assertTrue(~np.any(no_m))
+
+    def test_cg(self):
+        K = 50
+        mat = np.random.random((K, K))
+        mat = 0.5 * (mat + mat.transpose()) + 10 * np.eye(K)
+        loc = np.array([float(k) / 7. for k in range(K)])
+        def ObjPar(par, mat, loc):
+            diff = par - loc
+            return np.dot(diff, np.matmul(mat, diff))
+
+        x = loc + 0.1 * np.random.rand(K)
+
+        ObjPar(x, mat, loc)
+        Obj = lambda x: ObjPar(x, mat, loc)
+        ObjHess = autograd.hessian(Obj)
+        ObjHessVecProd = autograd.hessian_vector_product(Obj)
+
+        masks = cg.get_masks(K, 10)
+        cg_solver = cg.ConjugateGradientSolver(ObjHessVecProd, loc)
+        cg_solver.get_hinv_vec_subsets(x, masks, verbose=False)
+
+        hess = ObjHess(loc)
+        cho_factor = sp.linalg.cho_factor(hess)
+
+        chol_hinv_vecs = []
+        for vec in cg_solver.vecs:
+            hinv_vec = sp.linalg.cho_solve(cho_factor, vec)
+            chol_hinv_vecs.append(hinv_vec)
+
+        diffs = [ np.max(np.abs(cg_solver.hinv_vecs[ind] -
+                         chol_hinv_vecs[ind])) for ind in range(len(masks))]
+        self.assertTrue(np.max(diffs) < 1e-8)
 
 
 if __name__ == '__main__':
