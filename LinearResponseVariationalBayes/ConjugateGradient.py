@@ -44,6 +44,7 @@ def recursive_split(mask, results=[], terminate_len=10):
         
         
 def get_masks(full_len, min_mask_len):
+    assert(min_mask_len > 0)
     assert(min_mask_len < full_len)
     masks = []
     ind = 0
@@ -65,7 +66,7 @@ class ConjugateGradientSolver(object):
         self.ObjHessVecProdLO = \
             LinearOperator((self.dim, self.dim),
             lambda vec: eval_hessian_vector_product(x0, vec))
-            
+        self.x0 = x0
         self.preconditioner = None
         self.tol = 1e-8
         self.initialize()
