@@ -13,7 +13,7 @@ from LinearResponseVariationalBayes import SimplexParams
 from LinearResponseVariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 from LinearResponseVariationalBayes.MatrixParameters import \
-    PosDefMatrixParam, PosDefMatrixParamVector
+    PosDefMatrixParam, PosDefMatrixParamVector, PosDefMatrixParamArray
 from LinearResponseVariationalBayes import ParameterDictionary as par_dict
 from LinearResponseVariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray, UVNParamArray, UVNMomentParamArray
@@ -118,11 +118,19 @@ class TestParameterMethods(unittest.TestCase):
                 test_autograd=True, test_sparse_transform=True)
     def test_pos_def_matrix_vector(self):
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
-        single_mat = np.expand_dims(single_mat, 0)
-        mat = np.tile(single_mat, (2, 1, 1))
+        mat = np.tile(single_mat, (2, 1, 1)) * np.random.random((2, 1, 1))
         execute_required_methods(self,
             PosDefMatrixParamVector(
                 val=mat, length=mat.shape[0], matrix_size=2),
+            test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix_array(self):
+        array_shape = (3, 4)
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        mat = np.tile(single_mat, array_shape + (1, 1)) * \
+            np.random.random(array_shape + (1, 1))
+        execute_required_methods(self,
+            PosDefMatrixParamArray(
+                val=mat, array_shape=array_shape, matrix_size=2),
             test_autograd=True, test_sparse_transform=True)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
