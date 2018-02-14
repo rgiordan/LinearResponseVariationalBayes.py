@@ -211,13 +211,16 @@ class PosDefMatrixParamVector(object):
             np.array([ unpack_posdef_matrix(
                 free_val[self.free_obs_slice(obs)], diag_lb=self.__diag_lb) \
               for obs in range(self.__length) ])
+
     def get_free(self):
-        return np.hstack([ \
-            pack_posdef_matrix(self.__val[obs, :, :], diag_lb=self.__diag_lb) \
-                          for obs in range(self.__length)])
+        return np.hstack([ pack_posdef_matrix(
+            self.__val[obs, :, :], diag_lb=self.__diag_lb) \
+            for obs in range(self.__length)])
+
     def free_to_vector(self, free_val):
         self.set_free(free_val)
         return self.get_vector()
+
     def free_to_vector_jac(self, free_val):
         jac_rows = []
         jac_cols = []
@@ -341,13 +344,12 @@ class PosDefMatrixParamArray(object):
                 free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb) \
               for obs in itertools.product(*self.__array_ranges) ],
               self.__shape)
-        #print('set free ', new_val)
         self.__val = new_val
 
     def get_free(self):
         return np.hstack([ \
             pack_posdef_matrix(self.__val[obs], diag_lb=self.__diag_lb) \
-                           for obs in itertools.product(*self.__array_ranges)])
+                    for obs in itertools.product(*self.__array_ranges)])
 
     def set_vector(self, vec_val):
         if len(vec_val) != self.vector_size():

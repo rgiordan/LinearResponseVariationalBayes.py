@@ -43,10 +43,11 @@ def check_sparse_transforms(testcase, param):
     def set_free_and_get_vector(free_param):
         param.set_free(free_param)
         param_vec = param.get_vector() 
-        print(param_vec.shape)
-        ret_val = param_vec[0:1]
-        print(ret_val.shape)
-        return ret_val
+        # print(param_vec.shape)
+        # ret_val = param_vec[0:1]
+        # print(ret_val.shape)
+        # return ret_val
+        return param_vec
 
     set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
@@ -137,10 +138,10 @@ class TestParameterMethods(unittest.TestCase):
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
         mat = np.tile(single_mat, array_shape + (1, 1)) * \
             np.random.random(array_shape + (1, 1))
-        # execute_required_methods(self,
-        #     PosDefMatrixParamArray(
-        #         val=mat, array_shape=array_shape, matrix_size=2),
-        #     test_autograd=True, test_sparse_transform=True)
+        execute_required_methods(self,
+            PosDefMatrixParamArray(
+                val=mat, array_shape=array_shape, matrix_size=2),
+            test_autograd=True, test_sparse_transform=True)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
             test_autograd=True, test_sparse_transform=True)
