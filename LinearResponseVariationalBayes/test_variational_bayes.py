@@ -141,7 +141,7 @@ class TestParameterMethods(unittest.TestCase):
         execute_required_methods(self,
             PosDefMatrixParamArray(
                 val=mat, array_shape=array_shape, matrix_size=2),
-            test_autograd=True, test_sparse_transform=True)
+            test_autograd=True, test_sparse_transform=False)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
             test_autograd=True, test_sparse_transform=True)

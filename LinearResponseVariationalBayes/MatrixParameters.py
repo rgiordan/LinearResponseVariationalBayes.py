@@ -340,24 +340,24 @@ class PosDefMatrixParamArray(object):
         if free_val.size != self.free_size():
             raise ValueError('Free value is the wrong length')
         new_val = \
-            np.reshape([ unpack_posdef_matrix(
+            np.reshape(np.array([ unpack_posdef_matrix(
                 free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb) \
-              for obs in itertools.product(*self.__array_ranges) ],
+              for obs in itertools.product(*self.__array_ranges) ]),
               self.__shape)
         self.__val = new_val
 
     def get_free(self):
-        return np.hstack([ \
+        return np.hstack(np.array([ \
             pack_posdef_matrix(self.__val[obs], diag_lb=self.__diag_lb) \
-                    for obs in itertools.product(*self.__array_ranges)])
+                    for obs in itertools.product(*self.__array_ranges)]))
 
     def set_vector(self, vec_val):
         if len(vec_val) != self.vector_size():
             raise ValueError('Vector value is the wrong length')
         self.__val = \
-            np.reshape([ unvectorize_symmetric_matrix(
+            np.reshape(np.array([ unvectorize_symmetric_matrix(
                 vec_val[self.stacked_obs_slice(obs)]) \
-              for obs in itertools.product(*self.__array_ranges) ],
+              for obs in itertools.product(*self.__array_ranges) ]),
               self.__shape)
 
     def get_vector(self):
