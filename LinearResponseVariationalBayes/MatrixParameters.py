@@ -336,13 +336,14 @@ class PosDefMatrixParamArray(object):
         print('Shape before set free: ', self.__val.shape)
         if free_val.size != self.free_size():
             raise ValueError('Free value is the wrong length')
-        for obs in itertools.product(*self.__array_ranges):
-            self.__val[obs] = unpack_posdef_matrix(
-                free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb)
-        # self.__val = \
-        #     np.array([ unpack_posdef_matrix(
-        #         free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb) \
-        #       for obs in itertools.product(*self.__array_ranges) ])
+        # for obs in itertools.product(*self.__array_ranges):
+        #     self.__val[obs] = unpack_posdef_matrix(
+        #         free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb)
+        self.__val = \
+            np.reshape([ unpack_posdef_matrix(
+                free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb) \
+              for obs in itertools.product(*self.__array_ranges) ],
+              self.__shape)
         print('Shape after set free: ', self.__val.shape)
 
     def get_free(self):
@@ -370,12 +371,14 @@ class PosDefMatrixParamArray(object):
         vec_rows = range(self.__vec_size)
         # This is the shape of an array of the same size as self.__array_size
         # of packed vectors.  We'll use it to pick out
-        #packed_shape = self.__array_size + (self.__vec_size,)
+        packed_shape = self.__array_shape + (self.__vec_size,)
 
         for obs in itertools.product(*self.__array_ranges):
-        #for row in range(self.__length):
-            #vec_inds = np.ravel_multi_index([[row], vec_rows], packed_shape)
-            vec_inds = self.stacked_obs_slice(obs)
+        # for row in range(self.__length):
+            # This seems like a convoluted expression, but it is what
+            # is required by ravel_multi_index.
+            array_inds = tuple([ [t] for t in obs]) + (vec_rows,)
+            vec_inds = np.ravel_multi_index(array_inds, packed_shape)
             row_jac = pos_def_matrix_free_to_vector_jac(free_val[vec_inds])
             for vec_row in vec_rows:
                 for free_row in vec_rows:
