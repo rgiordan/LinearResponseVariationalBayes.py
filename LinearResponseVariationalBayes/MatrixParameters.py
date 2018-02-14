@@ -320,6 +320,7 @@ class PosDefMatrixParamArray(object):
             print(self.__shape)
             raise ValueError('Array is the wrong size')
         self.__val = val
+
     def get(self):
         return self.__val
 
@@ -333,32 +334,36 @@ class PosDefMatrixParamArray(object):
         return slice(linear_obs, linear_obs + self.__vec_size)
 
     def set_free(self, free_val):
-        print('Shape before set free: ', self.__val.shape)
         if free_val.size != self.free_size():
             raise ValueError('Free value is the wrong length')
-        # for obs in itertools.product(*self.__array_ranges):
-        #     self.__val[obs] = unpack_posdef_matrix(
-        #         free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb)
-        self.__val = \
+        new_val = \
             np.reshape([ unpack_posdef_matrix(
                 free_val[self.stacked_obs_slice(obs)], diag_lb=self.__diag_lb) \
               for obs in itertools.product(*self.__array_ranges) ],
               self.__shape)
-        print('Shape after set free: ', self.__val.shape)
+        #print('set free ', new_val)
+        self.__val = new_val
 
     def get_free(self):
-        # result = []
-        # for obs in itertools.product(*self.__array_ranges):
-        #     print(obs)
-        #     print(self.__val.shape)
-        #     print(self.__val[obs])
-        #     result.append(pack_posdef_matrix(
-        #         self.__val[obs], diag_lb=self.__diag_lb))
-        # return np.hstack(result)
-        print('Shape before get free: ', self.__val.shape)
         return np.hstack([ \
             pack_posdef_matrix(self.__val[obs], diag_lb=self.__diag_lb) \
                            for obs in itertools.product(*self.__array_ranges)])
+
+    def set_vector(self, vec_val):
+        if len(vec_val) != self.vector_size():
+            raise ValueError('Vector value is the wrong length')
+        self.__val = \
+            np.reshape([ unvectorize_symmetric_matrix(
+                vec_val[self.stacked_obs_slice(obs)]) \
+              for obs in itertools.product(*self.__array_ranges) ],
+              self.__shape)
+
+    def get_vector(self):
+        vec_val = np.hstack([ vectorize_ld_matrix(
+            self.__val[obs]) \
+            for obs in itertools.product(*self.__array_ranges) ])
+        #print('get vector ', vec_val)
+        return vec_val
 
     def free_to_vector(self, free_val):
         self.set_free(free_val)
@@ -374,7 +379,6 @@ class PosDefMatrixParamArray(object):
         packed_shape = self.__array_shape + (self.__vec_size,)
 
         for obs in itertools.product(*self.__array_ranges):
-        # for row in range(self.__length):
             # This seems like a convoluted expression, but it is what
             # is required by ravel_multi_index.
             array_inds = tuple([ [t] for t in obs]) + (vec_rows,)
@@ -417,30 +421,6 @@ class PosDefMatrixParamArray(object):
                     coo_matrix((hess_vals, (hess_rows, hess_cols)), hess_shape))
 
         return hessians
-
-    def set_vector(self, vec_val):
-        if len(vec_val) != self.vector_size():
-            raise ValueError('Vector value is the wrong length')
-        print('Shape before set: ', self.__val.shape)
-        for obs in itertools.product(*self.__array_ranges):
-            self.__val[obs] = unvectorize_symmetric_matrix(
-                vec_val[self.stacked_obs_slice(obs)])
-        print('Shape after set: ', self.__val.shape)
-        # self.__val = \
-        #     np.array([
-        #       unvectorize_symmetric_matrix(vec_val[self.stacked_obs_slice(obs)]) \
-        #       for obs in itertools.product(*self.__array_ranges) ])
-
-    def get_vector(self):
-        # print('Shape before get: ', self.__val.shape)
-        # for obs in itertools.product(*self.__array_ranges):
-        #     print(obs)
-        #     print(self.__val[obs])
-        #     print(self.__val.shape)
-        # 
-        #     vectorize_ld_matrix(self.__val[obs, :])
-        return np.hstack([ vectorize_ld_matrix(self.__val[obs]) \
-                           for obs in itertools.product(*self.__array_ranges) ])
 
     def length(self):
         return self.__length
