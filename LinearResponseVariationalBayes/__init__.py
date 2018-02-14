@@ -4,7 +4,7 @@ from LinearResponseVariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 
 from LinearResponseVariationalBayes.MatrixParameters import \
-    PosDefMatrixParam, PosDefMatrixParamVector
+    PosDefMatrixParam, PosDefMatrixParamVector, PosDefMatrixParamArray
 
 from LinearResponseVariationalBayes.ProjectionParams import \
     SubspaceVectorParam

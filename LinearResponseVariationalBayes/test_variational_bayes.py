@@ -13,7 +13,7 @@ from LinearResponseVariationalBayes import SimplexParams
 from LinearResponseVariationalBayes.Parameters import \
     ScalarParam, VectorParam, ArrayParam
 from LinearResponseVariationalBayes.MatrixParameters import \
-    PosDefMatrixParam, PosDefMatrixParamVector
+    PosDefMatrixParam, PosDefMatrixParamVector, PosDefMatrixParamArray
 from LinearResponseVariationalBayes import ParameterDictionary as par_dict
 from LinearResponseVariationalBayes.NormalParams import MVNParam, UVNParam, UVNParamVector, \
                             MVNArray, UVNParamArray, UVNMomentParamArray
@@ -38,11 +38,11 @@ lbs = [ 0., -2., 1.2, -float("inf")]
 ubs = [ 0., -1., 2.1, float("inf")]
 
 def check_sparse_transforms(testcase, param):
-
+    np.random.seed(42)
     free_param = np.random.random(param.free_size())
     def set_free_and_get_vector(free_param):
         param.set_free(free_param)
-        return param.get_vector()
+        return param.get_vector() 
 
     set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
@@ -96,7 +96,11 @@ def execute_required_methods(
 
         param_value_jacobian = jacobian(set_free_and_get)
         jac = param_value_jacobian(free_param)
+        testcase.assertTrue(np.max(np.abs(jac)) > 0)
+        check_grads(
+            set_free_and_get, modes=['rev'], order=2)(free_param)
 
+    param.set_free(free_param)
     if test_sparse_transform:
         check_sparse_transforms(testcase, param)
 
@@ -118,11 +122,19 @@ class TestParameterMethods(unittest.TestCase):
                 test_autograd=True, test_sparse_transform=True)
     def test_pos_def_matrix_vector(self):
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
-        single_mat = np.expand_dims(single_mat, 0)
-        mat = np.tile(single_mat, (2, 1, 1))
+        mat = np.tile(single_mat, (2, 1, 1)) * np.random.random((2, 1, 1))
         execute_required_methods(self,
             PosDefMatrixParamVector(
                 val=mat, length=mat.shape[0], matrix_size=2),
+            test_autograd=True, test_sparse_transform=True)
+    def test_pos_def_matrix_array(self):
+        array_shape = (2, 1) # If this is large the test Hessian takes too long.
+        single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
+        mat = np.tile(single_mat, array_shape + (1, 1)) * \
+            np.random.random(array_shape + (1, 1))
+        execute_required_methods(self,
+            PosDefMatrixParamArray(
+                val=mat, array_shape=array_shape, matrix_size=2),
             test_autograd=True, test_sparse_transform=True)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
@@ -621,8 +633,6 @@ class TestDifferentiation(unittest.TestCase):
                    np.linalg.norm(mp_ad['vector'].get()) + \
                    np.linalg.norm(mp_ad['matrix'].get())
 
-        # TODO: you could probably use the new functionality of check_grads
-        # to do this more easily.
         check_grads(ScalarFun, modes=['rev'], order=2)(vp_scalar.get_free())
         check_grads(VecFun, modes=['rev'], order=2)(vp_vec.get_free())
         check_grads(MatFun, modes=['rev'], order=2)(vp_mat.get_free())
