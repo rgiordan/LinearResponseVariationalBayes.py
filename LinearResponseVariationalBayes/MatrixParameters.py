@@ -399,13 +399,15 @@ class PosDefMatrixParamArray(object):
     def free_to_vector_hess(self, free_val):
         hessians = []
         vec_rows = range(self.__vec_size)
-        #packed_shape = (self.__length, self.__vec_size)
-        hess_shape = (self.__length * self.__vec_size,
-                      self.__length * self.__vec_size)
+        packed_shape = self.__array_shape + (self.__vec_size,)
+        hess_shape = (self.__array_length * self.__vec_size,
+                      self.__array_length * self.__vec_size)
         for obs in itertools.product(*self.__array_ranges):
         #for row in range(self.__length):
             #vec_inds = np.ravel_multi_index([[row], vec_rows], packed_shape)
-            vec_inds = self.stacked_obs_slice(obs)
+            # vec_inds = self.stacked_obs_slice(obs)
+            array_inds = tuple([ [t] for t in obs]) + (vec_rows,)
+            vec_inds = np.ravel_multi_index(array_inds, packed_shape)
             row_hess = pos_def_matrix_free_to_vector_hess(free_val[vec_inds])
             for vec_row in vec_rows:
                 hess_rows = []

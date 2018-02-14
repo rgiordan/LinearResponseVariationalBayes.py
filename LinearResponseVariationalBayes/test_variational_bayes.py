@@ -42,28 +42,21 @@ def check_sparse_transforms(testcase, param):
     free_param = np.random.random(param.free_size())
     def set_free_and_get_vector(free_param):
         param.set_free(free_param)
-        param_vec = param.get_vector() 
-        # print(param_vec.shape)
-        # ret_val = param_vec[0:1]
-        # print(ret_val.shape)
-        # return ret_val
-        return param_vec
+        return param.get_vector() 
 
     set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
 
     jac = set_free_and_get_vector_jac(free_param)
-    print('jac shape', jac.shape)
-    print('Jac: ', jac)
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", "^Output seems independent of input\.$", UserWarning)
         free_to_vector_jac = param.free_to_vector_jac(free_param)
 
     assert sp.sparse.issparse(free_to_vector_jac)
-    print('expected max: ', np.max(np.abs(jac)))
     np_test.assert_array_almost_equal(
         jac, free_to_vector_jac.toarray())
+    print("Calculating hessian")
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", "^Output seems independent of input\.$", UserWarning)
@@ -134,14 +127,14 @@ class TestParameterMethods(unittest.TestCase):
                 val=mat, length=mat.shape[0], matrix_size=2),
             test_autograd=True, test_sparse_transform=True)
     def test_pos_def_matrix_array(self):
-        array_shape = (3, 4)
+        array_shape = (2, 1) # If this is large the test Hessian takes too long.
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
         mat = np.tile(single_mat, array_shape + (1, 1)) * \
             np.random.random(array_shape + (1, 1))
         execute_required_methods(self,
             PosDefMatrixParamArray(
                 val=mat, array_shape=array_shape, matrix_size=2),
-            test_autograd=True, test_sparse_transform=False)
+            test_autograd=True, test_sparse_transform=True)
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
             test_autograd=True, test_sparse_transform=True)
