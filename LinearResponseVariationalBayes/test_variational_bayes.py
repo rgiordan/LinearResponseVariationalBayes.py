@@ -56,7 +56,6 @@ def check_sparse_transforms(testcase, param):
     assert sp.sparse.issparse(free_to_vector_jac)
     np_test.assert_array_almost_equal(
         jac, free_to_vector_jac.toarray())
-    print("Calculating hessian")
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore", "^Output seems independent of input\.$", UserWarning)
@@ -98,6 +97,8 @@ def execute_required_methods(
         param_value_jacobian = jacobian(set_free_and_get)
         jac = param_value_jacobian(free_param)
         testcase.assertTrue(np.max(np.abs(jac)) > 0)
+        check_grads(
+            set_free_and_get, modes=['rev'], order=2)(free_param)
 
     param.set_free(free_param)
     if test_sparse_transform:
@@ -632,8 +633,6 @@ class TestDifferentiation(unittest.TestCase):
                    np.linalg.norm(mp_ad['vector'].get()) + \
                    np.linalg.norm(mp_ad['matrix'].get())
 
-        # TODO: you could probably use the new functionality of check_grads
-        # to do this more easily.
         check_grads(ScalarFun, modes=['rev'], order=2)(vp_scalar.get_free())
         check_grads(VecFun, modes=['rev'], order=2)(vp_vec.get_free())
         check_grads(MatFun, modes=['rev'], order=2)(vp_mat.get_free())
