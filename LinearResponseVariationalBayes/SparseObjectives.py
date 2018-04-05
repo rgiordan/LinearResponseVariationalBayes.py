@@ -93,13 +93,13 @@ class Objective(object):
         self.par = par
         self.fun = fun
 
-        self.fun_free_grad = autograd.grad(self.fun_free)
-        self.fun_free_hessian = autograd.hessian(self.fun_free)
-        self.fun_free_hvp = autograd.hessian_vector_product(self.fun_free)
+        self.ag_fun_free_grad = autograd.grad(self.fun_free)
+        self.ag_fun_free_hessian = autograd.hessian(self.fun_free)
+        self.ag_fun_free_hvp = autograd.hessian_vector_product(self.fun_free)
 
-        self.fun_vector_grad = autograd.grad(self.fun_vector)
-        self.fun_vector_hessian = autograd.hessian(self.fun_vector)
-        self.fun_vector_hvp = autograd.hessian_vector_product(self.fun_vector)
+        self.ag_fun_vector_grad = autograd.grad(self.fun_vector)
+        self.ag_fun_vector_hessian = autograd.hessian(self.fun_vector)
+        self.ag_fun_vector_hvp = autograd.hessian_vector_product(self.fun_vector)
 
         self.preconditioner = None
         self.logger = Logger()
@@ -114,6 +114,52 @@ class Objective(object):
     def fun_vector(self, vec_val):
         self.par.set_vector(vec_val)
         return self.fun()
+
+    # Autograd wrappers.
+    #
+    # Autograd functions populate parameter objects with ArrayBox types,
+    # which can be inconvenient when calling get() or get_free() after
+    # asking for a gradient, since you almost always want a numeric
+    # value from get() or get_free().
+    #
+    # To get around this problem, the derivative functions in the objective
+    # cache the value of the parameters passed to the function, which
+    # are presumably numeric, and set the parameters to those values
+    # after the autograd function is called.
+
+    def cache_free_and_eval(self, autograd_fun, free_val):
+        result = autograd_fun(free_val)
+        self.par.set_free(free_val)
+        return result
+
+    def cache_vector_and_eval(self, autograd_fun, vec_val):
+        result = autograd_fun(vec_val)
+        self.par.set_vector(vec_val)
+        return result
+
+    def fun_free_grad(self, free_val):
+        return self.cache_free_and_eval(self.ag_fun_free_grad, free_val)
+
+    def fun_free_hessian(self, free_val):
+        return self.cache_free_and_eval(self.ag_fun_free_hessian, free_val)
+
+    def fun_vector_grad(self, vec_val):
+        return self.cache_vector_and_eval(self.ag_fun_vector_grad, vec_val)
+
+    def fun_vector_hessian(self, vec_val):
+        return self.cache_vector_and_eval(self.ag_fun_vector_hessian, vec_val)
+
+    # Have to treat these separately for the additional argument.  :(
+    def fun_free_hvp(self, free_val, vec):
+        result = self.ag_fun_free_hvp(free_val, vec)
+        self.par.set_free(free_val)
+        return result
+
+    def fun_vector_hvp(self, vec_val, vec):
+        result = self.ag_fun_vector_hvp(vec_val, vec)
+        self.par.set_vector(vec_val)
+        return result
+
 
     # Pre-conditioned versions of the free functions.  The value at which
     # they are evaluted is assumed to include the preconditioner, i.e.

@@ -15,8 +15,6 @@ class Model(object):
         self.dim = dim
         self.x = vb.VectorParam('x', size=dim, lb=-2.0, ub=5.0)
         self.y = vb.VectorParam('y', size=dim, lb=-2.0, ub=5.0)
-        # self.x = vb.VectorParam('x', size=dim)
-        # self.y = vb.VectorParam('y', size=dim)
         self.a_mat = np.full((dim, dim), 0.1) + np.eye(dim)
         self.set_inits()
 
@@ -71,7 +69,7 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             np.matmul(hess, grad), objective.fun_free_hvp(x_free, grad))
 
-        model.set_opt()
+        #model.set_opt()
         self.assertTrue(objective.fun_vector(x_vec) > 0.0)
         grad = objective.fun_vector_grad(x_vec)
         hess = objective.fun_vector_hessian(x_vec)

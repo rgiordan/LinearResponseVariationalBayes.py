@@ -99,7 +99,9 @@ def compute_ridge_regression_update(y, x, info, prior_means, prior_infos):
 
     covar = np.linalg.inv(np.dot(x.T, np.dot(info, x)) + prior_infos)
 
-    return np.dot(covar, np.dot(np.dot(info, x).T, y) + np.dot(prior_infos, prior_means)), covar
+    return \
+        np.dot(covar, np.dot(np.dot(info, x).T, y) + \
+        np.dot(prior_infos, prior_means)), covar
 
 def inf_norm_diff(x, y):
     return np.max(np.abs(x - y))
@@ -159,7 +161,8 @@ class TestRegression(unittest.TestCase):
 
         # check homoskedastic case:
         beta_hom = regression.get_regression_coefficients(y, x, info_hom)
-        assert_zero_grad_regression_objective(beta_hom, y, x, np.eye(N) * info_hom)
+        assert_zero_grad_regression_objective(
+            beta_hom, y, x, np.eye(N) * info_hom)
 
         # check heteroskedastic case:
         beta_het = regression.get_regression_coefficients(y, x, info_het)
