@@ -63,7 +63,7 @@ class TwoParamModel(object):
 
         self.par = vb.ModelParamsDict()
         self.par.push_param(vb.VectorParam('x', size=dim, lb=0))
-        self.par.push_param(vb.VectorParam('y', size=dim))
+        self.par.push_param(vb.VectorParam('y', size=dim, lb=1))
 
     def set_random(self):
         self.par.set_free(np.random.random(self.par.free_size()))
@@ -73,6 +73,12 @@ class TwoParamModel(object):
         y = self.par['y'].get()
         return np.matmul(np.matmul(np.transpose(x), self.a), y)
 
+    def convert_y_to_x(self, x):
+        return x ** 2
+
+    def set_y_from_x(self):
+        # Used for testing the ParameterConverter class.
+        self.par['y'].set_vector(self.y_to_x(self.par['x'].get_vector()))
 
 
 class TestObjectiveClass(unittest.TestCase):
@@ -141,6 +147,12 @@ class TestObjectiveClass(unittest.TestCase):
             fun_free_cond_hvp(x_free, grad_cond),
             objective.fun_free_hvp_cond(x_free, grad_cond),
             err_msg='Conditioned Hessian vector product values')
+
+    def test_parameter_converter(self):
+        model = TwoParamModel()
+        model.set_random()
+        get_converter_jacobian = autograd.jacobian(model.convert_y_to_x)
+
 
 
     def test_two_parameter_objective(self):

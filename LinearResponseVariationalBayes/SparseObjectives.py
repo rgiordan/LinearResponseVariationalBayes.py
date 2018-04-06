@@ -118,7 +118,6 @@ class Objective(object):
         return self.fun()
 
     # Autograd wrappers.
-    #
     # Autograd functions populate parameter objects with ArrayBox types,
     # which can be inconvenient when calling get() or get_free() after
     # asking for a gradient, since you almost always want a numeric
@@ -204,6 +203,71 @@ class Objective(object):
     # value (with tests to be sure you're doing it right).
     def uncondition_x(self, cond_x):
         return safe_matmul(self.preconditioner, cond_x)
+
+
+# A class for getting the Jacobian of the conversion from
+# one parameter into another.
+class ParameterConverter(object):
+    def __init__(self, par_in, par_out, converter):
+        self.par_in = par_in
+        self.par_out = par_out
+        self.converter = converter
+
+        self.ag_free_to_vec_jacobian = \
+            autograd.jacobian(self.converter_free_to_vec)
+        self.ag_free_to_free_jacobian = \
+            autograd.jacobian(self.converter_free_to_free)
+        self.ag_vec_to_vec_jacobian = \
+            autograd.jacobian(self.converter_vec_to_vec)
+        self.ag_vec_to_free_jacobian = \
+            autograd.jacobian(self.converter_vec_to_free)
+
+    def converter_free_to_vec(self, free_par_in):
+        self.par_in.set_free(free_par_in)
+        self.converter()
+        return self.par_out.get_vector()
+
+    def converter_free_to_free(self, free_par_in):
+        self.par_in.set_free(free_par_in)
+        self.converter()
+        return self.par_out.get_free()
+
+    def converter_vec_to_vec(self, vec_par_in):
+        self.par_in.set_vector(vec_par_in)
+        self.converter()
+        return self.par_out.get_vector()
+
+    def converter_vec_to_free(self, vec_par_in):
+        self.par_in.set_vector(vec_par_in)
+        self.converter()
+        return self.par_out.get_free()
+
+    def cache_free_and_eval(self, autograd_fun, free_val_in):
+        vec_val_out = self.par_out.get_vector()
+        result = autograd_fun(free_val_in)
+        self.par_in.set_free(free_val_in)
+        self.par_out.set_vector(vec_val_out)
+        return result
+
+    def cache_vector_and_eval(self, autograd_fun, vec_val_in):
+        vec_val_out = self.par_out.get_vector()
+        result = autograd_fun(vec_val_in)
+        self.par_in.set_vector(vec_val_in)
+        self.par_out.set_vector(vec_val_out)
+        return result
+
+    def free_to_free_jacobian(self, free_par_in):
+        return self.cache_free_and_eval(ag_free_to_free_jacobian, free_par_in)
+
+    def free_to_vec_jacobian(self, free_par_in):
+        return self.cache_free_and_eval(ag_free_to_vec_jacobian, free_par_in)
+
+    def vec_to_free_jacobian(self, vec_par_in):
+        return self.cache_vec_and_eval(ag_vec_to_free_jacobian, vec_par_in)
+
+    def vec_to_vec_jacobian(self, vec_par_in):
+        return self.cache_vec_and_eval(ag_vec_to_vec_jacobian, vec_par_in)
+
 
 
 # Like Objective, but with two parameters.  This is only useful for evaluating
