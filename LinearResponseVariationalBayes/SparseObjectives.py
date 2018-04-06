@@ -234,7 +234,6 @@ class TwoParameterObjective(object):
         self.ag_fun_vector_hessian21 = \
             autograd.jacobian(self.ag_fun_vector_grad2, argnum=0)
 
-
     def fun_free(self, free_val1, free_val2):
         self.par1.set_free(free_val1)
         self.par2.set_free(free_val2)
@@ -246,14 +245,32 @@ class TwoParameterObjective(object):
         return self.fun()
 
     def cache_free_and_eval(self, autograd_fun, free_val1, free_val2):
-        result = autograd_fun(free_val)
-        self.par.set_free(free_val)
+        result = autograd_fun(free_val1, free_val2)
+        self.par1.set_free(free_val1)
+        self.par2.set_free(free_val2)
         return result
 
-    def cache_vector_and_eval(self, autograd_fun, vec_val):
-        result = autograd_fun(vec_val)
-        self.par.set_vector(vec_val)
+    def cache_vector_and_eval(self, autograd_fun, vec_val1, vec_val2):
+        result = autograd_fun(vec_val1, vec_val2)
+        self.par1.set_vector(vec_val1)
+        self.par2.set_vector(vec_val2)
         return result
+
+    def fun_free_hessian12(self, free_val1, free_val2):
+        return self.cache_free_and_eval(
+            self.ag_fun_free_hessian12, free_val1, free_val2)
+
+    def fun_free_hessian21(self, free_val1, free_val2):
+        return self.cache_free_and_eval(
+            self.ag_fun_free_hessian21, free_val1, free_val2)
+
+    def fun_vector_hessian12(self, vec_val1, vec_val2):
+        return self.cache_vector_and_eval(
+            self.ag_fun_vector_hessian12, vec_val1, vec_val2)
+
+    def fun_vector_hessian21(self, vec_val1, vec_val2):
+        return self.cache_vector_and_eval(
+            self.ag_fun_vector_hessian21, vec_val1, vec_val2)
 
 
 

@@ -48,6 +48,24 @@ class Model(object):
         return self.f_of_x(self.y.get())
 
 
+class TwoParamModel(object):
+    def __init__(self, dim=3):
+        self.a = np.random.random((dim, dim))
+        self.a = np.matmul(self.a, np.transpose(self.a)) + np.eye(dim)
+
+        self.par = vb.ModelParamsDict()
+        self.par.push_param(vb.VectorParam('x', size=dim, lb=0))
+        self.par.push_param(vb.VectorParam('y', size=dim))
+
+    def set_random(self):
+        self.par.set_free(np.random.random(self.par.free_size()))
+
+    def fun(self):
+        x = self.par['x'].get()
+        y = self.par['y'].get()
+        return np.matmul(np.matmul(np.transpose(x), self.a), y)
+
+
 
 class TestObjectiveClass(unittest.TestCase):
     # For every parameter type, execute all the required methods.
@@ -104,6 +122,49 @@ class TestObjectiveClass(unittest.TestCase):
             fun_free_cond_hvp(x_free, grad_cond),
             objective.fun_free_hvp_cond(x_free, grad_cond),
             err_msg='Conditioned Hessian vector product values')
+
+
+    def test_two_parameter_objective(self):
+        model = TwoParamModel()
+        model.set_random()
+
+        objective_full = obj_lib.Objective(model.par, model.fun)
+
+        objective_x = obj_lib.Objective(model.par['x'], model.fun)
+        objective_y = obj_lib.Objective(model.par['y'], model.fun)
+
+        objective = obj_lib.TwoParameterObjective(
+            model.par['x'], model.par['y'], model.fun)
+
+        par_free = model.par.get_free()
+        par_vec = model.par.get_vector()
+        x_free = model.par['x'].get_free()
+        y_free = model.par['y'].get_free()
+        x_vec = model.par['x'].get_vector()
+        y_vec = model.par['y'].get_vector()
+
+        np_test.assert_array_almost_equal(
+            model.fun(), objective.fun_free(x_free, y_free))
+        np_test.assert_array_almost_equal(
+            model.fun(), objective.fun_free(x_free, y_free))
+        np_test.assert_array_almost_equal(
+            model.fun(), objective.fun_vector(x_vec, y_vec))
+
+        np_test.assert_array_almost_equal(
+            objective.ag_fun_free_grad1(x_free, y_free),
+            objective_x.ag_fun_free_grad(x_free))
+
+        np_test.assert_array_almost_equal(
+            objective.ag_fun_free_grad2(x_free, y_free),
+            objective_y.ag_fun_free_grad(y_free))
+
+        np_test.assert_array_almost_equal(
+            objective.ag_fun_vector_grad1(x_vec, y_vec),
+            objective_x.ag_fun_vector_grad(x_vec))
+
+        np_test.assert_array_almost_equal(
+            objective.ag_fun_vector_grad2(x_vec, y_vec),
+            objective_y.ag_fun_vector_grad(y_vec))
 
 
     def run_optimization_tests(self, use_sparse=False):
