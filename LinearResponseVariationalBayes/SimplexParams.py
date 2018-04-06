@@ -12,6 +12,8 @@ def constrain_simplex_matrix(free_mat):
     # The first column is the reference value.
     free_mat_aug = np.hstack(
         [np.full((free_mat.shape[0], 1), 0.), free_mat])
+    # Note that autograd needs to update their logsumexp to be in special
+    # not misc before this can be changed.
     log_norm = np.expand_dims(sp.misc.logsumexp(free_mat_aug, 1), axis=1)
     return np.exp(free_mat_aug - log_norm)
 
