@@ -16,6 +16,10 @@ class Model(object):
         self.x = vb.VectorParam('x', size=dim, lb=-2.0, ub=5.0)
         self.y = vb.VectorParam('y', size=dim, lb=-2.0, ub=5.0)
         self.a_mat = np.full((dim, dim), 0.1) + np.eye(dim)
+
+        # For testing the Jacobian
+        self.b_mat = self.a_mat[0:(dim - 1), 0:dim]
+
         self.set_inits()
 
         self.opt_x = np.linspace(1., 2., self.dim)
@@ -38,6 +42,10 @@ class Model(object):
 
     def f(self):
         return self.f_of_x(self.x.get())
+
+    def get_x_vec(self):
+        # For testing the Jacobian
+        return np.matmul(self.b_mat, self.x.get())
 
     def f_conditioned(self):
         # Note that
@@ -87,12 +95,23 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             np.matmul(hess, grad), objective.fun_free_hvp(x_free, grad))
 
-        #model.set_opt()
         self.assertTrue(objective.fun_vector(x_vec) > 0.0)
         grad = objective.fun_vector_grad(x_vec)
         hess = objective.fun_vector_hessian(x_vec)
         np_test.assert_array_almost_equal(
             np.matmul(hess, grad), objective.fun_vector_hvp(x_free, grad))
+
+        # Test Jacobians.
+        vec_objective = obj_lib.Objective(par=model.x, fun=model.get_x_vec)
+        vec_jac = vec_objective.fun_vector_jacobian(x_vec)
+        np_test.assert_array_almost_equal(model.b_mat, vec_jac)
+
+        free_jac = vec_objective.fun_free_jacobian(x_free)
+        x_free_to_vec_jac = \
+            model.x.free_to_vector_jac(x_free).todense()
+        np_test.assert_array_almost_equal(
+            np.matmul(model.b_mat, np.transpose(x_free_to_vec_jac)),
+            free_jac)
 
         # Test the preconditioning
         preconditioner = 2.0 * np.eye(model.dim)
