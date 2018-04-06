@@ -257,16 +257,20 @@ class ParameterConverter(object):
         return result
 
     def free_to_free_jacobian(self, free_par_in):
-        return self.cache_free_and_eval(ag_free_to_free_jacobian, free_par_in)
+        return self.cache_free_and_eval(
+            self.ag_free_to_free_jacobian, free_par_in)
 
     def free_to_vec_jacobian(self, free_par_in):
-        return self.cache_free_and_eval(ag_free_to_vec_jacobian, free_par_in)
+        return self.cache_free_and_eval(
+            self.ag_free_to_vec_jacobian, free_par_in)
 
     def vec_to_free_jacobian(self, vec_par_in):
-        return self.cache_vec_and_eval(ag_vec_to_free_jacobian, vec_par_in)
+        return self.cache_vector_and_eval(
+            self.ag_vec_to_free_jacobian, vec_par_in)
 
     def vec_to_vec_jacobian(self, vec_par_in):
-        return self.cache_vec_and_eval(ag_vec_to_vec_jacobian, vec_par_in)
+        return self.cache_vector_and_eval(
+            self.ag_vec_to_vec_jacobian, vec_par_in)
 
 
 

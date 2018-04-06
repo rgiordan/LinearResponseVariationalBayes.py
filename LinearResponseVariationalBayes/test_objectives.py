@@ -78,7 +78,8 @@ class TwoParamModel(object):
 
     def set_y_from_x(self):
         # Used for testing the ParameterConverter class.
-        self.par['y'].set_vector(self.y_to_x(self.par['x'].get_vector()))
+        self.par['y'].set_vector(
+            self.convert_y_to_x(self.par['x'].get_vector()))
 
 
 class TestObjectiveClass(unittest.TestCase):
@@ -151,8 +152,40 @@ class TestObjectiveClass(unittest.TestCase):
     def test_parameter_converter(self):
         model = TwoParamModel()
         model.set_random()
-        get_converter_jacobian = autograd.jacobian(model.convert_y_to_x)
+        x_free = model.par['x'].get_free()
+        y_free = model.par['y'].get_free()
+        x_vec = model.par['x'].get_vector()
+        y_vec = model.par['y'].get_vector()
 
+        # The function convert_y_to_x corrseponds to the vector to vector
+        # map.  Use the free to vec Jacobians to convert to the other maps.
+        get_converter_jacobian = autograd.jacobian(model.convert_y_to_x)
+        x_free_to_vec_jac = \
+            model.par['x'].free_to_vector_jac(x_free).todense()
+        y_free_to_vec_jac = \
+            model.par['y'].free_to_vector_jac(y_free).todense()
+        y_vec_to_free_jac = np.linalg.inv(y_free_to_vec_jac)
+
+        param_converter = obj_lib.ParameterConverter(
+            model.par['x'], model.par['y'], model.set_y_from_x)
+
+        vec_to_vec_jac = get_converter_jacobian(x_vec)
+        np_test.assert_array_almost_equal(
+            vec_to_vec_jac,
+            param_converter.vec_to_vec_jacobian(x_vec))
+
+        free_to_vec_jac = np.matmul(vec_to_vec_jac, x_free_to_vec_jac)
+        np_test.assert_array_almost_equal(
+            free_to_vec_jac,
+            param_converter.free_to_vec_jacobian(x_free))
+
+        np_test.assert_array_almost_equal(
+            np.matmul(y_vec_to_free_jac, vec_to_vec_jac),
+            param_converter.vec_to_free_jacobian(x_vec))
+
+        # np_test.assert_array_almost_equal(
+        #     np.matmul(y_vec_to_free_jac, free_to_vec_jac),
+        #     param_converter.free_to_free_jacobian(x_free))
 
 
     def test_two_parameter_objective(self):
