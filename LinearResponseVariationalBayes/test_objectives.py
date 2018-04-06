@@ -152,10 +152,23 @@ class TestObjectiveClass(unittest.TestCase):
     def test_parameter_converter(self):
         model = TwoParamModel()
         model.set_random()
+        model.set_y_from_x()
         x_free = model.par['x'].get_free()
         y_free = model.par['y'].get_free()
         x_vec = model.par['x'].get_vector()
         y_vec = model.par['y'].get_vector()
+
+        param_converter = obj_lib.ParameterConverter(
+            model.par['x'], model.par['y'], model.set_y_from_x)
+
+        np_test.assert_array_almost_equal(
+            param_converter.converter_vec_to_vec(x_vec), y_vec)
+        np_test.assert_array_almost_equal(
+            param_converter.converter_vec_to_free(x_vec), y_free)
+        np_test.assert_array_almost_equal(
+            param_converter.converter_free_to_vec(x_free), y_vec)
+        np_test.assert_array_almost_equal(
+            param_converter.converter_free_to_free(x_free), y_free)
 
         # The function convert_y_to_x corrseponds to the vector to vector
         # map.  Use the free to vec Jacobians to convert to the other maps.
@@ -164,10 +177,6 @@ class TestObjectiveClass(unittest.TestCase):
             model.par['x'].free_to_vector_jac(x_free).todense()
         y_free_to_vec_jac = \
             model.par['y'].free_to_vector_jac(y_free).todense()
-        y_vec_to_free_jac = np.linalg.inv(y_free_to_vec_jac)
-
-        param_converter = obj_lib.ParameterConverter(
-            model.par['x'], model.par['y'], model.set_y_from_x)
 
         vec_to_vec_jac = get_converter_jacobian(x_vec)
         np_test.assert_array_almost_equal(
@@ -180,12 +189,12 @@ class TestObjectiveClass(unittest.TestCase):
             param_converter.free_to_vec_jacobian(x_free))
 
         np_test.assert_array_almost_equal(
-            np.matmul(y_vec_to_free_jac, vec_to_vec_jac),
+            np.linalg.solve(y_free_to_vec_jac, vec_to_vec_jac),
             param_converter.vec_to_free_jacobian(x_vec))
 
-        # np_test.assert_array_almost_equal(
-        #     np.matmul(y_vec_to_free_jac, free_to_vec_jac),
-        #     param_converter.free_to_free_jacobian(x_free))
+        np_test.assert_array_almost_equal(
+            np.linalg.solve(y_free_to_vec_jac, free_to_vec_jac),
+            param_converter.free_to_free_jacobian(x_free))
 
 
     def test_two_parameter_objective(self):
