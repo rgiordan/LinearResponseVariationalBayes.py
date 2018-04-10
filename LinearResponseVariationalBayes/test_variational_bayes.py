@@ -42,7 +42,7 @@ def check_sparse_transforms(testcase, param):
     free_param = np.random.random(param.free_size())
     def set_free_and_get_vector(free_param):
         param.set_free(free_param)
-        return param.get_vector() 
+        return param.get_vector()
 
     set_free_and_get_vector_jac = jacobian(set_free_and_get_vector)
     set_free_and_get_vector_hess = hessian(set_free_and_get_vector)
@@ -491,6 +491,24 @@ class TestParameters(unittest.TestCase):
 
 
 class TestParameterDictionary(unittest.TestCase):
+    def test_model_arams_dict_values(self):
+        k = 3
+        mp = par_dict.ModelParamsDict(name='ModelParamsDict')
+        mp.push_param(ScalarParam('scalar', lb=0))
+        mp.push_param(PosDefMatrixParam('matrix', k))
+
+        mp['scalar'].set(0.3)
+        mp['matrix'].set(3 * np.eye(k))
+
+        np_test.assert_array_almost_equal(mp['scalar'].get(), mp.values['scalar'])
+        np_test.assert_array_almost_equal(mp['matrix'].get(), mp.values['matrix'])
+
+        mp.values['scalar'] = 0.4
+        mp.values['matrix'] = 4 * np.eye(k)
+
+        np_test.assert_array_almost_equal(mp['scalar'].get(), mp.values['scalar'])
+        np_test.assert_array_almost_equal(mp['matrix'].get(), mp.values['matrix'])
+
     def test_model_params_dict(self):
         k = 2
         mat = np.full(k ** 2, 0.2).reshape(k, k) + np.eye(k)
