@@ -346,7 +346,20 @@ class PosDefMatrixParamArray(object):
               self.__shape)
         self.__val = new_val
 
+    # Return an array of the function mat_func applied to each matrix in
+    # the array.
+    def apply_matrix_function(self, mat_func):
+        mat_func_array = np.array([
+                mat_func(self.__val[obs]) \
+                    for obs in itertools.product(*self.__array_ranges) ])
+
+        # Assume that each output is the same shape.
+        new_shape = self.__array_shape + mat_func_array[0].shape
+        return np.reshape(mat_func_array, new_shape)
+
     def get_free(self):
+        # I don't know why this doesn't work:
+        #return np.hstack(self.apply_matrix_function(pack_posdef_matrix))
         return np.hstack(np.array([ \
             pack_posdef_matrix(self.__val[obs], diag_lb=self.__diag_lb) \
                     for obs in itertools.product(*self.__array_ranges)]))
@@ -356,8 +369,8 @@ class PosDefMatrixParamArray(object):
             raise ValueError('Vector value is the wrong length')
         self.__val = \
             np.reshape(np.array([ unvectorize_symmetric_matrix(
-                vec_val[self.stacked_obs_slice(obs)]) \
-              for obs in itertools.product(*self.__array_ranges) ]),
+                    vec_val[self.stacked_obs_slice(obs)]) \
+                for obs in itertools.product(*self.__array_ranges) ]),
               self.__shape)
 
     def get_vector(self):
@@ -434,3 +447,5 @@ class PosDefMatrixParamArray(object):
         return self.__vec_size * self.__array_length
     def vector_size(self):
         return self.__vec_size * self.__array_length
+    def get_array_ranges(self):
+        return self.__array_ranges

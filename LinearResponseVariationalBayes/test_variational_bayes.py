@@ -127,15 +127,50 @@ class TestParameterMethods(unittest.TestCase):
             PosDefMatrixParamVector(
                 val=mat, length=mat.shape[0], matrix_size=2),
             test_autograd=True, test_sparse_transform=True)
+
     def test_pos_def_matrix_array(self):
         array_shape = (2, 1) # If this is large the test Hessian takes too long.
         single_mat = np.diag([ 1.0, 2.0 ]) + np.full((2, 2), 0.1)
         mat = np.tile(single_mat, array_shape + (1, 1)) * \
             np.random.random(array_shape + (1, 1))
+        pd_param = PosDefMatrixParamArray(
+            val=mat, array_shape=array_shape, matrix_size=2)
         execute_required_methods(self,
-            PosDefMatrixParamArray(
-                val=mat, array_shape=array_shape, matrix_size=2),
-            test_autograd=True, test_sparse_transform=True)
+            pd_param, test_autograd=True, test_sparse_transform=True)
+
+        # Test apply_matrix_function
+        pd_param = PosDefMatrixParamArray(
+            val=mat, array_shape=array_shape, matrix_size=2)
+        inv_mats = pd_param.apply_matrix_function(np.linalg.inv)
+        for i in range(mat.shape[0]):
+            for j in range(mat.shape[1]):
+                np_test.assert_array_almost_equal(
+                np.linalg.inv(mat[i, j]), inv_mats[i, j])
+
+        # Test that apply_matrix_function can be differentiated.
+        pd_param = PosDefMatrixParamArray(
+            val=mat, array_shape=array_shape, matrix_size=2)
+        def sum_inv(free_val):
+            pd_param.set_free(free_val)
+            inv_mats = pd_param.apply_matrix_function(np.linalg.inv)
+            return np.sum(inv_mats)
+
+        get_sum_inv_grad = grad(sum_inv)
+        sum_inv_grad = get_sum_inv_grad(pd_param.get_free())
+
+        pd_param = PosDefMatrixParamArray(
+            val=mat, array_shape=array_shape, matrix_size=2)
+        def get_sum_log_det(free_val):
+            pd_param.set_free(free_val)
+            def get_log_det(mat):
+                s, log_det = np.linalg.slogdet(mat)
+                return log_det
+            log_det_mat = pd_param.apply_matrix_function(get_log_det)
+            return np.sum(log_det_mat)
+
+        get_sum_log_det_grad = grad(get_sum_log_det)
+        sum_log_det_grad = get_sum_log_det_grad(pd_param.get_free())
+
     def test_simplex(self):
         execute_required_methods(self, SimplexParam(shape=(5, 3)),
             test_autograd=True, test_sparse_transform=True)
