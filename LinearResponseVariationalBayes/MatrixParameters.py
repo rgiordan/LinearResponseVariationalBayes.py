@@ -358,7 +358,8 @@ class PosDefMatrixParamArray(object):
         return np.reshape(mat_func_array, new_shape)
 
     def get_free(self):
-        # I don't know why this doesn't work:
+        # I don't know why this doesn't work, but it gives an autograd error
+        # about assigning in arrays:
         #return np.hstack(self.apply_matrix_function(pack_posdef_matrix))
         return np.hstack(np.array([ \
             pack_posdef_matrix(self.__val[obs], diag_lb=self.__diag_lb) \
