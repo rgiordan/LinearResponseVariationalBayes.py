@@ -324,6 +324,8 @@ class TwoParameterObjective(object):
         self.par2.set_vector(vec_val2)
         return result
 
+    # Note that, generally, autograd will be faster if you use hessian12
+    # and par2 is the larger parameter.
     def fun_free_hessian12(self, free_val1, free_val2):
         return self.cache_free_and_eval(
             self.ag_fun_free_hessian12, free_val1, free_val2)

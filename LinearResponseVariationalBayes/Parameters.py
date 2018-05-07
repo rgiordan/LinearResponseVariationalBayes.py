@@ -177,7 +177,9 @@ class VectorParam(object):
 
     def set(self, val):
         if val.size != self.size():
-            raise ValueError('Wrong size for vector ' + self.name)
+            raise ValueError('Wrong size for vector ' + self.name +
+                             '.  Expected: ' + self.size() + ', got ' +
+                             val.size)
         # if (np.array(val < self.__lb)).any():
         #     raise ValueError('Value beneath lower bound.')
         # if (np.array(val > self.__ub)).any():
