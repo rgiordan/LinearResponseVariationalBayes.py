@@ -17,6 +17,9 @@ def multivariate_gammaln(x, size):
 # Entropies.  Note that autograd hasn't defined these yet and doesn't seem to
 # work with the sp.stats functions.
 
+def multinoulli_entropy(p, min_prob=1e-16):
+    return -1 * np.sum(p * np.log(p + min_prob))
+
 def univariate_normal_entropy(info_obs):
     # np.sum(sp.stats.norm.entropy(scale=np.sqrt(var_obs)))
     return 0.5 * np.sum(-1 * np.log(info_obs) + 1 + np.log(2 * math.pi))
@@ -194,6 +197,7 @@ def gamma_prior(prior_shape, prior_rate, e_obs, e_log_obs):
 def exponential_prior(lambda_par, e_obs):
     return -1 * lambda_par * e_obs
 
+# This should say e_log_obs, not log_e_obs.
 def dirichlet_prior(alpha, log_e_obs):
     assert np.shape(alpha) == np.shape(log_e_obs), \
             'shape of alpha and log_e_obs do not match'
