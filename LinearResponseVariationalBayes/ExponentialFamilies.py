@@ -18,7 +18,7 @@ def multivariate_gammaln(x, size):
 # work with the sp.stats functions.
 
 def multinoulli_entropy(p, min_prob=1e-16):
-    return -1 * p * np.log(p + min_prob)
+    return -1 * np.sum(p * np.log(p + min_prob), axis=1)
 
 def univariate_normal_entropy(info_obs):
     # np.sum(sp.stats.norm.entropy(scale=np.sqrt(var_obs)))

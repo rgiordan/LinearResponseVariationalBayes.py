@@ -69,6 +69,7 @@ class TestEntropy(unittest.TestCase):
         p = np.random.random((n, k))
         p /= np.sum(p, axis=1)[:, np.newaxis]
         p_ent = ef.multinoulli_entropy(p)
+        self.assertEqual((n, ), p_ent.shape)
         self.assertAlmostEqual(
             np.sum(sp.stats.multinomial.entropy(1, p)),
             np.sum(p_ent))
