@@ -63,7 +63,7 @@ class TestEntropy(unittest.TestCase):
             for i in range(np.shape(tau)[0])])
         self.assertAlmostEqual(ef.beta_entropy(tau), test_entropy)
 
-    def test_multinomial_entropy(self):
+    def test_multinoulli_entropy(self):
         n = 100
         k = 4
         p = np.random.random((n, k))
@@ -71,7 +71,7 @@ class TestEntropy(unittest.TestCase):
         p_ent = ef.multinoulli_entropy(p)
         self.assertAlmostEqual(
             np.sum(sp.stats.multinomial.entropy(1, p)),
-            p_ent)
+            np.sum(p_ent))
 
 class TestMoments(unittest.TestCase):
     def test_wishart_moments(self):
