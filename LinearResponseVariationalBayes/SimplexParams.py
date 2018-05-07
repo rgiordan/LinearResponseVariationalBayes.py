@@ -63,6 +63,9 @@ def constrain_hess_from_moment(z):
     return z_hess
 
 
+# This is actually a vector of simplexes.  The first index of the shape
+# is which simplex, and the second index is the element within the simplex.
+# TODO: make this more general.
 class SimplexParam(object):
     def __init__(self, name='', shape=(1, 2), val=None):
         self.name = name
