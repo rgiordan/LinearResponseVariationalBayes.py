@@ -6,6 +6,8 @@ import autograd
 import autograd.numpy as np
 #import autograd.scipy as sp
 
+import json_tricks
+
 import scipy as sp
 from scipy import sparse
 
@@ -170,7 +172,10 @@ class Objective(object):
 
     # Pre-conditioned versions of the free functions.  The value at which
     # they are evaluted is assumed to include the preconditioner, i.e.
-    # to be free_val = a * x
+    # to be free_val = a * x.
+    # Note that you must initialize the preconditioned objective with
+    # preconditioner^{-1} init_x
+    # if init_x is a guess of the original (unconditioned) value.
     def get_conditioned_x(self, free_val):
         return safe_matmul(self.preconditioner, free_val)
 
@@ -401,3 +406,45 @@ def unpack_csr_matrix(sp_mat_dict):
     return sp.sparse.csr_matrix(
         ( sp_mat_dict['data'], sp_mat_dict['indices'], sp_mat_dict['indptr']),
         shape = sp_mat_dict['shape'])
+
+
+# TODO: copy the tests over for these.
+
+# Pack a sparse csr_matrix in a json-seralizable format.
+def json_pack_csr_matrix(sp_mat):
+    assert sparse.isspmatrix_csr(sp_mat)
+    sp_mat = sparse.csr_matrix(sp_mat)
+    return { 'data': json_tricks.dumps(sp_mat.data),
+             'indices': json_tricks.dumps(sp_mat.indices),
+             'indptr': json_tricks.dumps(sp_mat.indptr),
+             'shape': sp_mat.shape,
+             'type': 'csr_matrix' }
+
+
+# Convert the output of pack_csr_matrix back into a csr_matrix.
+def json_unpack_csr_matrix(sp_mat_dict):
+    assert sp_mat_dict['type'] == 'csr_matrix'
+    data = json_tricks.loads(sp_mat_dict['data'])
+    indices = json_tricks.loads(sp_mat_dict['indices'])
+    indptr = json_tricks.loads(sp_mat_dict['indptr'])
+    return sparse.csr_matrix(
+        ( data, indices, indptr), shape = sp_mat_dict['shape'])
+
+
+# Get the matrix inverse square root of a symmetric matrix with eigenvalue
+# thresholding.  This is particularly useful for calculating preconditioners.
+def get_sym_matrix_inv_sqrt(block_hessian, ev_min=None, ev_max=None):
+    hessian_sym = 0.5 * (block_hessian + block_hessian.T)
+    eig_val, eig_vec = np.linalg.eigh(hessian_sym)
+
+    if not ev_min is None:
+        eig_val[eig_val <= ev_min] = ev_min
+    if not ev_max is None:
+        eig_val[eig_val >= ev_max] = ev_max
+
+    hess_corrected = np.matmul(eig_vec,
+                               np.matmul(np.diag(eig_val), eig_vec.T))
+
+    hess_inv_sqrt = \
+        np.matmul(eig_vec, np.matmul(np.diag(1 / np.sqrt(eig_val)), eig_vec.T))
+    return np.array(hess_inv_sqrt), np.array(hess_corrected)
