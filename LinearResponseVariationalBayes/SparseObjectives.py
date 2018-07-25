@@ -169,17 +169,23 @@ class Objective(object):
         return self.cache_vector_and_eval(
             self.ag_fun_vector_jacobian, vec_val, *argv, **argk)
 
-    # Have to treat these separately for the additional argument.  :(
+    # Have to treat hvps separately for the additional argument.  :(
+    #
     # Note that argument order, which is determined by autograd --
-    # the *argv comes first, then the vector.
-    def fun_free_hvp(self, free_val, *argv, vec, **argk):
-        result = self.ag_fun_free_hvp(free_val, *argv, vec, **argk)
-        self.par.set_free(free_val)
+    # first comes the argument at which the Hessian is evaluated,
+    # then other *argv arguments, then the vector by which the Hessian
+    # is to be multiplied, then the keyword arguments.
+    # See the definition of hessian_tensor_product in autograd.
+    def fun_free_hvp(self, *argv, **argk):
+        args, vec = argv[:-1], argv[-1]
+        result = self.ag_fun_free_hvp(*args, vec, **argk)
+        self.par.set_free(args[0])
         return result
 
-    def fun_vector_hvp(self, vec_val, *argv, vec, **argk):
-        result = self.ag_fun_vector_hvp(vec_val, *argv, vec, **argk)
-        self.par.set_vector(vec_val)
+    def fun_vector_hvp(self, *argv, **argk):
+        args, vec = argv[:-1], argv[-1]
+        result = self.ag_fun_vector_hvp(*args, vec, **argk)
+        self.par.set_vector(args[0])
         return result
 
 
@@ -212,13 +218,16 @@ class Objective(object):
         return safe_matmul(self.preconditioner.T,
                            safe_matmul(hess, self.preconditioner))
 
-    def fun_free_hvp_cond(self, free_val, *argv, vec, **argk):
+    # The argument order is the same as fun_free_hvp.
+    def fun_free_hvp_cond(self, *argv, **argk):
         assert self.preconditioner is not None
+        args, vec = argv[1:-1], argv[-1]
+        free_val = argv[0]
         y = self.get_conditioned_x(free_val)
         return safe_matmul(
             self.preconditioner.T,
             self.fun_free_hvp(
-                y, *argv, vec=safe_matmul(self.preconditioner, vec), **argk)
+                y, *args, safe_matmul(self.preconditioner, vec), **argk)
                 )
 
     # Convert the optimum of the conditioned problem to the

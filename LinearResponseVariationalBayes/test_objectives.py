@@ -189,10 +189,10 @@ class TestObjectiveClass(unittest.TestCase):
             2 * np.eye(2) * 2 * 3, objective.fun_vector_hessian(x_val, 2, z=3))
         np_test.assert_array_almost_equal(
             2 * hvp_vec * 2 * 3,
-            objective.fun_free_hvp(x_val, 2, vec=hvp_vec, z=3))
+            objective.fun_free_hvp(x_val, 2, hvp_vec, z=3))
         np_test.assert_array_almost_equal(
             2 * hvp_vec * 2 * 3,
-            objective.fun_vector_hvp(x_val, 2, vec=hvp_vec, z=3))
+            objective.fun_vector_hvp(x_val, 2, hvp_vec, z=3))
 
         # Test preconditioned functions.
         objective.preconditioner = 4 * np.eye(2)
@@ -206,7 +206,7 @@ class TestObjectiveClass(unittest.TestCase):
             objective.fun_free_hessian_cond(x_val, 2, z=3))
         np_test.assert_array_almost_equal(
             2 * hvp_vec * 2 * 3 * 16,
-            objective.fun_free_hvp_cond(x_val, 2, vec=hvp_vec, z=3))
+            objective.fun_free_hvp_cond(x_val, 2, hvp_vec, z=3))
 
 
         x1 = vb.VectorParam('x1', size=2)
