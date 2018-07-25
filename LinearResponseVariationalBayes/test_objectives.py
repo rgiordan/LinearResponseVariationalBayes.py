@@ -149,6 +149,53 @@ class TestObjectiveClass(unittest.TestCase):
             objective.fun_free_hvp_cond(x_free, grad_cond),
             err_msg='Conditioned Hessian vector product values')
 
+    # Test that the objective functions can take additional keyword arguments.
+    def test_objective_keywords(self):
+        x = vb.VectorParam('x', size=2)
+        def objective_fun(y, z=1.):
+            return np.sum(x.get()**2) * z * y
+
+        objective = obj_lib.Objective(par=x, fun=objective_fun)
+        x_val = np.array([0., 1.])
+
+        # Check that the keywords are passed to fun_free and fun_vector.
+        np_test.assert_array_almost_equal(
+            1 * 2 * 1, objective.fun_free(x_val, 2))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 3, objective.fun_free(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 1, objective.fun_free(x_val, 2, verbose=True))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 3, objective.fun_free(x_val, 2, verbose=True, z=3))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 3, objective.fun_free(x_val, 2, z=3, verbose=True))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 1, objective.fun_vector(x_val, 2))
+        np_test.assert_array_almost_equal(
+            1 * 2 * 3, objective.fun_vector(x_val, 2, z=3))
+
+        hvp_vec = np.array([2., 3.])
+        np_test.assert_array_almost_equal(
+            2 * x_val * 2 * 3, objective.fun_free_grad(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * x_val * 2 * 3, objective.fun_vector_grad(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * x_val * 2 * 3, objective.fun_free_jacobian(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * x_val * 2 * 3, objective.fun_vector_jacobian(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * np.eye(2) * 2 * 3, objective.fun_free_hessian(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * np.eye(2) * 2 * 3, objective.fun_vector_hessian(x_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * hvp_vec * 2 * 3,
+            objective.fun_free_hvp(x_val, 2, vec=hvp_vec, z=3))
+        np_test.assert_array_almost_equal(
+            2 * hvp_vec * 2 * 3,
+            objective.fun_vector_hvp(x_val, 2, vec=hvp_vec, z=3))
+
+        objective.preconditioner = np.eye(2)
+
     def test_parameter_converter(self):
         model = TwoParamModel()
         model.set_random()

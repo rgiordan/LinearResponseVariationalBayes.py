@@ -170,13 +170,15 @@ class Objective(object):
             self.ag_fun_vector_jacobian, vec_val, *argv, **argk)
 
     # Have to treat these separately for the additional argument.  :(
-    def fun_free_hvp(self, free_val, vec, *argv, **argk):
-        result = self.ag_fun_free_hvp(free_val, vec, *argv, **argk)
+    # Note that argument order, which is determined by autograd --
+    # the *argv comes first, then the vector.
+    def fun_free_hvp(self, free_val, *argv, vec, **argk):
+        result = self.ag_fun_free_hvp(free_val, *argv, vec, **argk)
         self.par.set_free(free_val)
         return result
 
-    def fun_vector_hvp(self, vec_val, vec, *argv, **argk):
-        result = self.ag_fun_vector_hvp(vec_val, vec, *argv, **argk)
+    def fun_vector_hvp(self, vec_val, *argv, vec, **argk):
+        result = self.ag_fun_vector_hvp(vec_val, *argv, vec, **argk)
         self.par.set_vector(vec_val)
         return result
 
