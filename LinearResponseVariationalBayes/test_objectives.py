@@ -209,6 +209,32 @@ class TestObjectiveClass(unittest.TestCase):
             objective.fun_free_hvp_cond(x_val, 2, vec=hvp_vec, z=3))
 
 
+        x1 = vb.VectorParam('x1', size=2)
+        x2 = vb.VectorParam('x1', size=2)
+        x1_val = np.array([0., 1.])
+        x2_val = np.array([1., 2.])
+        def two_param_objective_fun(y, z=1.):
+            return np.sum(x1.get() * x2.get()) * z * y
+        twopar_obj = obj_lib.TwoParameterObjective(
+            x1, x2, two_param_objective_fun)
+        np_test.assert_array_almost_equal(
+            2 * 2 * 3, twopar_obj.fun_free(x1_val, x2_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            2 * 2 * 3, twopar_obj.fun_vector(x1_val, x2_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            np.eye(2) * 2 * 3,
+            twopar_obj.fun_free_hessian12(x1_val, x2_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            np.eye(2) * 2 * 3,
+            twopar_obj.fun_free_hessian21(x1_val, x2_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            np.eye(2) * 2 * 3,
+            twopar_obj.fun_vector_hessian12(x1_val, x2_val, 2, z=3))
+        np_test.assert_array_almost_equal(
+            np.eye(2) * 2 * 3,
+            twopar_obj.fun_vector_hessian21(x1_val, x2_val, 2, z=3))
+
+
     def test_parameter_converter(self):
         model = TwoParamModel()
         model.set_random()
