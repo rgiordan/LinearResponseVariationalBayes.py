@@ -95,29 +95,34 @@ class Objective(object):
         self.par = par
         self.fun = fun
 
-        self.ag_fun_free_grad = autograd.grad(self.fun_free)
-        self.ag_fun_free_hessian = autograd.hessian(self.fun_free)
-        self.ag_fun_free_jacobian = autograd.jacobian(self.fun_free)
-        self.ag_fun_free_hvp = autograd.hessian_vector_product(self.fun_free)
+        self.ag_fun_free_grad = autograd.grad(self.fun_free, argnum=0)
+        self.ag_fun_free_hessian = autograd.hessian(self.fun_free, argnum=0)
+        self.ag_fun_free_jacobian = autograd.jacobian(self.fun_free, argnum=0)
+        self.ag_fun_free_hvp = autograd.hessian_vector_product(
+            self.fun_free, argnum=0)
 
-        self.ag_fun_vector_grad = autograd.grad(self.fun_vector)
-        self.ag_fun_vector_hessian = autograd.hessian(self.fun_vector)
-        self.ag_fun_vector_jacobian = autograd.jacobian(self.fun_vector)
-        self.ag_fun_vector_hvp = autograd.hessian_vector_product(self.fun_vector)
+        self.ag_fun_vector_grad = autograd.grad(self.fun_vector, argnum=0)
+        self.ag_fun_vector_hessian = autograd.hessian(self.fun_vector, argnum=0)
+        self.ag_fun_vector_jacobian = autograd.jacobian(
+            self.fun_vector, argnum=0)
+        self.ag_fun_vector_hvp = autograd.hessian_vector_product(
+            self.fun_vector, argnum=0)
 
         self.preconditioner = None
         self.logger = Logger()
 
-    def fun_free(self, free_val, verbose=False):
+    # TODO: in a future version, make verbose a class attribute rather than
+    # a keyword argument.
+    def fun_free(self, free_val, *argv, verbose=False, **argk):
         self.par.set_free(free_val)
-        val = self.fun()
+        val = self.fun(*argv, **argk)
         if verbose:
             self.logger.log(val, free_val)
         return val
 
-    def fun_vector(self, vec_val):
+    def fun_vector(self, vec_val, *argv, **argk):
         self.par.set_vector(vec_val)
-        return self.fun()
+        return self.fun(*argv, **argk)
 
     # Autograd wrappers.
     # Autograd functions populate parameter objects with ArrayBox types,
@@ -130,42 +135,48 @@ class Objective(object):
     # are presumably numeric, and set the parameters to those values
     # after the autograd function is called.
 
-    def cache_free_and_eval(self, autograd_fun, free_val):
-        result = autograd_fun(free_val)
+    def cache_free_and_eval(self, autograd_fun, free_val, *argv, **argk):
+        result = autograd_fun(free_val, *argv, **argk)
         self.par.set_free(free_val)
         return result
 
-    def cache_vector_and_eval(self, autograd_fun, vec_val):
-        result = autograd_fun(vec_val)
+    def cache_vector_and_eval(self, autograd_fun, vec_val, *argv, **argk):
+        result = autograd_fun(vec_val, *argv, **argk)
         self.par.set_vector(vec_val)
         return result
 
-    def fun_free_grad(self, free_val):
-        return self.cache_free_and_eval(self.ag_fun_free_grad, free_val)
+    def fun_free_grad(self, free_val, *argv, **argk):
+        return self.cache_free_and_eval(
+            self.ag_fun_free_grad, free_val, *argv, **argk)
 
-    def fun_free_hessian(self, free_val):
-        return self.cache_free_and_eval(self.ag_fun_free_hessian, free_val)
+    def fun_free_hessian(self, free_val, *argv, **argk):
+        return self.cache_free_and_eval(
+            self.ag_fun_free_hessian, free_val, *argv, **argk)
 
-    def fun_free_jacobian(self, free_val):
-        return self.cache_free_and_eval(self.ag_fun_free_jacobian, free_val)
+    def fun_free_jacobian(self, free_val, *argv, **argk):
+        return self.cache_free_and_eval(
+            self.ag_fun_free_jacobian, free_val, *argv, **argk)
 
-    def fun_vector_grad(self, vec_val):
-        return self.cache_vector_and_eval(self.ag_fun_vector_grad, vec_val)
+    def fun_vector_grad(self, vec_val, *argv, **argk):
+        return self.cache_vector_and_eval(
+            self.ag_fun_vector_grad, vec_val, *argv, **argk)
 
-    def fun_vector_hessian(self, vec_val):
-        return self.cache_vector_and_eval(self.ag_fun_vector_hessian, vec_val)
+    def fun_vector_hessian(self, vec_val, *argv, **argk):
+        return self.cache_vector_and_eval(
+            self.ag_fun_vector_hessian, vec_val, *argv, **argk)
 
-    def fun_vector_jacobian(self, vec_val):
-        return self.cache_vector_and_eval(self.ag_fun_vector_jacobian, vec_val)
+    def fun_vector_jacobian(self, vec_val, *argv, **argk):
+        return self.cache_vector_and_eval(
+            self.ag_fun_vector_jacobian, vec_val, *argv, **argk)
 
     # Have to treat these separately for the additional argument.  :(
-    def fun_free_hvp(self, free_val, vec):
-        result = self.ag_fun_free_hvp(free_val, vec)
+    def fun_free_hvp(self, free_val, vec, *argv, **argk):
+        result = self.ag_fun_free_hvp(free_val, vec, *argv, **argk)
         self.par.set_free(free_val)
         return result
 
-    def fun_vector_hvp(self, vec_val, vec):
-        result = self.ag_fun_vector_hvp(vec_val, vec)
+    def fun_vector_hvp(self, vec_val, vec, *argv, **argk):
+        result = self.ag_fun_vector_hvp(vec_val, vec, *argv, **argk)
         self.par.set_vector(vec_val)
         return result
 
@@ -179,30 +190,33 @@ class Objective(object):
     def get_conditioned_x(self, free_val):
         return safe_matmul(self.preconditioner, free_val)
 
-    def fun_free_cond(self, free_val, verbose=False):
+    # TODO: in a future version, make verbose a class attribute rather than
+    # a keyword argument.
+    def fun_free_cond(self, free_val, *argv, verbose=False, **argk):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
-        return self.fun_free(y, verbose=verbose)
+        return self.fun_free(y, *argv, verbose=verbose, **argk)
 
-    def fun_free_grad_cond(self, free_val):
+    def fun_free_grad_cond(self, free_val, *argv, **argk):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
-        grad = self.fun_free_grad(y)
+        grad = self.fun_free_grad(y, *argv, **argk)
         return safe_matmul(self.preconditioner.T, grad)
 
-    def fun_free_hessian_cond(self, free_val):
+    def fun_free_hessian_cond(self, free_val, *argv, **argk):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
-        hess = self.fun_free_hessian(y)
+        hess = self.fun_free_hessian(y, *argv, **argk)
         return safe_matmul(self.preconditioner.T,
                            safe_matmul(hess, self.preconditioner))
 
-    def fun_free_hvp_cond(self, free_val, vec):
+    def fun_free_hvp_cond(self, free_val, vec, *argv, **argk):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         return safe_matmul(
             self.preconditioner.T,
-            self.fun_free_hvp(y, safe_matmul(self.preconditioner, vec)))
+            self.fun_free_hvp(
+                y, safe_matmul(self.preconditioner, vec)), *argv, **argk)
 
     # Convert the optimum of the conditioned problem to the
     # value (with tests to be sure you're doing it right).
@@ -307,45 +321,49 @@ class TwoParameterObjective(object):
         self.ag_fun_vector_hessian21 = \
             autograd.jacobian(self.ag_fun_vector_grad2, argnum=0)
 
-    def fun_free(self, free_val1, free_val2):
+    def fun_free(self, free_val1, free_val2, *argv, **argk):
         self.par1.set_free(free_val1)
         self.par2.set_free(free_val2)
-        return self.fun()
+        return self.fun(*argv, **argk)
 
-    def fun_vector(self, vec_val1, vec_val2):
+    def fun_vector(self, vec_val1, vec_val2, *argv, **argk):
         self.par1.set_vector(vec_val1)
         self.par2.set_vector(vec_val2)
-        return self.fun()
+        return self.fun(*argv, **argk)
 
-    def cache_free_and_eval(self, autograd_fun, free_val1, free_val2):
-        result = autograd_fun(free_val1, free_val2)
+    def cache_free_and_eval(
+        self, autograd_fun, free_val1, free_val2, *argv, **argk):
+
+        result = autograd_fun(free_val1, free_val2, *argv, **argk)
         self.par1.set_free(free_val1)
         self.par2.set_free(free_val2)
         return result
 
-    def cache_vector_and_eval(self, autograd_fun, vec_val1, vec_val2):
-        result = autograd_fun(vec_val1, vec_val2)
+    def cache_vector_and_eval(
+        self, autograd_fun, vec_val1, vec_val2, *argv, **argk):
+
+        result = autograd_fun(vec_val1, vec_val2, *argv, **argk)
         self.par1.set_vector(vec_val1)
         self.par2.set_vector(vec_val2)
         return result
 
     # Note that, generally, autograd will be faster if you use hessian12
     # and par2 is the larger parameter.
-    def fun_free_hessian12(self, free_val1, free_val2):
+    def fun_free_hessian12(self, free_val1, free_val2, *argv, **argk):
         return self.cache_free_and_eval(
-            self.ag_fun_free_hessian12, free_val1, free_val2)
+            self.ag_fun_free_hessian12, free_val1, free_val2, *argv, **argk)
 
-    def fun_free_hessian21(self, free_val1, free_val2):
+    def fun_free_hessian21(self, free_val1, free_val2, *argv, **argk):
         return self.cache_free_and_eval(
-            self.ag_fun_free_hessian21, free_val1, free_val2)
+            self.ag_fun_free_hessian21, free_val1, free_val2, *argv, **argk)
 
-    def fun_vector_hessian12(self, vec_val1, vec_val2):
+    def fun_vector_hessian12(self, vec_val1, vec_val2, *argv, **argk):
         return self.cache_vector_and_eval(
-            self.ag_fun_vector_hessian12, vec_val1, vec_val2)
+            self.ag_fun_vector_hessian12, vec_val1, vec_val2, *argv, **argk)
 
-    def fun_vector_hessian21(self, vec_val1, vec_val2):
+    def fun_vector_hessian21(self, vec_val1, vec_val2, *argv, **argk):
         return self.cache_vector_and_eval(
-            self.ag_fun_vector_hessian21, vec_val1, vec_val2)
+            self.ag_fun_vector_hessian21, vec_val1, vec_val2, *argv, **argk)
 
 
 
