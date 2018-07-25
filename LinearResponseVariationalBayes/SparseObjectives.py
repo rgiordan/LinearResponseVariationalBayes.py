@@ -212,13 +212,14 @@ class Objective(object):
         return safe_matmul(self.preconditioner.T,
                            safe_matmul(hess, self.preconditioner))
 
-    def fun_free_hvp_cond(self, free_val, vec, *argv, **argk):
+    def fun_free_hvp_cond(self, free_val, *argv, vec, **argk):
         assert self.preconditioner is not None
         y = self.get_conditioned_x(free_val)
         return safe_matmul(
             self.preconditioner.T,
             self.fun_free_hvp(
-                y, safe_matmul(self.preconditioner, vec)), *argv, **argk)
+                y, *argv, vec=safe_matmul(self.preconditioner, vec), **argk)
+                )
 
     # Convert the optimum of the conditioned problem to the
     # value (with tests to be sure you're doing it right).
