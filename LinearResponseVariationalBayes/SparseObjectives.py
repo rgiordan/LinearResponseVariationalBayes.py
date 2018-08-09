@@ -92,6 +92,8 @@ class Logger(object):
 # value of the parameters par.
 class Objective(object):
     def __init__(self, par, fun):
+        # TODO: redo this in the style of TwoParameterObjective
+
         self.par = par
         self.fun = fun
 
@@ -405,6 +407,39 @@ class TwoParameterObjective(object):
             vec_val1, free_val2,
             False, True,
             *argv, **argk)
+
+
+def ParametricSensitivity(object):
+    def __init__(
+        self, objective_fun, input_par, output_par, hyper_par,
+        input_to_output_converter, optimal_input_par=None, objective_hessian=None):
+
+        # For now, assume that the largest parameter is input_par.
+        # TODO: detect automatically which is larger and choose the appropriate
+        # sub-Hessian for maximal efficiency.
+        self.parameter_converter = ParameterConverter(
+            input_par, output_par, input_to_output_converter)
+        self.objective = Objective(input_par, objective_fun)
+        self.sensitivity_objective = TwoParameterObjective(
+            input_par, hyper_par, objective_fun)
+
+        self.set_optimal_input_par(optimal_input_par, objective_hessian)
+
+    def set_optimal_input_par(
+        self, optimal_input_par=None, objective_hessian=None):
+
+        if optimal_input_par is None:
+            self.optimal_input_par = self.input_par.get_free()
+        else:
+            self.optimal_input_par = deepcopy(optimal_input_par)
+
+        if objective_hessian is None:
+            self.objective_hessian = self.objective.fun_free_hessian(
+                self.optimal_input_par)
+        else:
+            self.objective_hessian = objective_hessian
+
+
 
 
 # It's useful, especially when constructing sparse Hessians, to know
