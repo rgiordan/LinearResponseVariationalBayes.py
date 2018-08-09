@@ -309,21 +309,21 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             model.fun(), objective.fun_vector(x_vec, y_vec))
 
-        np_test.assert_array_almost_equal(
-            objective.ag_fun_free_grad1(x_free, y_free),
-            objective_x.ag_fun_free_grad(x_free))
-
-        np_test.assert_array_almost_equal(
-            objective.ag_fun_free_grad2(x_free, y_free),
-            objective_y.ag_fun_free_grad(y_free))
-
-        np_test.assert_array_almost_equal(
-            objective.ag_fun_vector_grad1(x_vec, y_vec),
-            objective_x.ag_fun_vector_grad(x_vec))
-
-        np_test.assert_array_almost_equal(
-            objective.ag_fun_vector_grad2(x_vec, y_vec),
-            objective_y.ag_fun_vector_grad(y_vec))
+        # np_test.assert_array_almost_equal(
+        #     objective.ag_fun_free_grad1(x_free, y_free),
+        #     objective_x.ag_fun_free_grad(x_free))
+        #
+        # np_test.assert_array_almost_equal(
+        #     objective.ag_fun_free_grad2(x_free, y_free),
+        #     objective_y.ag_fun_free_grad(y_free))
+        #
+        # np_test.assert_array_almost_equal(
+        #     objective.ag_fun_vector_grad1(x_vec, y_vec),
+        #     objective_x.ag_fun_vector_grad(x_vec))
+        #
+        # np_test.assert_array_almost_equal(
+        #     objective.ag_fun_vector_grad2(x_vec, y_vec),
+        #     objective_y.ag_fun_vector_grad(y_vec))
 
 
     def run_optimization_tests(self, use_sparse=False):

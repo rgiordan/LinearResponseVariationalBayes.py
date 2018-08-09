@@ -343,10 +343,10 @@ class TwoParameterObjective(object):
         self._fun_grad2 = autograd.grad(self.eval_fun, argnum=1)
 
         self._fun_hessian12 = \
-            autograd.jacobian(self.ag_fun_free_grad1, argnum=1)
+            autograd.jacobian(self._fun_grad1, argnum=1)
 
         self._fun_hessian21 = \
-            autograd.jacobian(self.ag_fun_free_grad2, argnum=0)
+            autograd.jacobian(self._fun_grad2, argnum=0)
 
     def cache_and_eval(
         self, autograd_fun, val1, val2, val1_is_free, val2_is_free,
@@ -355,15 +355,17 @@ class TwoParameterObjective(object):
         result = autograd_fun(
             val1, val2, val1_is_free, val2_is_free, *argv, **argk)
 
-        set_par(par1, val1, val1_is_free)
-        set_par(par2, val2, val2_is_free)
+        set_par(self.par1, val1, val1_is_free)
+        set_par(self.par2, val2, val2_is_free)
+
+        return result
 
     def eval_fun(
         self, val1, val2, val1_is_free, val2_is_free,
         *argv, **argk):
 
-        set_par(par1, val1, val1_is_free)
-        set_par(par2, val2, val2_is_free)
+        set_par(self.par1, val1, val1_is_free)
+        set_par(self.par2, val2, val2_is_free)
         return self.fun(*argv, **argk)
 
     # def fun_free(self, free_val1, free_val2, *argv, **argk):
@@ -410,33 +412,53 @@ class TwoParameterObjective(object):
     #     return self.cache_vector_and_eval(
     #         self.ag_fun_vector_hessian21, vec_val1, vec_val2, *argv, **argk)
 
-    def fun_free_hessian12(self, val1, val2, *argv, **argk):
+    # Legacy
+    def fun_free(self, free_val1, free_val2, *argv, **argk):
+        return self.eval_fun(
+            free_val1, free_val2,
+            True, True,
+            *argv, **argk)
+
+    def fun_vector(self, vec_val1, vec_val2, *argv, **argk):
+        return self.eval_fun(
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
+
+    def fun_free_hessian12(self, free_val1, free_val2, *argv, **argk):
         return self.cache_and_eval(
             self._fun_hessian12,
-            val1=free_val1, val2=free_val2,
-            val1_is_free=True, val2_is_free=True,
+            free_val1, free_val2,
+            True, True,
             *argv, **argk)
 
     def fun_free_hessian21(self, free_val1, free_val2, *argv, **argk):
         return self.cache_and_eval(
             self._fun_hessian21,
-            val1=free_val1, val2=free_val2,
-            val1_is_free=True, val2_is_free=True,
+            free_val1, free_val2,
+            True, True,
             *argv, **argk)
 
     def fun_vector_hessian12(self, vec_val1, vec_val2, *argv, **argk):
         return self.cache_and_eval(
             self._fun_hessian12,
-            val1=vec_val1, val2=vec_val2,
-            val1_is_free=False, val2_is_free=False,
+            vec_val1, vec_val2,
+            False, False,
             *argv, **argk)
 
     def fun_vector_hessian21(self, vec_val1, vec_val2, *argv, **argk):
         return self.cache_and_eval(
             self._fun_hessian21,
-            val1=vec_val1, val2=vec_val2,
-            val1_is_free=False, val2_is_free=False,
+            vec_val1, vec_val2,
+            False, False,
             *argv, **argk)
+
+
+
+
+
+
+
 
 # It's useful, especially when constructing sparse Hessians, to know
 # which location in the parameter vector each variable goes.  The
