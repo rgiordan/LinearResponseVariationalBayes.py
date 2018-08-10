@@ -409,14 +409,23 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
 
-def ParametricSensitivity(object):
+class ParametricSensitivity(object):
     def __init__(
         self, objective_fun, input_par, output_par, hyper_par,
-        input_to_output_converter, optimal_input_par=None, objective_hessian=None):
+        input_to_output_converter,
+        optimal_input_par=None, objective_hessian=None):
+
+        self.input_par = input_par
+        self.output_par = output_par
+        self.hyper_par = hyper_par
+        self.input_to_output_converter = input_to_output_converter
 
         # For now, assume that the largest parameter is input_par.
         # TODO: detect automatically which is larger and choose the appropriate
         # sub-Hessian for maximal efficiency.
+        # TODO: add an optional sensitivity_objective containing some
+        # faster-to-evaluate part of the objective that depends on the
+        # specified hyperparameters.
         self.parameter_converter = ParameterConverter(
             input_par, output_par, input_to_output_converter)
         self.objective = Objective(input_par, objective_fun)
@@ -438,9 +447,38 @@ def ParametricSensitivity(object):
                 self.optimal_input_par)
         else:
             self.objective_hessian = objective_hessian
+        self.hessian_chol = sp.linalg.cho_factor(self.objective_hessian)
 
+        self.dout_din = self.parameter_converter.free_to_vec_jacobian(
+            self.optimal_input_par)
 
+        self.optimal_hyper_par = self.hyper_par.get_vector()
+        self.hyper_par_cross_hessian = \
+            self.sensitivity_objective.fun_hessian_free1_vector2(
+                self.optimal_input_par, self.optimal_hyper_par)
 
+        self.optimal_output_par = self.output_par.get_vector()
+        self.hyper_par_sensitivity = \
+            -1 * sp.linalg.cho_solve(
+                self.hessian_chol, self.hyper_par_cross_hessian)
+
+    def predict_input_par_from_hyperparameters(self, new_hyper_par):
+        hyper_par_diff = new_hyper_par - self.optimal_hyper_par
+        return \
+            self.optimal_input_par + self.hyper_par_sensitivity @ hyper_par_diff
+
+    def predict_output_par_from_hyperparameters(self, new_hyper_par, linear):
+        if linear:
+            hyper_par_diff = new_hyper_par - self.optimal_hyper_par
+            return \
+                self.optimal_output_par + \
+                self.dout_din @ self.hyper_par_sensitivity @ hyper_par_diff
+        else:
+            return self.parameter_converter.converter_free_to_vec(
+                self.predict_input_par_from_hyperparameters(new_hyper_par))
+
+########################
+# Other functions
 
 # It's useful, especially when constructing sparse Hessians, to know
 # which location in the parameter vector each variable goes.  The
