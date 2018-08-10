@@ -427,6 +427,11 @@ class TwoParameterObjective(object):
 #   - objective_hessian: Optional. The Hessian of objective_fun evaluated at
 #     optimal_input_par.  If unspecified, it is calculated when a
 #     ParametricSensitivity class is instantiated.
+#   - hyper_par_objective_fun: Optional.  A functor returning the part of the
+#     objective function that depends on the hyperparameters.  If this is not
+#     specified, objective_fun is used.  This can be useful for computational
+#     efficiency, or to calculate the effect of perturbations that were not
+#     implemented in the original model.
 #
 # Methods:
 #   - set_optimal_input_par: Set a new value of optimal_input_par at which to
@@ -440,27 +445,33 @@ class TwoParameterObjective(object):
 #     on input_par, otherwise a linear approximation is only used to estimate
 #     the dependence of input_par on hyper_par.
 class ParametricSensitivity(object):
-    def __init__(
-        self, objective_fun, input_par, output_par, hyper_par,
+    def __init__(self,
+        objective_fun, input_par, output_par, hyper_par,
         input_to_output_converter,
-        optimal_input_par=None, objective_hessian=None):
+        optimal_input_par=None,
+        objective_hessian=None,
+        hyper_par_objective_fun=None):
 
         self.input_par = input_par
         self.output_par = output_par
         self.hyper_par = hyper_par
         self.input_to_output_converter = input_to_output_converter
+        self.objective_fun = objective_fun
+        self.input_to_output_converter = input_to_output_converter
+
+        if hyper_par_objective_fun is None:
+            self.hyper_par_objective_fun = objective_fun
+        else:
+            self.hyper_par_objective_fun = hyper_par_objective_fun
 
         # For now, assume that the largest parameter is input_par.
         # TODO: detect automatically which is larger and choose the appropriate
         # sub-Hessian for maximal efficiency.
-        # TODO: add an optional sensitivity_objective containing some
-        # faster-to-evaluate part of the objective that depends on the
-        # specified hyperparameters.
         self.parameter_converter = ParameterConverter(
-            input_par, output_par, input_to_output_converter)
-        self.objective = Objective(input_par, objective_fun)
+            input_par, output_par, self.input_to_output_converter)
+        self.objective = Objective(self.input_par, self.objective_fun)
         self.sensitivity_objective = TwoParameterObjective(
-            input_par, hyper_par, objective_fun)
+            self.input_par, self.hyper_par, self.hyper_par_objective_fun)
 
         self.set_optimal_input_par(optimal_input_par, objective_hessian)
 

@@ -30,18 +30,22 @@ class QuadraticModel(object):
 
         self.objective = obj_lib.Objective(self.param, self.get_objective)
 
+    def get_hyper_par_objective(self):
+        # Only the part of the objective that dependson the hyperparameters.
+        theta = self.param.get()
+        return self.hyper_param.get() @ theta
+
     def get_objective(self):
         #centered_param = self.param.get() - self.truth
         theta = self.param.get()
         objective = 0.5 * theta.T @ self.matrix @ theta
-        shift = self.hyper_param.get() @ theta
+        shift = self.get_hyper_par_objective()
         return objective + shift
 
     def get_output_param_vector(self):
         theta = self.param.get_vector()
         self.output_param.set_vector(theta ** 2)
         return self.output_param.get_vector()
-
 
     # Testing functions that use the fact that the optimum has a closed form.
     def get_true_optimum_theta(self, hyper_param_val):
@@ -85,7 +89,6 @@ class TestParametricSensitivity(unittest.TestCase):
             output_par=model.output_param,
             hyper_par=model.hyper_param,
             input_to_output_converter=model.get_output_param_vector)
-
 
         epsilon = 0.01
         new_hyper_param_val = hyper_param_val + epsilon
@@ -133,6 +136,25 @@ class TestParametricSensitivity(unittest.TestCase):
         np_test.assert_array_almost_equal(
             get_doutput_dhyper(hyper_param_val),
             parametric_sens.get_doutput_dhyper())
+
+        # I think it suffices to just check the derivative when you specify
+        # hyper_par_objective_fun.
+        parametric_sens2 = obj_lib.ParametricSensitivity(
+            objective_fun=model.get_objective,
+            input_par=model.param,
+            output_par=model.output_param,
+            hyper_par=model.hyper_param,
+            optimal_input_par=theta0,
+            input_to_output_converter=model.get_output_param_vector,
+            hyper_par_objective_fun=model.get_hyper_par_objective)
+
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens2.get_dinput_dhyper())
+
+        np_test.assert_array_almost_equal(
+            get_doutput_dhyper(hyper_param_val),
+            parametric_sens2.get_doutput_dhyper())
 
 
 if __name__ == '__main__':
