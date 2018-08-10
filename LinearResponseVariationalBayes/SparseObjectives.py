@@ -462,6 +462,12 @@ class ParametricSensitivity(object):
             -1 * sp.linalg.cho_solve(
                 self.hessian_chol, self.hyper_par_cross_hessian)
 
+    def get_dinput_dhyper(self):
+        return self.hyper_par_sensitivity
+
+    def get_doutput_dhyper(self):
+        return self.dout_din @ self.hyper_par_sensitivity
+
     def predict_input_par_from_hyperparameters(self, new_hyper_par):
         hyper_par_diff = new_hyper_par - self.optimal_hyper_par
         return \
