@@ -409,6 +409,36 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
 
+# A class for calculating parametric sensitivity of a model.
+#
+# Args:
+#   - objective_fun: A target functor to be minimized.  It must take no
+#     arguments, but its value should depend on the values of input_par and
+#     hyper_par.
+#   - input_par: The parameter at which objective_fun is minimized.
+#   - output_par: The quantity of interest, a function of input_par.
+#   - hyper_par: A hyperparameter at whose fixed value objective_fun is
+#     minimized with respect to input_par.
+#   - input_to_output_converter: a functor taking no arguments, but depending
+#     on the value of input_par, that returns the vectorized value of output_par.
+#   - optimal_input_par: Optional. The free value of input_par at which
+#     objective_fun is minimized.  If unset, the current value of input_par
+#     is used.
+#   - objective_hessian: Optional. The Hessian of objective_fun evaluated at
+#     optimal_input_par.  If unspecified, it is calculated when a
+#     ParametricSensitivity class is instantiated.
+#
+# Methods:
+#   - set_optimal_input_par: Set a new value of optimal_input_par at which to
+#     evaluate hyperparameter sensitivity.
+#   - predict_input_par_from_hyperparameters: At a new vectorized value of
+#     hyper_par, return an estimate of the new optimal input_par in a free
+#     parameterization.
+#   - predict_output_par_from_hyperparameters: At a new vectorized value of
+#     hyper_par, return an estimate of the new output_par.  If linear is true,
+#     a linear approximation is used to estimate the dependence of output_par
+#     on input_par, otherwise a linear approximation is only used to estimate
+#     the dependence of input_par on hyper_par.
 class ParametricSensitivity(object):
     def __init__(
         self, objective_fun, input_par, output_par, hyper_par,
