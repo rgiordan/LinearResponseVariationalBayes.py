@@ -92,6 +92,8 @@ class Logger(object):
 # value of the parameters par.
 class Objective(object):
     def __init__(self, par, fun):
+        # TODO: redo this in the style of TwoParameterObjective
+
         self.par = par
         self.fun = fun
 
@@ -304,6 +306,12 @@ class ParameterConverter(object):
             self.ag_vec_to_vec_jacobian, vec_par_in)
 
 
+def set_par(par, val, is_free):
+    if is_free:
+        par.set_free(val)
+    else:
+        par.set_vector(val)
+
 
 # Like Objective, but with two parameters.  This is only useful for evaluating
 # off-diagonal Hessians.
@@ -313,71 +321,200 @@ class TwoParameterObjective(object):
         self.par2 = par2
         self.fun = fun
 
-        self.ag_fun_free_grad1 = autograd.grad(self.fun_free, argnum=0)
-        self.ag_fun_free_grad2 = autograd.grad(self.fun_free, argnum=1)
-
-        self.ag_fun_vector_grad1 = autograd.grad(self.fun_vector, argnum=0)
-        self.ag_fun_vector_grad2 = autograd.grad(self.fun_vector, argnum=1)
-
         # hessian12 has par1 in the rows and par2 in the columns.
         # hessian21 has par2 in the rows and par1 in the columns.
-        self.ag_fun_free_hessian12 = \
-            autograd.jacobian(self.ag_fun_free_grad1, argnum=1)
+        #
+        # Note that, generally, autograd will be faster if you use hessian12
+        # and par2 is the larger parameter.
 
-        self.ag_fun_free_hessian21 = \
-            autograd.jacobian(self.ag_fun_free_grad2, argnum=0)
+        self._fun_grad1 = autograd.grad(self.eval_fun, argnum=0)
+        self._fun_grad2 = autograd.grad(self.eval_fun, argnum=1)
+        self._fun_hessian12 = \
+            autograd.jacobian(self._fun_grad1, argnum=1)
+        self._fun_hessian21 = \
+            autograd.jacobian(self._fun_grad2, argnum=0)
 
-        self.ag_fun_vector_hessian12 = \
-            autograd.jacobian(self.ag_fun_vector_grad1, argnum=1)
+    def cache_and_eval(
+        self, autograd_fun, val1, val2, val1_is_free, val2_is_free,
+        *argv, **argk):
 
-        self.ag_fun_vector_hessian21 = \
-            autograd.jacobian(self.ag_fun_vector_grad2, argnum=0)
+        result = autograd_fun(
+            val1, val2, val1_is_free, val2_is_free, *argv, **argk)
+
+        set_par(self.par1, val1, val1_is_free)
+        set_par(self.par2, val2, val2_is_free)
+
+        return result
+
+    def eval_fun(
+        self, val1, val2, val1_is_free, val2_is_free,
+        *argv, **argk):
+
+        set_par(self.par1, val1, val1_is_free)
+        set_par(self.par2, val2, val2_is_free)
+        return self.fun(*argv, **argk)
 
     def fun_free(self, free_val1, free_val2, *argv, **argk):
-        self.par1.set_free(free_val1)
-        self.par2.set_free(free_val2)
-        return self.fun(*argv, **argk)
+        return self.eval_fun(
+            free_val1, free_val2,
+            True, True,
+            *argv, **argk)
 
     def fun_vector(self, vec_val1, vec_val2, *argv, **argk):
-        self.par1.set_vector(vec_val1)
-        self.par2.set_vector(vec_val2)
-        return self.fun(*argv, **argk)
+        return self.eval_fun(
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
 
-    def cache_free_and_eval(
-        self, autograd_fun, free_val1, free_val2, *argv, **argk):
-
-        result = autograd_fun(free_val1, free_val2, *argv, **argk)
-        self.par1.set_free(free_val1)
-        self.par2.set_free(free_val2)
-        return result
-
-    def cache_vector_and_eval(
-        self, autograd_fun, vec_val1, vec_val2, *argv, **argk):
-
-        result = autograd_fun(vec_val1, vec_val2, *argv, **argk)
-        self.par1.set_vector(vec_val1)
-        self.par2.set_vector(vec_val2)
-        return result
-
-    # Note that, generally, autograd will be faster if you use hessian12
-    # and par2 is the larger parameter.
     def fun_free_hessian12(self, free_val1, free_val2, *argv, **argk):
-        return self.cache_free_and_eval(
-            self.ag_fun_free_hessian12, free_val1, free_val2, *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            free_val1, free_val2,
+            True, True,
+            *argv, **argk)
 
     def fun_free_hessian21(self, free_val1, free_val2, *argv, **argk):
-        return self.cache_free_and_eval(
-            self.ag_fun_free_hessian21, free_val1, free_val2, *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian21,
+            free_val1, free_val2,
+            True, True,
+            *argv, **argk)
 
     def fun_vector_hessian12(self, vec_val1, vec_val2, *argv, **argk):
-        return self.cache_vector_and_eval(
-            self.ag_fun_vector_hessian12, vec_val1, vec_val2, *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
 
     def fun_vector_hessian21(self, vec_val1, vec_val2, *argv, **argk):
-        return self.cache_vector_and_eval(
-            self.ag_fun_vector_hessian21, vec_val1, vec_val2, *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian21,
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
+
+    def fun_hessian_free1_vector2(self, free_val1, vec_val2, *argv, **argk):
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            free_val1, vec_val2,
+            True, False,
+            *argv, **argk)
+
+    def fun_hessian_vector1_free2(self, vec_val1, free_val2, *argv, **argk):
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            vec_val1, free_val2,
+            False, True,
+            *argv, **argk)
 
 
+# A class for calculating parametric sensitivity of a model.
+#
+# Args:
+#   - objective_fun: A target functor to be minimized.  It must take no
+#     arguments, but its value should depend on the values of input_par and
+#     hyper_par.
+#   - input_par: The parameter at which objective_fun is minimized.
+#   - output_par: The quantity of interest, a function of input_par.
+#   - hyper_par: A hyperparameter at whose fixed value objective_fun is
+#     minimized with respect to input_par.
+#   - input_to_output_converter: a functor taking no arguments, but depending
+#     on the value of input_par, that returns the vectorized value of output_par.
+#   - optimal_input_par: Optional. The free value of input_par at which
+#     objective_fun is minimized.  If unset, the current value of input_par
+#     is used.
+#   - objective_hessian: Optional. The Hessian of objective_fun evaluated at
+#     optimal_input_par.  If unspecified, it is calculated when a
+#     ParametricSensitivity class is instantiated.
+#
+# Methods:
+#   - set_optimal_input_par: Set a new value of optimal_input_par at which to
+#     evaluate hyperparameter sensitivity.
+#   - predict_input_par_from_hyperparameters: At a new vectorized value of
+#     hyper_par, return an estimate of the new optimal input_par in a free
+#     parameterization.
+#   - predict_output_par_from_hyperparameters: At a new vectorized value of
+#     hyper_par, return an estimate of the new output_par.  If linear is true,
+#     a linear approximation is used to estimate the dependence of output_par
+#     on input_par, otherwise a linear approximation is only used to estimate
+#     the dependence of input_par on hyper_par.
+class ParametricSensitivity(object):
+    def __init__(
+        self, objective_fun, input_par, output_par, hyper_par,
+        input_to_output_converter,
+        optimal_input_par=None, objective_hessian=None):
+
+        self.input_par = input_par
+        self.output_par = output_par
+        self.hyper_par = hyper_par
+        self.input_to_output_converter = input_to_output_converter
+
+        # For now, assume that the largest parameter is input_par.
+        # TODO: detect automatically which is larger and choose the appropriate
+        # sub-Hessian for maximal efficiency.
+        # TODO: add an optional sensitivity_objective containing some
+        # faster-to-evaluate part of the objective that depends on the
+        # specified hyperparameters.
+        self.parameter_converter = ParameterConverter(
+            input_par, output_par, input_to_output_converter)
+        self.objective = Objective(input_par, objective_fun)
+        self.sensitivity_objective = TwoParameterObjective(
+            input_par, hyper_par, objective_fun)
+
+        self.set_optimal_input_par(optimal_input_par, objective_hessian)
+
+    def set_optimal_input_par(
+        self, optimal_input_par=None, objective_hessian=None):
+
+        if optimal_input_par is None:
+            self.optimal_input_par = self.input_par.get_free()
+        else:
+            self.optimal_input_par = deepcopy(optimal_input_par)
+
+        if objective_hessian is None:
+            self.objective_hessian = self.objective.fun_free_hessian(
+                self.optimal_input_par)
+        else:
+            self.objective_hessian = objective_hessian
+        self.hessian_chol = sp.linalg.cho_factor(self.objective_hessian)
+
+        self.dout_din = self.parameter_converter.free_to_vec_jacobian(
+            self.optimal_input_par)
+
+        self.optimal_hyper_par = self.hyper_par.get_vector()
+        self.hyper_par_cross_hessian = \
+            self.sensitivity_objective.fun_hessian_free1_vector2(
+                self.optimal_input_par, self.optimal_hyper_par)
+
+        self.optimal_output_par = self.output_par.get_vector()
+        self.hyper_par_sensitivity = \
+            -1 * sp.linalg.cho_solve(
+                self.hessian_chol, self.hyper_par_cross_hessian)
+
+    def get_dinput_dhyper(self):
+        return self.hyper_par_sensitivity
+
+    def get_doutput_dhyper(self):
+        return self.dout_din @ self.hyper_par_sensitivity
+
+    def predict_input_par_from_hyperparameters(self, new_hyper_par):
+        hyper_par_diff = new_hyper_par - self.optimal_hyper_par
+        return \
+            self.optimal_input_par + self.hyper_par_sensitivity @ hyper_par_diff
+
+    def predict_output_par_from_hyperparameters(self, new_hyper_par, linear):
+        if linear:
+            hyper_par_diff = new_hyper_par - self.optimal_hyper_par
+            return \
+                self.optimal_output_par + \
+                self.dout_din @ self.hyper_par_sensitivity @ hyper_par_diff
+        else:
+            return self.parameter_converter.converter_free_to_vec(
+                self.predict_input_par_from_hyperparameters(new_hyper_par))
+
+########################
+# Other functions
 
 # It's useful, especially when constructing sparse Hessians, to know
 # which location in the parameter vector each variable goes.  The

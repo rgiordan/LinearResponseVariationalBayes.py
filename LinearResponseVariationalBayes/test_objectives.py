@@ -57,13 +57,20 @@ class Model(object):
 
 
 class TwoParamModel(object):
-    def __init__(self, dim=3):
+    def __init__(self, dim=3, x_constrained=True, y_constrained=True):
         self.a = np.random.random((dim, dim))
         self.a = np.matmul(self.a, np.transpose(self.a)) + np.eye(dim)
 
         self.par = vb.ModelParamsDict()
-        self.par.push_param(vb.VectorParam('x', size=dim, lb=0))
-        self.par.push_param(vb.VectorParam('y', size=dim, lb=1))
+        if x_constrained:
+            self.par.push_param(vb.VectorParam('x', size=dim, lb=0))
+        else:
+            self.par.push_param(vb.VectorParam('x', size=dim))
+
+        if y_constrained:
+            self.par.push_param(vb.VectorParam('y', size=dim, lb=1))
+        else:
+            self.par.push_param(vb.VectorParam('y', size=dim))
 
     def set_random(self):
         self.par.set_free(np.random.random(self.par.free_size()))
@@ -71,7 +78,7 @@ class TwoParamModel(object):
     def fun(self):
         x = self.par['x'].get()
         y = self.par['y'].get()
-        return np.matmul(np.matmul(np.transpose(x), self.a), y)
+        return np.exp(np.sum(x * y) / 3)
 
     def convert_y_to_x(self, x):
         return x ** 2
@@ -284,16 +291,25 @@ class TestObjectiveClass(unittest.TestCase):
 
 
     def test_two_parameter_objective(self):
+        # The main purpose of the TwoParameterObjective is to get off-diagonal
+        # Hessians without calculating the full Hessian.  To test, we compare
+        # with the appropriate sub-matrices of the full Hessian.
         model = TwoParamModel()
         model.set_random()
 
         objective_full = obj_lib.Objective(model.par, model.fun)
 
-        objective_x = obj_lib.Objective(model.par['x'], model.fun)
-        objective_y = obj_lib.Objective(model.par['y'], model.fun)
-
         objective = obj_lib.TwoParameterObjective(
             model.par['x'], model.par['y'], model.fun)
+
+        # Get the indices of the sub-matrices.
+        # In this case, the indices are the same for the free and vector
+        # parameters.
+        par_index = obj_lib.make_index_param(model.par)
+        ind_12 = np.ix_(par_index['x'].get_vector(),
+                        par_index['y'].get_vector())
+        ind_21 = np.ix_(par_index['y'].get_vector(),
+                        par_index['x'].get_vector())
 
         par_free = model.par.get_free()
         par_vec = model.par.get_vector()
@@ -305,25 +321,63 @@ class TestObjectiveClass(unittest.TestCase):
         np_test.assert_array_almost_equal(
             model.fun(), objective.fun_free(x_free, y_free))
         np_test.assert_array_almost_equal(
-            model.fun(), objective.fun_free(x_free, y_free))
-        np_test.assert_array_almost_equal(
             model.fun(), objective.fun_vector(x_vec, y_vec))
-
         np_test.assert_array_almost_equal(
-            objective.ag_fun_free_grad1(x_free, y_free),
-            objective_x.ag_fun_free_grad(x_free))
-
+            model.fun(),
+            objective.eval_fun(
+                x_free, y_vec, val1_is_free=True, val2_is_free=False))
         np_test.assert_array_almost_equal(
-            objective.ag_fun_free_grad2(x_free, y_free),
-            objective_y.ag_fun_free_grad(y_free))
+            model.fun(),
+            objective.eval_fun(
+                x_vec, y_free, val1_is_free=False, val2_is_free=True))
 
+        full_free_hess = objective_full.fun_free_hessian(par_free)
         np_test.assert_array_almost_equal(
-            objective.ag_fun_vector_grad1(x_vec, y_vec),
-            objective_x.ag_fun_vector_grad(x_vec))
+            full_free_hess[ind_12],
+            objective.fun_free_hessian12(x_free, y_free))
+        np_test.assert_array_almost_equal(
+            full_free_hess[ind_21],
+            objective.fun_free_hessian21(x_free, y_free))
 
+        full_vec_hess = objective_full.fun_vector_hessian(par_vec)
         np_test.assert_array_almost_equal(
-            objective.ag_fun_vector_grad2(x_vec, y_vec),
-            objective_y.ag_fun_vector_grad(y_vec))
+            full_vec_hess[ind_12],
+            objective.fun_vector_hessian12(x_vec, y_vec))
+        np_test.assert_array_almost_equal(
+            full_vec_hess[ind_21],
+            objective.fun_vector_hessian21(x_vec, y_vec))
+
+        # Get the equivalent of mixed free and vector Hessians by defining
+        # x and y as unconstrained.
+        model = TwoParamModel(x_constrained=False)
+        model.par['x'].set_vector(x_vec)
+        model.par['y'].set_vector(y_vec)
+        # Check that the test is valid.
+        np_test.assert_array_almost_equal(
+            model.par['x'].get_vector(), model.par['x'].get_free())
+        objective_full = obj_lib.Objective(model.par, model.fun)
+        objective = obj_lib.TwoParameterObjective(
+            model.par['x'], model.par['y'], model.fun)
+        full_free_hess = objective_full.fun_free_hessian(
+            model.par.get_free())
+        np_test.assert_array_almost_equal(
+            full_free_hess[ind_12],
+            objective.fun_hessian_vector1_free2(x_vec, y_free))
+
+        model = TwoParamModel(y_constrained=False)
+        model.par['x'].set_vector(x_vec)
+        model.par['y'].set_vector(y_vec)
+        # Check that the test is valid.
+        np_test.assert_array_almost_equal(
+            model.par['y'].get_vector(), model.par['y'].get_free())
+        objective_full = obj_lib.Objective(model.par, model.fun)
+        objective = obj_lib.TwoParameterObjective(
+            model.par['x'], model.par['y'], model.fun)
+        full_free_hess = objective_full.fun_free_hessian(
+            model.par.get_free())
+        np_test.assert_array_almost_equal(
+            full_free_hess[ind_12],
+            objective.fun_hessian_free1_vector2(x_free, y_vec))
 
 
     def run_optimization_tests(self, use_sparse=False):
