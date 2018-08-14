@@ -612,6 +612,9 @@ def json_unpack_csr_matrix(sp_mat_dict):
 # Get the matrix inverse square root of a symmetric matrix with eigenvalue
 # thresholding.  This is particularly useful for calculating preconditioners.
 def get_sym_matrix_inv_sqrt(block_hessian, ev_min=None, ev_max=None):
+    raise DeprecationWarning(
+        'Deprecated.  Use OptimizationUtils.get_sym_matrix_inv_sqrt instead.')
+
     hessian_sym = 0.5 * (block_hessian + block_hessian.T)
     eig_val, eig_vec = np.linalg.eigh(hessian_sym)
 

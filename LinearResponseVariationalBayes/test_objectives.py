@@ -7,6 +7,7 @@ import numpy.testing as np_test
 import unittest
 import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
+import LinearResponseVariationalBayes.OptimizationUtils as opt_lib
 import LinearResponseVariationalBayes.ConjugateGradient as cg
 
 
@@ -464,7 +465,7 @@ class TestMatrixSquareRoot(unittest.TestCase):
             np.outer(c_vec, c_vec)
 
         # Test with no eigenvalue trimming
-        a_inv_sqrt, a_corrected = obj_lib.get_sym_matrix_inv_sqrt(a)
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(a)
         np_test.assert_array_almost_equal(
             np.linalg.inv(a), a_inv_sqrt @ a_inv_sqrt.T)
         np_test.assert_array_almost_equal(a, a_corrected)
@@ -474,19 +475,19 @@ class TestMatrixSquareRoot(unittest.TestCase):
         min_ev = eig_val[0] + 0.5 * (eig_val[1] - eig_val[0])
         max_ev = eig_val[2] - 0.5 * (eig_val[2] - eig_val[1])
 
-        a_inv_sqrt, a_corrected = obj_lib.get_sym_matrix_inv_sqrt(
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
             a, ev_min=min_ev)
         eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
         np_test.assert_array_almost_equal(min_ev, eig_val_test[0])
         np_test.assert_array_almost_equal(eig_val[1:2], eig_val_test[1:2])
 
-        a_inv_sqrt, a_corrected = obj_lib.get_sym_matrix_inv_sqrt(
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
             a, ev_max=max_ev)
         eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
         np_test.assert_array_almost_equal(max_ev, eig_val_test[2])
         np_test.assert_array_almost_equal(eig_val[0:1], eig_val_test[0:1])
 
-        a_inv_sqrt, a_corrected = obj_lib.get_sym_matrix_inv_sqrt(
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
             a, ev_min=min_ev, ev_max=max_ev)
         eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
         np_test.assert_array_almost_equal(min_ev, eig_val_test[0])

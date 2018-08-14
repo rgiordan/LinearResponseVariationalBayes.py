@@ -11,7 +11,7 @@ from copy import deepcopy
 
 class QuadraticModel(object):
     def __init__(self, dim):
-        # Put lower bounds so we're testing the
+        # Put lower bounds so we're testing the contraining functions.
         self.dim = dim
         self.param = vb.VectorParam('theta', size=dim, lb=-10.0)
 
@@ -36,7 +36,6 @@ class QuadraticModel(object):
         return self.hyper_param.get() @ theta
 
     def get_objective(self):
-        #centered_param = self.param.get() - self.truth
         theta = self.param.get()
         objective = 0.5 * theta.T @ self.matrix @ theta
         shift = self.get_hyper_par_objective()
