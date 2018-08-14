@@ -91,5 +91,48 @@ class TestOptimizationUtils(unittest.TestCase):
             model.get_true_optimum(), opt_x, decimal=4)
 
 
+class TestMatrixSquareRoot(unittest.TestCase):
+    def test_sym_matrix_inv_sqrt(self):
+        a_vec = np.array([1, 2, 3])
+        b_vec = np.array([0, 1, 3])
+        c_vec = np.array([0, 3, 3])
+        # a_vec = a_vec /np.linalg.norm(a_vec)
+        # b_vec = b_vec /np.linalg.norm(b_vec)
+        # c_vec = c_vec / np.linalg.norm(c_vec)
+        a = np.outer(a_vec, a_vec) + \
+            np.outer(b_vec, b_vec) + \
+            np.outer(c_vec, c_vec)
+
+        # Test with no eigenvalue trimming
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(a)
+        np_test.assert_array_almost_equal(
+            np.linalg.inv(a), a_inv_sqrt @ a_inv_sqrt.T)
+        np_test.assert_array_almost_equal(a, a_corrected)
+
+        # Check the eigenvalue trimming.
+        eig_val, eig_vec = np.linalg.eigh(a)
+        min_ev = eig_val[0] + 0.5 * (eig_val[1] - eig_val[0])
+        max_ev = eig_val[2] - 0.5 * (eig_val[2] - eig_val[1])
+
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
+            a, ev_min=min_ev)
+        eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
+        np_test.assert_array_almost_equal(min_ev, eig_val_test[0])
+        np_test.assert_array_almost_equal(eig_val[1:2], eig_val_test[1:2])
+
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
+            a, ev_max=max_ev)
+        eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
+        np_test.assert_array_almost_equal(max_ev, eig_val_test[2])
+        np_test.assert_array_almost_equal(eig_val[0:1], eig_val_test[0:1])
+
+        a_inv_sqrt, a_corrected = opt_lib.get_sym_matrix_inv_sqrt(
+            a, ev_min=min_ev, ev_max=max_ev)
+        eig_val_test, _ = np.linalg.eigh(np.linalg.inv(a_inv_sqrt @ a_inv_sqrt.T))
+        np_test.assert_array_almost_equal(min_ev, eig_val_test[0])
+        np_test.assert_array_almost_equal(max_ev, eig_val_test[2])
+        np_test.assert_array_almost_equal(eig_val[1], eig_val_test[1])
+
+
 if __name__ == '__main__':
     unittest.main()
