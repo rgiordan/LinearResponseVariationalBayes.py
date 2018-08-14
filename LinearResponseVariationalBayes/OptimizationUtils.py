@@ -75,9 +75,9 @@ def minimize_objective_trust_ncg(
 
 
 def minimize_objective_bfgs(
-    objective, init_x, precondition,
-    maxiter = 500, disp = True, print_every = 50,
-    init_logger = True):
+    objective, init_x, precondition=False,
+    maxiter=500, disp=True, print_every=50,
+    init_logger=True):
 
     if init_logger:
         objective.logger.initialize()
