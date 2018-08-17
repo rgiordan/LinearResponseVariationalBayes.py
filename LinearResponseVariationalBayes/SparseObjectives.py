@@ -476,7 +476,9 @@ class ParametricSensitivity(object):
         self.set_optimal_input_par(optimal_input_par, objective_hessian)
 
     def set_optimal_input_par(
-        self, optimal_input_par=None, objective_hessian=None):
+        self,
+        optimal_input_par=None,
+        objective_hessian=None):
 
         if optimal_input_par is None:
             self.optimal_input_par = self.input_par.get_free()
