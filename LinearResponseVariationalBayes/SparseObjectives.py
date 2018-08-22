@@ -327,12 +327,8 @@ class TwoParameterObjective(object):
         # Note that, generally, autograd will be faster if you use hessian12
         # and par2 is the larger parameter.
 
-        # self._fun_grad1 = autograd.grad(self.eval_fun, argnum=0)
-        # self._fun_grad2 = autograd.grad(self.eval_fun, argnum=1)
-        self._fun_grad1 = autograd.grad(
-            self.cache_and_eval_fun, argnum=0)
-        self._fun_grad2 = autograd.grad(
-            self.cache_and_eval_fun, argnum=1)
+        self._fun_grad1 = autograd.grad(self.eval_fun, argnum=0)
+        self._fun_grad2 = autograd.grad(self.eval_fun, argnum=1)
 
         self._fun_hessian12 = \
             autograd.jacobian(self._fun_grad1, argnum=1)
@@ -359,18 +355,6 @@ class TwoParameterObjective(object):
         set_par(self.par2, val2, val2_is_free)
         return self.fun(*argv, **argk)
 
-    def cache_and_eval_fun(
-        self, val1, val2, val1_is_free, val2_is_free,
-        *argv, **argk):
-
-        set_par(self.par1, val1, val1_is_free)
-        set_par(self.par2, val2, val2_is_free)
-        result = self.fun(*argv, **argk)
-        set_par(self.par1, val1, val1_is_free)
-        set_par(self.par2, val2, val2_is_free)
-        return result
-
-
     def fun_free(self, free_val1, free_val2, *argv, **argk):
         return self.eval_fun(
             free_val1, free_val2,
@@ -385,83 +369,81 @@ class TwoParameterObjective(object):
 
     def fun_grad1(
         self, val1, val2, val1_is_free, val2_is_free, *argv, **argk):
-        return self._fun_grad1(
+        return self.cache_and_eval(
+            self._fun_grad1,
             val1, val2,
             val1_is_free, val2_is_free,
             *argv, **argk)
 
     def fun_grad2(
         self, val1, val2, val1_is_free, val2_is_free, *argv, **argk):
-        return self._fun_grad2(
+        return self.cache_and_eval(
+            self._fun_grad2,
             val1, val2,
             val1_is_free, val2_is_free,
             *argv, **argk)
 
     def fun_free_hessian12(self, free_val1, free_val2, *argv, **argk):
-        return self._fun_hessian12(
+        return self.cache_and_eval(
+            self._fun_hessian12,
             free_val1, free_val2,
             True, True,
             *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian12,
-        #     free_val1, free_val2,
-        #     True, True,
-        #     *argv, **argk)
 
     def fun_free_hessian21(self, free_val1, free_val2, *argv, **argk):
-        return self._fun_hessian21(
-            free_val1, free_val2,
-            True, True,
-            *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian21,
+        # return self._fun_hessian21(
         #     free_val1, free_val2,
         #     True, True,
         #     *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian21,
+            free_val1, free_val2,
+            True, True,
+            *argv, **argk)
 
     def fun_vector_hessian12(self, vec_val1, vec_val2, *argv, **argk):
-        return self._fun_hessian12(
-            vec_val1, vec_val2,
-            False, False,
-            *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian12,
+        # return self._fun_hessian12(
         #     vec_val1, vec_val2,
         #     False, False,
         #     *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
 
     def fun_vector_hessian21(self, vec_val1, vec_val2, *argv, **argk):
-        return self._fun_hessian21(
-            vec_val1, vec_val2,
-            False, False,
-            *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian21,
+        # return self._fun_hessian21(
         #     vec_val1, vec_val2,
         #     False, False,
         #     *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian21,
+            vec_val1, vec_val2,
+            False, False,
+            *argv, **argk)
 
     def fun_hessian_free1_vector2(self, free_val1, vec_val2, *argv, **argk):
-        return self._fun_hessian12(
-            free_val1, vec_val2,
-            True, False,
-            *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian12,
+        # return self._fun_hessian12(
         #     free_val1, vec_val2,
         #     True, False,
         #     *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            free_val1, vec_val2,
+            True, False,
+            *argv, **argk)
 
     def fun_hessian_vector1_free2(self, vec_val1, free_val2, *argv, **argk):
-        return self._fun_hessian12(
-            vec_val1, free_val2,
-            False, True,
-            *argv, **argk)
-        # return self.cache_and_eval(
-        #     self._fun_hessian12,
+        # return self._fun_hessian12(
         #     vec_val1, free_val2,
         #     False, True,
         #     *argv, **argk)
+        return self.cache_and_eval(
+            self._fun_hessian12,
+            vec_val1, free_val2,
+            False, True,
+            *argv, **argk)
 
 
 # A class for calculating parametric sensitivity of a model.
