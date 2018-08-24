@@ -16,7 +16,6 @@ from copy import deepcopy
 
 import math
 
-
 from LinearResponseVariationalBayes.ModelSensitivity import append_jvp
 from LinearResponseVariationalBayes.ModelSensitivity import DerivativeTerm
 from LinearResponseVariationalBayes.ModelSensitivity import generate_two_term_derivative_array
@@ -29,8 +28,9 @@ from LinearResponseVariationalBayes.ModelSensitivity import evaluate_dketa_depsk
 
 from LinearResponseVariationalBayes.ModelSensitivity import differentiate_terms
 
-        from LinearResponseVariationalBayes.ModelSensitivity import ParametricSensitivityTaylorExpansion
+from LinearResponseVariationalBayes.ModelSensitivity import ParametricSensitivityTaylorExpansion
 
+import unittest
 
 # This class will be used for testing.
 class QuadraticModel(object):
