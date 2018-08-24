@@ -71,8 +71,8 @@ def append_jvp(fun, num_base_args=1, argnum=0):
 #   of terms d\eta^{i + 1} / d\epsilon^{i + 1}.
 # - prefactor: The constant multiple in front of this term.
 # - eval_eta_derivs: A vector of functions to evaluate d\eta^i / d\epsilon^i.
-#   The functions should take arguments (eta0, eps0, deps) and the i^{th} entry should
-#   evaluate d\eta^i / d\epsilon^i (deps^i) |_{eta0, eps0}.
+#   The functions should take arguments (eta0, eps0, deps) and the i^{th} entry
+#   should evaluate d\eta^i / d\epsilon^i (deps^i) |_{eta0, eps0}.
 # - eval_g_derivs: A list of lists of g jacobian vector product functions.
 #   The array should be such that
 #   eval_g_derivs[i][j](eta0, eps0, v1 ... vi, w1 ... wj)
@@ -335,6 +335,46 @@ def differentiate_terms(hess0, dterms):
 
 # This is a class for computing the Taylor series of
 # eta(eps) = argmax_eta objective(eta, eps).
+#
+# Args:
+#   - objective_functor: A functor that evaluates an optimization objective
+#   with respect to input_par at hyperparameter hyper_par.
+#   - input_par: The input Parameter for the optimization problem:
+#   - hyper_par: The hyperparameter for the optimization problem.
+#   - input_val0: The value of input_par at the optimum.
+#   - hyper_val0: The value of hyper_par at which input_val0 was found.
+#   - order: The maximum order of the Taylor series to be calculated.
+#   - input_is_free: Whether or not input_val0 is the free (vs vector) value
+#   for input_par.  Defaults to free.
+#   - hyper_is_free: Whether or not hyper_val0 is the free (vs vector) value
+#   for hyper_par.  Defaults to not free (i.e. to vector).
+#   - hess0: Optional, the Hessian of the objective at (input_val0, hyper_val0).
+#   If not specified it is calculated at initialization.
+#   - hyper_par_objective_functor: Optional, a functor containing the dependence
+#   of objective_functor on the hyperparameter.  Sometimes only a small,
+#   easily calculated part of the objective depends on the hyperparameter,
+#   and by specifying hyper_par_objective_functor the necessary calculations
+#   can be more efficient.  If unset, objective_functor is used.
+#
+# Methods:
+#   - evaluate_dkinput_dhyperk.
+#       Args:
+#           - dhyper: The difference hyper_val1 - hyper_val0 by which the
+#           derivatives are multiplied.
+#           - k: The order of the derivative to return.
+#       Returns:
+#           dkinput_dhyperk * (hyper_val1 - hyper_val0).
+#   - evaluate_taylor_series
+#       Args:
+#           - dhyper: The difference hyper_val1 - hyper_val0 by which the
+#           derivatives are multiplied.
+#           - add_offset: Whether the Taylor expansion includes hyper_val0.
+#           - max_order: The maximum order of the Taylor expansion to use.
+#           Higher orders will be slower to evaluate.  Defaults to the
+#           highest order possible, i.e. the order specified at initialization.
+#       Returns:
+#           The value of the Taylor series expansion of \hat\eta(\eps) at
+#           hyper_val0 + dhyper.
 class ParametricSensitivityTaylorExpansion(object):
     def __init__(
         self, objective_functor, input_par, hyper_par,
@@ -439,7 +479,8 @@ class ParametricSensitivityTaylorExpansion(object):
         return self.cache_and_eval(
             deriv_fun, self.input_val0, self.hyper_val0, dhyper, *argv, **argk)
 
-    def evaluate_taylor_series(self, dhyper, *argv, add_offset=True, max_order=None, **argk):
+    def evaluate_taylor_series(
+        self, dhyper, *argv, add_offset=True, max_order=None, **argk):
         if max_order is None:
             max_order = self.order
         if max_order <= 0:
@@ -461,7 +502,8 @@ class ParametricSensitivityTaylorExpansion(object):
 
     def print_terms(self, k=None):
         if k is not None and k > self.order:
-            raise ValueError('k must be no greater than order={}'.format(self.order))
+            raise ValueError(
+                'k must be no greater than order={}'.format(self.order))
         for order in range(self.order):
             if k is None or order == (k - 1):
                 print('\nTerms for order {}:'.format(order + 1))
