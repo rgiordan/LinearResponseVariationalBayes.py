@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import autograd.numpy as np
+import autograd.scipy as asp
 from autograd import grad, jacobian, hessian
 from autograd.test_util import check_grads
 
@@ -98,7 +99,7 @@ def execute_required_methods(
         jac = param_value_jacobian(free_param)
         testcase.assertTrue(np.max(np.abs(jac)) > 0)
         check_grads(
-            set_free_and_get, modes=['rev'], order=2)(free_param)
+            set_free_and_get, modes=['rev', 'fwd'], order=2)(free_param)
 
     param.set_free(free_param)
     if test_sparse_transform:
@@ -756,6 +757,25 @@ class TestDifferentiation(unittest.TestCase):
         par_vec = mp.get_vector()
         par_vec = np.array([ float(x) for x in par_vec ])
 #        check_grads(ParamsFun)(par_vec)
+
+    def test_with_check_grads(self):
+        # TODO: I think these (cleaner) tests using the new autograd
+        # check_grads are redundant.
+
+        x_vec = np.random.random(6)
+        x_mat = MatrixParameters.unvectorize_ld_matrix(x_vec)
+
+        check_grads(
+            MatrixParameters.vectorize_ld_matrix,
+            modes=['fwd', 'rev'], order=3)(x_mat)
+        check_grads(
+            MatrixParameters.unvectorize_ld_matrix,
+            modes=['fwd', 'rev'], order=3)(x_vec)
+
+        # As of writing, this test will fail with the pip version of
+        # autograd but not with git commit
+        # 65c21e2975fd4d0c6e979c248ee4407e94ed15bf
+        check_grads(asp.misc.logsumexp, modes=['rev', 'fwd'])(x_vec)
 
     def test_LDMatrixParamDerivatives(self):
         # Test the LD matrix extra carefully since we define our own
