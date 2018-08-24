@@ -1,8 +1,13 @@
 import autograd
 import autograd.numpy as np
 
+import scipy as sp
+
 import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
+
+# TODO: this should probably be here.
+from LinearResponseVariationalBayes.SparseObjectives import set_par
 
 from copy import deepcopy
 
@@ -217,7 +222,7 @@ def generate_two_term_derivative_array(fun, order):
             # Append one x1 derivative.
             next_deriv = append_jvp(
                 eval_fun_derivs[x1_ind - 1][0], num_base_args=2, argnum=0)
-            eval_fun_derivs.append([ next_deriv ]
+            eval_fun_derivs.append([ next_deriv ])
         for x2_ind in range(order):
             # Append one x2 derivative.
             next_deriv = append_jvp(
@@ -272,3 +277,193 @@ def evaluate_terms(dterms, eta0, eps0, deps, include_highest_eta_order=True):
             else:
                 vec += term.evaluate(eta0, eps0, deps)
     return vec
+
+
+# Get the terms to start a Taylor expansion.
+def get_taylor_base_terms(eval_g_derivs):
+    dterms1 = [ \
+        DerivativeTerm(
+            eps_order=1,
+            eta_orders=[0],
+            prefactor=1.0,
+            eval_eta_derivs=[],
+            eval_g_derivs=eval_g_derivs),
+        DerivativeTerm(
+            eps_order=0,
+            eta_orders=[1],
+            prefactor=1.0,
+            eval_eta_derivs=[],
+            eval_g_derivs=eval_g_derivs) ]
+    return dterms1
+
+
+# Given a collection of dterms (formed either with get_taylor_base_terms
+# or derivatives), evaluate the implied dketa_depsk.
+#
+# Args:
+#   - hess0: The Hessian of the objective wrt the first argument.
+#   - dterms: An array of DerivativeTerms.
+#   - eta0: The value of the first argument.
+#   - eps0: The value of the second argument.
+#   - deps: The change in epsilon by which to multiply the Jacobians.
+def evaluate_dketa_depsk(hess0, dterms, eta0, eps0, deps):
+    vec = evaluate_terms(
+        dterms, eta0, eps0, deps, include_highest_eta_order=False)
+    assert vec is not None
+    return -1 * np.linalg.solve(hess0, vec)
+
+
+# Calculate the derivative of an array of DerivativeTerms.
+#
+# Args:
+#   - hess0: The Hessian of the objective wrt the first argument.
+#   - dterms: An array of DerivativeTerms.
+#
+# Returns:
+#   An array of the derivatives of dterms with respect to the second argument.
+def differentiate_terms(hess0, dterms):
+    def eval_next_eta_deriv(eta, eps, deps):
+        return evaluate_dketa_depsk(hess0, dterms, eta, eps, deps)
+
+    dterms_derivs = []
+    for term in dterms:
+        dterms_derivs += term.differentiate(eval_next_eta_deriv)
+    return consolidate_terms(dterms_derivs)
+    return dterms_derivs
+
+
+
+# This is a class for computing the Taylor series of
+# eta(eps) = argmax_eta objective(eta, eps).
+class ParametricSensitivityTaylorExpansion(object):
+    def __init__(
+        self, objective_functor, input_par, hyper_par,
+        input_val0, hyper_val0, order,
+        input_is_free=True, hyper_is_free=False,
+        hess0=None, hyper_par_objective_functor=None):
+
+        self.objective_functor = objective_functor
+        self.input_par = input_par
+        self.hyper_par = hyper_par
+        self.input_is_free = input_is_free
+        self.hyper_is_free = hyper_is_free
+
+        if hyper_par_objective_functor is None:
+            self.hyper_par_objective_functor = objective_functor
+        else:
+            self.hyper_par_objective_functor = hyper_par_objective_functor
+
+        self.objective = obj_lib.Objective(
+            self.input_par, self.objective_functor)
+        self.joint_objective = obj_lib.TwoParameterObjective(
+            self.input_par, self.hyper_par, self.hyper_par_objective_functor)
+
+        self.set_base_values(input_val0, hyper_val0)
+        self.set_order(order)
+
+    def set_par_to_base_values(self):
+        set_par(self.input_par, self.input_val0, self.input_is_free)
+        set_par(self.hyper_par, self.hyper_val0, self.hyper_is_free)
+
+    def cache_and_eval(self, diff_fun, *argv, **argk):
+        result = diff_fun(*argv, **argk)
+        self.set_par_to_base_values()
+        return result
+
+    def set_base_values(self, input_val0, hyper_val0, hess0=None):
+        self.input_val0 = deepcopy(input_val0)
+        self.hyper_val0 = deepcopy(hyper_val0)
+        self.set_par_to_base_values()
+
+        if hess0 is None:
+            self.hess0 = self.objective.fun_free_hessian(self.input_val0)
+        else:
+            self.hess0 = hess0
+        self.hess0_chol = sp.linalg.cho_factor(self.hess0)
+
+    # In order to calculate derivatives d^kinput_dhyper^k, we will be Taylor
+    # expanding the gradient of the objective.
+    def objective_gradient(self, input_val, hyper_val, *argv, **argk):
+        return self.joint_objective.fun_grad1(
+            input_val, hyper_val, self.input_is_free, self.hyper_is_free,
+            *argv, **argk)
+
+    # Get a function returning the next derivative from the Taylor terms dterms.
+    def get_dkinput_dhyperk_from_terms(self, dterms):
+        def dkinput_dhyperk(input_val, hyper_val, dhyper, tolerance=1e-8):
+            if tolerance is not None:
+                # Make sure you're evaluating sensitivity at the base parameters.
+                assert np.max(np.abs(input_val - self.input_val0)) <= tolerance
+                assert np.max(np.abs(hyper_val - self.hyper_val0)) <= tolerance
+            return evaluate_dketa_depsk(
+                self.hess0, dterms, self.input_val0, self.hyper_val0, dhyper)
+        return dkinput_dhyperk
+
+    def differentiate_terms(self, dterms, eval_next_eta_deriv):
+        dterms_derivs = []
+        for term in dterms:
+            dterms_derivs += term.differentiate(eval_next_eta_deriv)
+        return consolidate_terms(dterms_derivs)
+
+    def set_order(self, order):
+        self.order = order
+
+        # You need one more gradient derivative than the order of the Taylor
+        # approximation.
+        self.eval_g_derivs = generate_two_term_derivative_array(
+            self.objective_gradient, order=self.order + 1)
+
+        self.taylor_terms_list = [ get_taylor_base_terms(self.eval_g_derivs) ]
+        self.dkinput_dhyperk_list = []
+        for k in range(self.order - 1):
+            next_dkinput_dhyperk = self.get_dkinput_dhyperk_from_terms(
+                self.taylor_terms_list[k])
+            next_taylor_terms = self.differentiate_terms(
+                self.taylor_terms_list[k],
+                next_dkinput_dhyperk)
+            self.dkinput_dhyperk_list.append(next_dkinput_dhyperk)
+            self.taylor_terms_list.append(next_taylor_terms)
+
+        self.dkinput_dhyperk_list.append(
+            self.get_dkinput_dhyperk_from_terms(
+                self.taylor_terms_list[self.order - 1]))
+
+    def evaluate_dkinput_dhyperk(self, dhyper, k, *argv, **argk):
+        if k <= 0:
+            raise ValueError('k must be at least one.')
+        if k > self.order:
+            raise ValueError(
+                'k must be no greater than the declared order={}'.format(
+                    self.order))
+        deriv_fun = self.dkinput_dhyperk_list[k - 1]
+        return self.cache_and_eval(
+            deriv_fun, self.input_val0, self.hyper_val0, dhyper, *argv, **argk)
+
+    def evaluate_taylor_series(self, dhyper, *argv, add_offset=True, max_order=None, **argk):
+        if max_order is None:
+            max_order = self.order
+        if max_order <= 0:
+            raise ValueError('max_order must be greater than zero.')
+        if max_order > self.order:
+            raise ValueError(
+                'max_order must be no greater than the declared order={}'.format(
+                    self.order))
+
+        dinput = self.evaluate_dkinput_dhyperk(dhyper, 1, *argv,  **argk)
+        for k in range(2, max_order + 1):
+            dinput += self.evaluate_dkinput_dhyperk(dhyper, k) / \
+                float(math.factorial(k))
+
+        if add_offset:
+            return dinput + self.input_val0
+        else:
+            return dinput
+
+    def print_terms(self, k=None):
+        if k is not None and k > self.order:
+            raise ValueError('k must be no greater than order={}'.format(self.order))
+        for order in range(self.order):
+            if k is None or order == (k - 1):
+                print('\nTerms for order {}:'.format(order + 1))
+                for term in self.taylor_terms_list[order]:
+                    print(term)
