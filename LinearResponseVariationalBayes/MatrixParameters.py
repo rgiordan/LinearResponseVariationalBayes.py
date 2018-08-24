@@ -5,7 +5,7 @@ import numbers
 import autograd
 import autograd.numpy as np
 import autograd.scipy as sp
-from autograd.core import primitive, defvjp
+from autograd.core import primitive, defvjp, defjvp
 
 import itertools
 
@@ -23,12 +23,37 @@ def SymIndex(k1, k2):
         return LDInd(k2, k1)
 
 
+# Map a matrix
+#
+# [ x11 x12 ... x1n ]
+# [ x21 x22     x2n ]
+# [...              ]
+# [ xn1 ...     xnn ]
+#
+# to the vector
+#
+# [ x11, x21, x22, x31, ..., xnn ].
+#
+# The entries above the diagonal are ignored.
 def vectorize_ld_matrix(mat):
     nrow, ncol = np.shape(mat)
     if nrow != ncol: raise ValueError('mat must be square')
     return mat[np.tril_indices(nrow)]
 
 
+# Map a vector
+#
+# [ v1, v2, ..., vn ]
+#
+# to the symmetric matrix
+#
+# [ v1 ...          ]
+# [ v2 v3 ...       ]
+# [ v4 v5 v6 ...    ]
+# [ ...             ]
+#
+# where the values above the diagonal are determined by symmetry.
+#
 # Because we cannot use autograd with array assignment, just define the
 # vector jacobian product directly.
 @primitive
@@ -42,13 +67,17 @@ def unvectorize_ld_matrix(vec):
             mat[k1, k2] = vec[SymIndex(k1, k2)]
     return mat
 
-
 def unvectorize_ld_matrix_vjp(g):
     assert g.shape[0] == g.shape[1]
     return vectorize_ld_matrix(g)
 
 defvjp(unvectorize_ld_matrix,
        lambda ans, vec: lambda g: unvectorize_ld_matrix_vjp(g))
+
+def unvectorize_ld_matrix_jvp(g):
+    return unvectorize_ld_matrix(g)
+
+defjvp(unvectorize_ld_matrix, lambda g, ans, x : unvectorize_ld_matrix_jvp(g))
 
 
 def exp_matrix_diagonal(mat):
