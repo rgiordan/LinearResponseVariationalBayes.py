@@ -125,8 +125,10 @@ class TestParametricSensitivity(unittest.TestCase):
             epsilon * np.linalg.norm(true_diff))
 
         # Check the derivatives
-        get_dinput_dhyper = autograd.jacobian(model.get_true_optimum)
-        get_doutput_dhyper = autograd.jacobian(model.get_true_output_param_vector)
+        get_dinput_dhyper = autograd.jacobian(
+            model.get_true_optimum)
+        get_doutput_dhyper = autograd.jacobian(
+            model.get_true_output_param_vector)
 
         np_test.assert_array_almost_equal(
             get_dinput_dhyper(hyper_param_val),
@@ -136,8 +138,11 @@ class TestParametricSensitivity(unittest.TestCase):
             get_doutput_dhyper(hyper_param_val),
             parametric_sens.get_doutput_dhyper())
 
-        # I think it suffices to just check the derivative when you specify
+        # Check that the sensitivity works when specifying
         # hyper_par_objective_fun.
+        # I think it suffices to just check the derivatives.
+        model.param.set_free(theta0)
+        model.hyper_param.set_vector(hyper_param_val)
         parametric_sens2 = obj_lib.ParametricSensitivity(
             objective_fun=model.get_objective,
             input_par=model.param,

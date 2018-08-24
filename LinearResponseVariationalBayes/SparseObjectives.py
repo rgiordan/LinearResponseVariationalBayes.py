@@ -329,6 +329,7 @@ class TwoParameterObjective(object):
 
         self._fun_grad1 = autograd.grad(self.eval_fun, argnum=0)
         self._fun_grad2 = autograd.grad(self.eval_fun, argnum=1)
+
         self._fun_hessian12 = \
             autograd.jacobian(self._fun_grad1, argnum=1)
         self._fun_hessian21 = \
@@ -366,6 +367,22 @@ class TwoParameterObjective(object):
             False, False,
             *argv, **argk)
 
+    def fun_grad1(
+        self, val1, val2, val1_is_free, val2_is_free, *argv, **argk):
+        return self.cache_and_eval(
+            self._fun_grad1,
+            val1, val2,
+            val1_is_free, val2_is_free,
+            *argv, **argk)
+
+    def fun_grad2(
+        self, val1, val2, val1_is_free, val2_is_free, *argv, **argk):
+        return self.cache_and_eval(
+            self._fun_grad2,
+            val1, val2,
+            val1_is_free, val2_is_free,
+            *argv, **argk)
+
     def fun_free_hessian12(self, free_val1, free_val2, *argv, **argk):
         return self.cache_and_eval(
             self._fun_hessian12,
@@ -374,6 +391,10 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
     def fun_free_hessian21(self, free_val1, free_val2, *argv, **argk):
+        # return self._fun_hessian21(
+        #     free_val1, free_val2,
+        #     True, True,
+        #     *argv, **argk)
         return self.cache_and_eval(
             self._fun_hessian21,
             free_val1, free_val2,
@@ -381,6 +402,10 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
     def fun_vector_hessian12(self, vec_val1, vec_val2, *argv, **argk):
+        # return self._fun_hessian12(
+        #     vec_val1, vec_val2,
+        #     False, False,
+        #     *argv, **argk)
         return self.cache_and_eval(
             self._fun_hessian12,
             vec_val1, vec_val2,
@@ -388,6 +413,10 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
     def fun_vector_hessian21(self, vec_val1, vec_val2, *argv, **argk):
+        # return self._fun_hessian21(
+        #     vec_val1, vec_val2,
+        #     False, False,
+        #     *argv, **argk)
         return self.cache_and_eval(
             self._fun_hessian21,
             vec_val1, vec_val2,
@@ -395,6 +424,10 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
     def fun_hessian_free1_vector2(self, free_val1, vec_val2, *argv, **argk):
+        # return self._fun_hessian12(
+        #     free_val1, vec_val2,
+        #     True, False,
+        #     *argv, **argk)
         return self.cache_and_eval(
             self._fun_hessian12,
             free_val1, vec_val2,
@@ -402,6 +435,10 @@ class TwoParameterObjective(object):
             *argv, **argk)
 
     def fun_hessian_vector1_free2(self, vec_val1, free_val2, *argv, **argk):
+        # return self._fun_hessian12(
+        #     vec_val1, free_val2,
+        #     False, True,
+        #     *argv, **argk)
         return self.cache_and_eval(
             self._fun_hessian12,
             vec_val1, free_val2,
