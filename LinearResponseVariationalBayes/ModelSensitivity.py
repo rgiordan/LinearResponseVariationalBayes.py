@@ -194,3 +194,81 @@ class DerivativeTerm:
             prefactor=self.prefactor + term.prefactor,
             eval_eta_derivs=self.eval_eta_derivs,
             eval_g_derivs=self.eval_g_derivs)
+
+
+# Generate an array of JVPs of the two arguments of the target function fun.
+#
+# Args:
+#   - fun: The function to be differentiated.  The first two arguments
+#   should be vectors for differentiation, i.e., fun should have signature
+#   fun(x1, x2, ...) and return a numeric value.
+#   - order: The maximum order of the derivative to be generated.
+#
+# Returns:
+#   An array of functions where element eval_fun_derivs[i][j] is a function
+#   eval_fun_derivs[i][j](x1, x2, ..., v1, ... vi, w1, ..., wj)) =
+#   d^{i + j}fun / (dx1^i dx2^j) v1 ... vi w1 ... wj.
+#
+# TODO: do these need to be wrapped?
+def generate_two_term_derivative_array(fun, order):
+    eval_fun_derivs = [[ fun ]]
+    for x1_ind in range(order):
+        if x1_ind > 0:
+            # Append one x1 derivative.
+            next_deriv = append_jvp(
+                eval_fun_derivs[x1_ind - 1][0], num_base_args=2, argnum=0)
+            eval_fun_derivs.append([ next_deriv ]
+        for x2_ind in range(order):
+            # Append one x2 derivative.
+            next_deriv = append_jvp(
+                eval_fun_derivs[x1_ind][x2_ind], num_base_args=2, argnum=1)
+            eval_fun_derivs[x1_ind].append(next_deriv)
+    return eval_fun_derivs
+
+
+
+# Combine like derivative terms.
+#
+# Args:
+#   - dterms: An array of DerivativeTerms.
+#
+# Returns:
+#   - A new array of derivative terms that evaluate equivalently where
+#   terms with the same derivative signature have been combined.
+def consolidate_terms(dterms):
+    unmatched_indices = [ ind for ind in range(len(dterms)) ]
+    consolidated_dterms = []
+    while len(unmatched_indices) > 0:
+        match_term = dterms[unmatched_indices.pop(0)]
+        for ind in unmatched_indices:
+            if (match_term.eta_orders == dterms[ind].eta_orders):
+                match_term = match_term.combine_with(dterms[ind])
+                unmatched_indices.remove(ind)
+        consolidated_dterms.append(match_term)
+
+    return consolidated_dterms
+
+# Evaluate an array of derivative terms.
+#
+# Args:
+#   - dterms: An array of derivative terms.
+#   - eta0: The value of the first argument.
+#   - eps0: The value of the second argument.
+#   - deps: The change in epsilon by which to multiply the Jacobians.
+#   - include_highest_eta_order: If true, include the term with
+#   d^k eta / deps^k, where k == order.  The main use of these DerivativeTerms
+#   at the time of writing is precisely to evaluate this term using the other
+#   terms, and this can be accomplished by setting include_highest_eta_order
+#   to False.
+#
+# Returns:
+#   The sum of the evaluated DerivativeTerms.
+def evaluate_terms(dterms, eta0, eps0, deps, include_highest_eta_order=True):
+    vec = None
+    for term in dterms:
+        if include_highest_eta_order or (term.eta_orders[-1] == 0):
+            if vec is None:
+                vec = term.evaluate(eta0, eps0, deps)
+            else:
+                vec += term.evaluate(eta0, eps0, deps)
+    return vec
