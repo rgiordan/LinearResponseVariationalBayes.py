@@ -29,6 +29,8 @@ from LinearResponseVariationalBayes.DirichletParams import DirichletParamArray
 from LinearResponseVariationalBayes.ProjectionParams import \
     SubspaceVectorParam, get_perpendicular_subspace
 
+from LinearResponseVariationalBayes import AutogradSupplement
+
 import unittest
 import scipy as sp
 import warnings
