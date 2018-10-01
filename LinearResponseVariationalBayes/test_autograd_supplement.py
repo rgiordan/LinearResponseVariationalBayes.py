@@ -39,11 +39,11 @@ class TestAutogradSupplement(unittest.TestCase):
 
         D = 3
         mat = npr.randn(D, D)
-        # mat[0, 0] += 1  # Make sure the matrix is not symmetric
-        mat = mat + mat.T
+        mat[0, 0] += 1  # Make sure the matrix is not symmetric
 
         check_grads(fun)(mat)
         check_grads(fun)(-mat)
+
 
 if __name__ == '__main__':
     unittest.main()

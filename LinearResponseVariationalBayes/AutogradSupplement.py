@@ -19,6 +19,6 @@ def solve_jvp_1(g, ans, x, y):
 defjvp(solve, solve_jvp_0, solve_jvp_1)
 
 def slogdet_jvp(g, ans, x):
-    return 0, np.trace(np.linalg.solve(x, g.T))
+    return 0, np.trace(np.linalg.solve(x.T, g.T))
 
 defjvp(slogdet, slogdet_jvp)
