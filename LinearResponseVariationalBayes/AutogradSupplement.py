@@ -4,6 +4,16 @@ import autograd.scipy as sp
 from autograd.core import primitive, defvjp, defjvp
 
 from autograd.numpy.linalg import slogdet
+from autograd.numpy.linalg import solve
+
+def solve_jvp_0(g, ans, x, y):
+    return np.linalg.solve(x, g) @ ans
+
+def solve_jvp_1(g, ans, x, y):
+    return np.linalg.solve(x, g)
+
+# defjvp(solve, lambda g, ans: lambda x, y: np.linalg.solve(x, g) @ ans)
+defjvp(solve, solve_jvp_0, solve_jvp_1)
 
 def slogdet_jvp(g, ans, x):
     print('g', g.shape, g)
