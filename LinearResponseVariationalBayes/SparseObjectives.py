@@ -306,6 +306,7 @@ class ParameterConverter(object):
             self.ag_vec_to_vec_jacobian, vec_par_in)
 
 
+# TODO: delete this and only use ModelSensitivity.set_par.
 def set_par(par, val, is_free):
     if is_free:
         par.set_free(val)
@@ -488,6 +489,11 @@ class ParametricSensitivity(object):
         optimal_input_par=None,
         objective_hessian=None,
         hyper_par_objective_fun=None):
+
+        raise DeprecationWarning(
+            'ParametricSensitivity is deprecated.  ' +
+            'Please use ParametricSensitivityTaylorExpansion or ' +
+            'ParametricSensitivityLinearApproximation.')
 
         self.input_par = input_par
         self.output_par = output_par
