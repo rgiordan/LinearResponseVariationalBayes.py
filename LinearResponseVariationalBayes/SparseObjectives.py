@@ -15,6 +15,7 @@ from copy import deepcopy
 
 import time
 
+import warnings
 
 # Apparently this can be replaced by the @ operator in Python 3.6.
 def safe_matmul(x, y):
@@ -490,10 +491,11 @@ class ParametricSensitivity(object):
         objective_hessian=None,
         hyper_par_objective_fun=None):
 
-        raise DeprecationWarning(
+        warnings.warn(
             'ParametricSensitivity is deprecated.  ' +
             'Please use ParametricSensitivityTaylorExpansion or ' +
-            'ParametricSensitivityLinearApproximation.')
+            'ParametricSensitivityLinearApproximation.',
+            DeprecationWarning)
 
         self.input_par = input_par
         self.output_par = output_par

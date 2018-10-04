@@ -30,6 +30,8 @@ from LinearResponseVariationalBayes.ModelSensitivity import differentiate_terms
 
 from LinearResponseVariationalBayes.ModelSensitivity import ParametricSensitivityTaylorExpansion
 
+import scipy as sp
+
 import unittest
 
 # This class will be used for testing.
