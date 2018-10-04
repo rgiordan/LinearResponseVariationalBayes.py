@@ -366,6 +366,66 @@ class TestTaylorExpansion(unittest.TestCase):
             taylor_expansion.evaluate_taylor_series(deps))
 
 
+class ParametricSensitivityLinearApproximation(unittest.TestCase):
+    def test_quadratic_model(self):
+        model = QuadraticModel(3)
+
+        opt_output = sp.optimize.minimize(
+            fun=model.objective.fun_free,
+            jac=model.objective.fun_free_grad,
+            x0=np.zeros(model.dim),
+            method='BFGS')
+
+        hyper_param_val = model.hyper_param.get_vector()
+        theta0 = model.get_true_optimum(hyper_param_val)
+        np_test.assert_array_almost_equal(theta0, opt_output.x)
+        model.param.set_free(theta0)
+
+        parametric_sens = sens_lib.ParametricSensitivityLinearApproximation(
+            objective_functor=model.get_objective,
+            input_par=model.param,
+            hyper_par=model.hyper_param,
+            input_val0=theta0,
+            hyper_val0=hyper_param_val)
+
+        epsilon = 0.01
+        new_hyper_param_val = hyper_param_val + epsilon
+
+        # Check the optimal parameters
+        pred_diff = \
+            parametric_sens.predict_input_par_from_hyperparameters(
+                new_hyper_param_val) - \
+            theta0
+        true_diff = model.get_true_optimum(new_hyper_param_val) - theta0
+        self.assertTrue(
+            np.linalg.norm(true_diff - pred_diff) <= \
+            epsilon * np.linalg.norm(true_diff))
+
+        # Check the Jacobian.
+        get_dinput_dhyper = autograd.jacobian(
+            model.get_true_optimum)
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens.get_dinput_dhyper())
+
+        # Check that the sensitivity works when specifying
+        # hyper_par_objective_fun.
+        # I think it suffices to just check the derivatives.
+        model.param.set_free(theta0)
+        model.hyper_param.set_vector(hyper_param_val)
+        parametric_sens2 = sens_lib.ParametricSensitivityLinearApproximation(
+            objective_functor=model.get_objective,
+            input_par=model.param,
+            hyper_par=model.hyper_param,
+            input_val0=theta0,
+            hyper_val0=hyper_param_val,
+            hyper_par_objective_functor=model.get_hyper_par_objective)
+
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens2.get_dinput_dhyper())
+
+
 class TestParametricSensitivity(unittest.TestCase):
     # Note: this class and test should be deprecated in favor of
     # ParametricSensitivityLinearApproximation.

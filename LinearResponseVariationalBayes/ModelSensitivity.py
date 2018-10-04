@@ -577,7 +577,6 @@ class ParametricSensitivityLinearApproximation(object):
             self.input_par, self.hyper_par, self.hyper_par_objective_functor)
 
         self.set_base_values(input_val0, hyper_val0)
-        self.set_order(order)
 
     def set_par_to_base_values(self):
         set_par(self.input_par, self.input_val0, self.input_is_free)
@@ -607,7 +606,7 @@ class ParametricSensitivityLinearApproximation(object):
         return self.hyper_par_sensitivity
 
     def predict_input_par_from_hyperparameters(self, new_hyper_par_value):
-        hyper_par_diff = new_hyper_par_value - self.optimal_hyper_par
+        hyper_par_diff = new_hyper_par_value - self.hyper_val0
         return \
             self.input_val0 + \
             self.hyper_par_sensitivity @ hyper_par_diff
