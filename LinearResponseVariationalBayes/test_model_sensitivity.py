@@ -7,8 +7,6 @@ import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
 import LinearResponseVariationalBayes.ModelSensitivity as sens_lib
 
-# from autograd.test_util import check_equivalent
-
 import numpy.testing as np_test
 from numpy.testing import assert_array_almost_equal
 
