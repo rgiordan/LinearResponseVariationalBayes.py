@@ -86,6 +86,7 @@ class Logger(object):
                 self.callback(self)
         self.iter += 1
 
+# TODO: replace the Objective classes with decorators.
 
 # par should be a Parameter type.
 # fun should be a function that takes no arguments but which is

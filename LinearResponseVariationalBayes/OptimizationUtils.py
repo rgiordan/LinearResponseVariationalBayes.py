@@ -44,11 +44,12 @@ def set_objective_preconditioner(
 def minimize_objective_trust_ncg(
     objective, init_x, precondition,
     maxiter = 50, gtol = 1e-6, disp = True,
-    print_every = 1, init_logger = True):
+    print_every = None, init_logger = True):
 
     if init_logger:
         objective.logger.initialize()
-    objective.logger.print_every = print_every
+    if print_every is not None:
+        objective.logger.print_every = print_every
     objective.preconditioning = precondition
     if precondition:
         assert objective.preconditioner is not None
@@ -76,13 +77,14 @@ def minimize_objective_trust_ncg(
 
 def minimize_objective_bfgs(
     objective, init_x, precondition=False,
-    maxiter=500, disp=True, print_every=50,
+    maxiter=500, disp=True, print_every=None,
     init_logger=True):
 
     if init_logger:
         objective.logger.initialize()
 
-    objective.logger.print_every = print_every
+    if print_every is not None:
+        objective.logger.print_every = print_every
     objective.preconditioning = precondition
     if precondition:
         assert objective.preconditioner is not None
