@@ -7,8 +7,6 @@ import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
 import LinearResponseVariationalBayes.ModelSensitivity as sens_lib
 
-# from autograd.test_util import check_equivalent
-
 import numpy.testing as np_test
 from numpy.testing import assert_array_almost_equal
 
@@ -29,6 +27,8 @@ from LinearResponseVariationalBayes.ModelSensitivity import evaluate_dketa_depsk
 from LinearResponseVariationalBayes.ModelSensitivity import differentiate_terms
 
 from LinearResponseVariationalBayes.ModelSensitivity import ParametricSensitivityTaylorExpansion
+
+import scipy as sp
 
 import unittest
 
@@ -76,6 +76,17 @@ class QuadraticModel(object):
         theta = self.get_true_optimum_theta(hyper_param_val)
         self.param_copy.set_vector(theta)
         return self.param_copy.get_free()
+
+    # For approximating the value of the output parameter:
+    def get_output_param_vector(self):
+        theta = self.param.get_vector()
+        self.output_param.set_vector(theta ** 2)
+        return self.output_param.get_vector()
+
+    def get_true_output_param_vector(self, hyper_param_val):
+        theta = self.get_true_optimum_theta(hyper_param_val)
+        return theta ** 2
+
 
 class TestTaylorExpansion(unittest.TestCase):
     def test_everything(self):
@@ -351,6 +362,167 @@ class TestTaylorExpansion(unittest.TestCase):
         assert_array_almost_equal(
             eta0 + d1 + d2 / 2 + d3 / 6,
             taylor_expansion.evaluate_taylor_series(deps))
+
+
+class ParametricSensitivityLinearApproximation(unittest.TestCase):
+    def test_quadratic_model(self):
+        model = QuadraticModel(3)
+
+        opt_output = sp.optimize.minimize(
+            fun=model.objective.fun_free,
+            jac=model.objective.fun_free_grad,
+            x0=np.zeros(model.dim),
+            method='BFGS')
+
+        hyper_param_val = model.hyper_param.get_vector()
+        theta0 = model.get_true_optimum(hyper_param_val)
+        np_test.assert_array_almost_equal(theta0, opt_output.x)
+        model.param.set_free(theta0)
+
+        parametric_sens = sens_lib.ParametricSensitivityLinearApproximation(
+            objective_functor=model.get_objective,
+            input_par=model.param,
+            hyper_par=model.hyper_param,
+            input_val0=theta0,
+            hyper_val0=hyper_param_val)
+
+        epsilon = 0.01
+        new_hyper_param_val = hyper_param_val + epsilon
+
+        # Check the optimal parameters
+        pred_diff = \
+            parametric_sens.predict_input_par_from_hyperparameters(
+                new_hyper_param_val) - \
+            theta0
+        true_diff = model.get_true_optimum(new_hyper_param_val) - theta0
+        self.assertTrue(
+            np.linalg.norm(true_diff - pred_diff) <= \
+            epsilon * np.linalg.norm(true_diff))
+
+        # Check the Jacobian.
+        get_dinput_dhyper = autograd.jacobian(
+            model.get_true_optimum)
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens.get_dinput_dhyper())
+
+        # Check that the sensitivity works when specifying
+        # hyper_par_objective_fun.
+        # I think it suffices to just check the derivatives.
+        model.param.set_free(theta0)
+        model.hyper_param.set_vector(hyper_param_val)
+        parametric_sens2 = sens_lib.ParametricSensitivityLinearApproximation(
+            objective_functor=model.get_objective,
+            input_par=model.param,
+            hyper_par=model.hyper_param,
+            input_val0=theta0,
+            hyper_val0=hyper_param_val,
+            hyper_par_objective_functor=model.get_hyper_par_objective)
+
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens2.get_dinput_dhyper())
+
+
+class TestParametricSensitivity(unittest.TestCase):
+    # Note: this class and test should be deprecated in favor of
+    # ParametricSensitivityLinearApproximation.
+    def test_quadratic_model(self):
+        model = QuadraticModel(3)
+
+        opt_output = sp.optimize.minimize(
+            fun=model.objective.fun_free,
+            jac=model.objective.fun_free_grad,
+            x0=np.zeros(model.dim),
+            method='BFGS')
+
+        hyper_param_val = model.hyper_param.get_vector()
+        theta0 = model.get_true_optimum(hyper_param_val)
+        np_test.assert_array_almost_equal(theta0, opt_output.x)
+        model.param.set_free(theta0)
+        output_par0 = model.get_output_param_vector()
+
+        np_test.assert_array_almost_equal(
+            output_par0,
+            model.param.get_vector() ** 2)
+
+        parametric_sens = obj_lib.ParametricSensitivity(
+            objective_fun=model.get_objective,
+            input_par=model.param,
+            output_par=model.output_param,
+            hyper_par=model.hyper_param,
+            input_to_output_converter=model.get_output_param_vector)
+
+        epsilon = 0.01
+        new_hyper_param_val = hyper_param_val + epsilon
+
+        # Check the optimal parameters
+        pred_diff = \
+            parametric_sens.predict_input_par_from_hyperparameters(
+                new_hyper_param_val) - \
+            theta0
+        true_diff = model.get_true_optimum(new_hyper_param_val) - theta0
+        self.assertTrue(
+            np.linalg.norm(true_diff - pred_diff) <= \
+            epsilon * np.linalg.norm(true_diff))
+
+        # Check the output parameters
+        pred_diff = \
+            parametric_sens.predict_output_par_from_hyperparameters(
+                new_hyper_param_val, linear=False) - \
+            output_par0
+        true_diff = \
+            model.get_true_output_param_vector(new_hyper_param_val) - \
+            output_par0
+        self.assertTrue(
+            np.linalg.norm(true_diff - pred_diff) <= \
+            epsilon * np.linalg.norm(true_diff))
+
+        pred_diff = \
+            parametric_sens.predict_output_par_from_hyperparameters(
+                new_hyper_param_val, linear=True) - \
+            output_par0
+        true_diff = \
+            model.get_true_output_param_vector(new_hyper_param_val) - output_par0
+        self.assertTrue(
+            np.linalg.norm(true_diff - pred_diff) <= \
+            epsilon * np.linalg.norm(true_diff))
+
+        # Check the derivatives
+        get_dinput_dhyper = autograd.jacobian(
+            model.get_true_optimum)
+        get_doutput_dhyper = autograd.jacobian(
+            model.get_true_output_param_vector)
+
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens.get_dinput_dhyper())
+
+        np_test.assert_array_almost_equal(
+            get_doutput_dhyper(hyper_param_val),
+            parametric_sens.get_doutput_dhyper())
+
+        # Check that the sensitivity works when specifying
+        # hyper_par_objective_fun.
+        # I think it suffices to just check the derivatives.
+        model.param.set_free(theta0)
+        model.hyper_param.set_vector(hyper_param_val)
+        parametric_sens2 = obj_lib.ParametricSensitivity(
+            objective_fun=model.get_objective,
+            input_par=model.param,
+            output_par=model.output_param,
+            hyper_par=model.hyper_param,
+            optimal_input_par=theta0,
+            input_to_output_converter=model.get_output_param_vector,
+            hyper_par_objective_fun=model.get_hyper_par_objective)
+
+        np_test.assert_array_almost_equal(
+            get_dinput_dhyper(hyper_param_val),
+            parametric_sens2.get_dinput_dhyper())
+
+        np_test.assert_array_almost_equal(
+            get_doutput_dhyper(hyper_param_val),
+            parametric_sens2.get_doutput_dhyper())
 
 
 if __name__ == '__main__':

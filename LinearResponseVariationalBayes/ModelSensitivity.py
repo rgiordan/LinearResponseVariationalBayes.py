@@ -6,12 +6,15 @@ import scipy as sp
 import LinearResponseVariationalBayes as vb
 import LinearResponseVariationalBayes.SparseObjectives as obj_lib
 
-# TODO: this should probably be here.
-from LinearResponseVariationalBayes.SparseObjectives import set_par
-
 from copy import deepcopy
 
 import math
+
+def set_par(par, val, is_free):
+    if is_free:
+        par.set_free(val)
+    else:
+        par.set_vector(val)
 
 
 # Append a jacobian vector product to a function.
@@ -368,7 +371,8 @@ def differentiate_terms(hess0, dterms):
 #       Args:
 #           - dhyper: The difference hyper_val1 - hyper_val0 by which the
 #           derivatives are multiplied.
-#           - add_offset: Whether the Taylor expansion includes hyper_val0.
+#           - add_offset: Whether the Taylor expansion includes the
+#           offset input_val0.
 #           - max_order: The maximum order of the Taylor expansion to use.
 #           Higher orders will be slower to evaluate.  Defaults to the
 #           highest order possible, i.e. the order specified at initialization.
@@ -509,3 +513,100 @@ class ParametricSensitivityTaylorExpansion(object):
                 print('\nTerms for order {}:'.format(order + 1))
                 for term in self.taylor_terms_list[order]:
                     print(term)
+
+
+
+# This is a class for computing a linear approximation to
+# input_par(hyper_par) = argmax_input_par objective(input_par, hyper_par).
+# This approximation uses reverse mode automatic differentiation.
+#
+# Args:
+#   - objective_functor: A functor that evaluates an optimization objective
+#   with respect to input_par at hyperparameter hyper_par.
+#   - input_par: The input Parameter for the optimization problem:
+#   - hyper_par: The hyperparameter for the optimization problem.
+#   - input_val0: The value of input_par at the optimum.
+#   - hyper_val0: The value of hyper_par at which input_val0 was found.
+#   - input_is_free: Whether or not input_val0 is the free (vs vector) value
+#   for input_par.  Defaults to free.
+#   - hyper_is_free: Whether or not hyper_val0 is the free (vs vector) value
+#   for hyper_par.  Defaults to not free (i.e. to vector).
+#   - hess0: Optional, the Hessian of the objective at (input_val0, hyper_val0).
+#   If not specified it is calculated at initialization.
+#   - hyper_par_objective_functor: Optional, a functor containing the dependence
+#   of objective_functor on the hyperparameter.  Sometimes only a small,
+#   easily calculated part of the objective depends on the hyperparameter,
+#   and by specifying hyper_par_objective_functor the necessary calculations
+#   can be more efficient.  If unset, objective_functor is used.
+#
+# Methods:
+#  - get_dinput_dhyper:
+#   Args: None.
+#   Returns:
+#       The Jacobian matrix d(input_par) / d(hyper_par) evaluated at
+#       input_val0..
+#
+#  - predict_input_par_from_hyperparameters:
+#   Args:
+#       new_hyper_par_value: A new value of the hyperparameters (either
+#           as a free or constrained vector according to hyper_is_free).
+#   Returns:
+#       A linear approximation to input_par(hyper_par) evaluated at input_val0.
+class ParametricSensitivityLinearApproximation(object):
+    def __init__(
+        self, objective_functor,
+        input_par, hyper_par,
+        input_val0, hyper_val0,
+        input_is_free=True, hyper_is_free=False,
+        hess0=None, hyper_par_objective_functor=None):
+
+        self.objective_functor = objective_functor
+        self.input_par = input_par
+        self.hyper_par = hyper_par
+        self.input_is_free = input_is_free
+        self.hyper_is_free = hyper_is_free
+
+        if hyper_par_objective_functor is None:
+            self.hyper_par_objective_functor = objective_functor
+        else:
+            self.hyper_par_objective_functor = hyper_par_objective_functor
+
+        self.objective = obj_lib.Objective(
+            self.input_par, self.objective_functor)
+        self.joint_objective = obj_lib.TwoParameterObjective(
+            self.input_par, self.hyper_par, self.hyper_par_objective_functor)
+
+        self.set_base_values(input_val0, hyper_val0)
+
+    def set_par_to_base_values(self):
+        set_par(self.input_par, self.input_val0, self.input_is_free)
+        set_par(self.hyper_par, self.hyper_val0, self.hyper_is_free)
+
+    def set_base_values(self, input_val0, hyper_val0, hess0=None):
+        self.input_val0 = deepcopy(input_val0)
+        self.hyper_val0 = deepcopy(hyper_val0)
+        self.set_par_to_base_values()
+
+        if hess0 is None:
+            self.hess0 = self.objective.fun_free_hessian(self.input_val0)
+        else:
+            self.hess0 = hess0
+        self.hess0_chol = sp.linalg.cho_factor(self.hess0)
+
+        self.hyper_par_cross_hessian0 = \
+            self.joint_objective.fun_hessian_free1_vector2(
+                self.input_val0, self.hyper_val0)
+
+        self.hyper_par_sensitivity = \
+            -1 * sp.linalg.cho_solve(
+                self.hess0_chol, self.hyper_par_cross_hessian0)
+
+    # Methods:
+    def get_dinput_dhyper(self):
+        return self.hyper_par_sensitivity
+
+    def predict_input_par_from_hyperparameters(self, new_hyper_par_value):
+        hyper_par_diff = new_hyper_par_value - self.hyper_val0
+        return \
+            self.input_val0 + \
+            self.hyper_par_sensitivity @ hyper_par_diff

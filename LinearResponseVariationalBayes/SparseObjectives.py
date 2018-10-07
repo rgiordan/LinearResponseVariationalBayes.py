@@ -15,6 +15,7 @@ from copy import deepcopy
 
 import time
 
+import warnings
 
 # Apparently this can be replaced by the @ operator in Python 3.6.
 def safe_matmul(x, y):
@@ -85,6 +86,7 @@ class Logger(object):
                 self.callback(self)
         self.iter += 1
 
+# TODO: replace the Objective classes with decorators.
 
 # par should be a Parameter type.
 # fun should be a function that takes no arguments but which is
@@ -306,6 +308,7 @@ class ParameterConverter(object):
             self.ag_vec_to_vec_jacobian, vec_par_in)
 
 
+# TODO: delete this and only use ModelSensitivity.set_par.
 def set_par(par, val, is_free):
     if is_free:
         par.set_free(val)
@@ -488,6 +491,12 @@ class ParametricSensitivity(object):
         optimal_input_par=None,
         objective_hessian=None,
         hyper_par_objective_fun=None):
+
+        warnings.warn(
+            'ParametricSensitivity is deprecated.  ' +
+            'Please use ParametricSensitivityTaylorExpansion or ' +
+            'ParametricSensitivityLinearApproximation.',
+            DeprecationWarning)
 
         self.input_par = input_par
         self.output_par = output_par
