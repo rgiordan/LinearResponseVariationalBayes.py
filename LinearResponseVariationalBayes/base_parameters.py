@@ -1,3 +1,5 @@
+# This is a draft of the new API.
+
 import math
 import copy
 import numbers
@@ -32,6 +34,7 @@ def _unconstrain_array(array, lb, ub):
         else:
             return np.log(array - lb) - np.log(ub - array)
 
+
 def _constrain_array(free_array, lb, ub):
     if ub <= lb:
         raise ValueError('Upper bound must be greater than lower bound')
@@ -48,8 +51,6 @@ def _constrain_array(free_array, lb, ub):
             exp_vec = np.exp(free_array)
             return (ub - lb) * exp_vec / (1 + exp_vec) + lb
 
-_constrain_scalar_jac = autograd.jacobian(_constrain)
-_constrain_scalar_hess = autograd.hessian(_constrain)
 
 def _get_inbounds_value(lb, ub):
     assert lb < ub
@@ -67,42 +68,39 @@ def _get_inbounds_value(lb, ub):
             return 0.0
 
 
-class Parameter(object):
-    def __init__(self, name, unconstrained_length, stacked_length, val):
+class Pattern(object):
+    def __init__(self, name, flat_length, free_flat_length):
         self.name = name
-        self.__unconstrained_length = unconstrained_length
-        self.__stacked_length = stacked_length
-        self.__val = val
+        self.__free_flat_length = free_flat_length
+        self.__flat_length = flat_length
 
     def __str__(self):
         return self.name + ': ' + str(self.__val)
 
-    def dictval(self):
+    # Maybe this should be to / from JSON.
+    def serialize(self):
         raise NotImplementedError()
 
-    def set(self, val):
-        self.__val = val
-
-    def get(self):
-        return self.__val
-
-    def set_stacked(self, stacked_val, unconstrained):
+    def unserialize(self):
         raise NotImplementedError()
 
-    def get_stacked(self, unconstrained):
+    def fold(self, flat_val, free):
         raise NotImplementedError()
 
-    def get_stacked_length(self, unconstrained):
+    def flatten(self, folded_val, free):
+        raise NotImplementedError()
+
+    def get_flat_length(self, free):
         if unconstrained:
-            return self.__unconstrained_length
+            return self.__unconstrained_flat_length
         else:
             return self.__stacked_length
 
 
-class ArrayParam(Parameter):
+class ArrayPattern(Pattern):
     def __init__(
         self, name='', shape=(1, ),
-        lb=-float("inf"), ub=float("inf"), val=None, bound_checking=True):
+        lb=-float("inf"), ub=float("inf"), bound_checking=True):
 
         self.bound_checking = bound_checking
         self.__shape = shape
@@ -117,188 +115,139 @@ class ArrayParam(Parameter):
             inbounds_value = _get_inbounds_value(lb, ub)
             val = np.full(self.__shape, inbounds_value)
 
-        super().__init__(name, unconstrained_length, stacked_length, val)
+        free_flat_length = flat_length = int(np.product(self.__shape))
 
-    def dictval(self):
+        super().__init__(name, flat_length, free_flat_length)
+
+    def serialize(self):
         return self.__val.tolist()
 
-    def set(self, val):
-        val = np.atleast_1d(val)
-        if val.shape != self.shape():
+    def validate_folded(self, folded_val):
+        folded_val = np.atleast_1d(folded_val)
+        if folded_val.shape != self.shape():
             raise ValueError('Wrong size for array ' + self.name + \
                              ' Expected shape: ' + str(self.shape()) + \
-                             ' Got shape: ' + str(val.shape))
+                             ' Got shape: ' + str(folded_val.shape))
         if self.bound_checking:
-            if (np.array(val < self.__lb)).any():
+            if (np.array(folded_val < self.__lb)).any():
                 raise ValueError('Value beneath lower bound.')
-            if (np.array(val > self.__ub)).any():
+            if (np.array(folded_val > self.__ub)).any():
                 raise ValueError('Value above upper bound.')
-        self.__val = val
 
-    def _set_unconstrained(self, unconstrained_val):
-        if free_val.size != self.free_size():
+    def _free_fold(self, free_flat_val):
+        free_flat_val = np.atleast_1d(free_flat_val)
+        if free_flat_val.size != self.__free_flat_length:
             error_string = \
                 'Wrong size for array {}.  Expected {}, got {}'.format(
-                    self.name, str(self.free_size()), str(free_val.size))
+                    self.name,
+                    str(self.__free_flat_length),
+                    str(free_flat_val.size))
             raise ValueError(error_string)
-        self.set(_constrain_array(free_val, self.__lb, self.__ub).reshape(self.__shape))
+        return _constrain_array(
+            free_flat_val, self.__lb, self.__ub).reshape(self.__shape))
 
-    def get_unconstrained(self):
-        return _unconstrain_array(self.__val, self.__lb, self.__ub)
-    def free_to_vector(self, free_val):
-        self.set_free(free_val)
-        return self.get_vector()
-    def free_to_vector_jac(self, free_val):
-        rows_indices = np.array(range(self.vector_size()))
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore", "^Output seems independent of input\.$", UserWarning)
-            grads = [ _constrain_scalar_jac(
-                        free_val[vec_ind], self.__lb, self.__ub) \
-                      for vec_ind in range(self.vector_size()) ]
-        return coo_matrix((grads,
-                          (rows_indices, rows_indices)),
-                          (self.vector_size(), self.free_size()))
-    def free_to_vector_hess(self, free_val):
-        def get_ind_hess(vec_ind):
-            with warnings.catch_warnings():
-                warnings.filterwarnings(
-                    "ignore", "Output seems independent of input.", UserWarning)
-                hess = _constrain_scalar_hess(
-                    free_val[vec_ind], self.__lb, self.__ub)
-            return coo_matrix(([ hess ],
-                               ([vec_ind], [vec_ind])),
-                               (self.free_size(), self.vector_size()))
-        return \
-            [ get_ind_hess(vec_ind) for vec_ind in range(self.vector_size()) ]
+    def _free_flatten(self, folded_val):
+        self.validate_folded(folded_val)
+        return _unconstrain_array(folded_val, self.__lb, self.__ub)
 
-    def set_vector(self, val):
-        if val.size != self.vector_size():
+    def _fold(self, flat_val):
+        if flat_val.size != self.__flat_length:
             error_string = \
                 'Wrong size for array {}.  Expected {}, got {}'.format(
-                    self.name, str(self.vector_size()), str(val.size))
+                    self.name, str(self.__flat_length), str(flat_val.size))
             raise ValueError(error_string)
-        self.set(val.reshape(self.__shape))
-    def get_vector(self):
-        return self.__val.flatten()
+        folded_val = flat_val.reshape(self.__shape)
+        self.validate_folded(folded_val)
+        return folded_val
+
+    def _flatten(self, folded_val):
+        self.validate_folded(folded_val)
+        return folded_val.flatten()
+
+    def fold(self, flat_val, free):
+        if free:
+            return self._free_fold(flat_val)
+        else:
+            return self._fold(flat_val)
+
+    def flatten(self, folded_val, free):
+        if free:
+            return self._free_flatten(folded_val)
+        else:
+            return self._flatten(folded_val)
 
     def shape(self):
         return self.__shape
-    def free_size(self):
-        return int(np.product(self.__shape))
-    def vector_size(self):
-        return int(np.product(self.__shape))
 
-# Sets the param using the slice in free_vec starting at offset.
-# Returns the next offset.
-def set_free_offset(param, free_vec, offset):
-    param.set_free(free_vec[offset:(offset + param.free_size())])
-    return offset + param.free_size()
-
-# Sets the value of vec starting at offset with the param's free value.
-# Returns the next offset.
-def get_free_offset(param, vec, offset):
-    vec[offset:(offset + param.free_size())] = param.get_free()
-    return offset + param.free_size()
+    def flat_length(self, free):
+        if free:
+            return self.__free_flat_length
+        else:
+            return self.__flat_length
 
 
-# Sets the param using the slice in free_vec starting at offset.
-# Returns the next offset.
-def set_vector_offset(param, vec, offset):
-    param.set_vector(vec[offset:(offset + param.vector_size())])
-    return offset + param.vector_size()
+##########################
+# Dictionary pattern.
 
+class OrderedDictPattern(Pattern):
+    def __init__(self, name):
+        self.__pattern_dict = OrderedDict()
+        self.super().__init__(name, 0, 0)
 
-# Sets the value of vec starting at offset with the param's free value.
-# Returns the next offset.
-def get_vector_offset(param, vec, offset):
-    vec[offset:(offset + param.vector_size())] = param.get_vector()
-    return offset + param.vector_size()
+    def __str__(self):
+        return self.name + ':\n' + \
+            '\n'.join([ '\t' + str(pattern) \
+                for pattern in self.__pattern_dict.values() ])
 
+    def __getitem__(self, key):
+        return self.__pattern_dict[key]
 
-def free_to_vector_jac_offset(param, free_vec, free_offset, vec_offset):
-    free_slice = slice(free_offset, free_offset + param.free_size())
-    jac = param.free_to_vector_jac(free_vec[free_slice])
-    return free_offset + param.free_size(), \
-           vec_offset + param.vector_size(), \
-           jac
+    def __setitem__(self, pattern_name, pattern):
+        self.__pattern_dict[pattern_name] = pattern
+        self.__flat_length += pattern.flat_length(free=False)
+        self.__free_flat_length += pattern.flat_length(free=True)
 
+    def __delitem__(self, pattern_name):
+        pattern = self.__pattern_dict[pattern_name]
+        self.__flat_length -= pattern.flat_length(free=False)
+        self.__free_flat_length -= pattern.flat_length(free=True)
+        self.__pattern_dict.pop(pattern_name)
 
-# Define a sparse matrix with spmat offset by offset_shape and with
-# total shape give by total_shape.  This is useful for placing a sub-Hessian
-# in the middle of a larger Hessian.
-def offset_sparse_matrix(spmat, offset_shape, full_shape):
-    return coo_matrix(
-        (spmat.data,
-         (spmat.row + offset_shape[0], spmat.col + offset_shape[1])),
-         shape=full_shape)
+    def serialize(self):
+        result = {}
+        for pattern in self.__pattern_dict.values():
+            result[pattern.name] = pattern.serialize()
+        return result
 
+    def fold(self, flat_val, free):
+        flat_val = np.atleast_1d(flat_val)
+        flat_length = self.flat_length(free)
+        if flat_val.size != flat_length:
+            error_string = \
+                'Wrong size for parameter {}.  Expected {}, got {}'.format(
+                    self.name, str(flat_length), str(flat_val.size))
+            raise ValueError(error_string)
 
-# Append the parameter Hessian to the array of full sparse hessians and
-# return the amount by which to increment the offset in the free vector.
-def free_to_vector_hess_offset(
-    param, free_vec, hessians, free_offset, full_shape):
+        # TODO: add an option to do this -- and other oprations -- in place.
+        folded_val = OrderedDict()
+        offset = 0
+        for pattern_name, pattern in self.__pattern_dict.iteritems():
+            pattern_flat_length = pattern.flat_length(free)
+            pattern_flat_val = flat_val[offset:(offset + pattern_flat_length)]
+            offset += pattern_flat_length
+            folded_val[pattern_name] = pattern.fold(pattern_flat_val, free)
+        return folded_val
 
-    free_slice = slice(free_offset, free_offset + param.free_size())
-    hess = param.free_to_vector_hess(free_vec[free_slice])
-    for vec_ind in range(len(hess)):
-        hess_ind = hess[vec_ind]
-        hessians.append(offset_sparse_matrix(
-            hess_ind, (free_offset, free_offset), full_shape))
-    return free_offset + param.free_size()
+    def flatten(self, folded_val, free):
+        flat_length = self.flat_length(free)
+        offset = 0
+        flat_val = np.full(float('nan'), flat_length)
+        for pattern_name, pattern in self.__pattern_dict.iteritems():
+            pattern_flat_length = pattern.flat_length(free)
+            flat_val[offset:(offset + pattern_flat_length)] =
+                pattern.flatten(folded_val[pattern_name], free)
+            offset += pattern_flat_length
+        return flat_val
 
-
-# Using sparse jacobians and hessians, convert a hessian with respect
-# to a parameters vector to a hessian with respect to the free parameters.
-#
-# Args:
-#   - param: A Parameter type (from the Parameters library)
-#   - free_val: The unconstrained "free value" of the parameters.
-#   - vector_grad: The gradient of the objective with respect to the
-#     constrained "vector value" of the parameters
-#   - vector_hess: The (possibly sparse) Hessian of the objective with
-#     respect to the constrained "vector value" of the parameters.
-#
-# Returns:
-#  - The Hessian of the objective with respect to the unconstrained "free"
-#    values of the parameters.
-def convert_vector_to_free_hessian(param, free_val, vector_grad, vector_hess):
-    #free_hess = csr_matrix((param.free_size(), param.free_size()))
-
-    param.set_free(copy.deepcopy(free_val))
-    free_to_vec_jacobian = param.free_to_vector_jac(free_val)
-    param.set_free(copy.deepcopy(free_val))
-    free_to_vec_hessian = param.free_to_vector_hess(free_val)
-
-    # Accumulate the third order terms, which are sparse.  Use the fact
-    # that elements of a coo_matrix add when converted to any other type.
-    free_hess_size = (param.free_size(), param.free_size())
-    vec_range = range(param.vector_size())
-    free_hess_vals = np.hstack([
-        free_to_vec_hessian[vec_ind].data * vector_grad[vec_ind]
-        for vec_ind in vec_range ])
-    free_hess_rows = np.hstack([
-        free_to_vec_hessian[vec_ind].row for vec_ind in vec_range ])
-    free_hess_cols = np.hstack([
-        free_to_vec_hessian[vec_ind].col for vec_ind in vec_range ])
-    free_hess = coo_matrix(
-        (free_hess_vals, (free_hess_rows, free_hess_cols)), free_hess_size)
-
-    # Then add the second-order terms, which may be dense depending on the
-    # vec_hess_target.
-    free_hess += \
-        free_to_vec_jacobian.T * vector_hess * free_to_vec_jacobian
-
-    return free_hess
-
-
-
-
-
-
-
-
-
-
-
-#
+    def flat_length(self, free):
+        return self.__free_flat_length if free else self.__flat_length
