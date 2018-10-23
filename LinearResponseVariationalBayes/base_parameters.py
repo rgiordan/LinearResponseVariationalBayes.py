@@ -9,6 +9,8 @@ import autograd.numpy as np
 import autograd.scipy as sp
 from autograd.core import primitive
 
+from collections import OrderedDict
+
 import scipy as osp
 from scipy.sparse import coo_matrix, csr_matrix, block_diag
 
@@ -43,7 +45,15 @@ class Pattern(object):
         else:
             return self._flat_length
 
+    def empty(self, valid):
+        raise NotImplementedError()
 
+    def random(self):
+        return self.fold(np.random.random(self._free_flat_length), free=True)
+
+
+##################################
+# Array parameter
 
 def _unconstrain_array(array, lb, ub):
     if not (array <= ub).all():
@@ -120,6 +130,12 @@ class ArrayPattern(Pattern):
     def serialize(self):
         return self.__val.tolist()
 
+    def empty(self, valid):
+        if valid:
+            return np.full(self.__shape, _get_inbounds_value(self.__lb, self.__ub))
+        else:
+            return np.empty(self.__shape)
+
     def validate_folded(self, folded_val):
         folded_val = np.atleast_1d(folded_val)
         if folded_val.shape != self.shape():
@@ -192,7 +208,7 @@ class ArrayPattern(Pattern):
 class OrderedDictPattern(Pattern):
     def __init__(self, name):
         self.__pattern_dict = OrderedDict()
-        self.super().__init__(name, 0, 0)
+        super().__init__(name, 0, 0)
 
     def __str__(self):
         return self.name + ':\n' + \
@@ -212,6 +228,12 @@ class OrderedDictPattern(Pattern):
         self._flat_length -= pattern.flat_length(free=False)
         self._free_flat_length -= pattern.flat_length(free=True)
         self.__pattern_dict.pop(pattern_name)
+
+    def empty(self, valid):
+        empty_val = OrderedDict()
+        for pattern_name, pattern in self.__pattern_dict.items():
+            empty_val[pattern_name] = pattern.empty(valid)
+        return empty_val
 
     def serialize(self):
         result = {}
@@ -233,7 +255,7 @@ class OrderedDictPattern(Pattern):
         # TODO: add an option to do this -- and other operations -- in place.
         folded_val = OrderedDict()
         offset = 0
-        for pattern_name, pattern in self.__pattern_dict.iteritems():
+        for pattern_name, pattern in self.__pattern_dict.items():
             pattern_flat_length = pattern.flat_length(free)
             pattern_flat_val = flat_val[offset:(offset + pattern_flat_length)]
             offset += pattern_flat_length
@@ -243,8 +265,8 @@ class OrderedDictPattern(Pattern):
     def flatten(self, folded_val, free):
         flat_length = self.flat_length(free)
         offset = 0
-        flat_val = np.full(float('nan'), flat_length)
-        for pattern_name, pattern in self.__pattern_dict.iteritems():
+        flat_val = np.full(flat_length, float('nan'))
+        for pattern_name, pattern in self.__pattern_dict.items():
             pattern_flat_length = pattern.flat_length(free)
             flat_val[offset:(offset + pattern_flat_length)] = \
                 pattern.flatten(folded_val[pattern_name], free)
