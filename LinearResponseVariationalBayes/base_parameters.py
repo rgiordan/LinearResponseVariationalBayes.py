@@ -15,6 +15,36 @@ from scipy.sparse import coo_matrix, csr_matrix, block_diag
 import warnings
 
 
+class Pattern(object):
+    def __init__(self, name, flat_length, free_flat_length):
+        self.name = name
+        self._flat_length = flat_length
+        self._free_flat_length = free_flat_length
+
+    def __str__(self):
+        return self.name
+
+    # Maybe this should be to / from JSON.
+    def serialize(self):
+        raise NotImplementedError()
+
+    def unserialize(self):
+        raise NotImplementedError()
+
+    def fold(self, flat_val, free):
+        raise NotImplementedError()
+
+    def flatten(self, folded_val, free):
+        raise NotImplementedError()
+
+    def flat_length(self, free):
+        if free:
+            return self._free_flat_length
+        else:
+            return self._flat_length
+
+
+
 def _unconstrain_array(array, lb, ub):
     if not (array <= ub).all():
         raise ValueError('Elements larger than the upper bound')
@@ -68,35 +98,6 @@ def _get_inbounds_value(lb, ub):
             return 0.0
 
 
-class Pattern(object):
-    def __init__(self, name, flat_length, free_flat_length):
-        self.name = name
-        self.__free_flat_length = free_flat_length
-        self.__flat_length = flat_length
-
-    def __str__(self):
-        return self.name + ': ' + str(self.__val)
-
-    # Maybe this should be to / from JSON.
-    def serialize(self):
-        raise NotImplementedError()
-
-    def unserialize(self):
-        raise NotImplementedError()
-
-    def fold(self, flat_val, free):
-        raise NotImplementedError()
-
-    def flatten(self, folded_val, free):
-        raise NotImplementedError()
-
-    def get_flat_length(self, free):
-        if unconstrained:
-            return self.__unconstrained_flat_length
-        else:
-            return self.__stacked_length
-
-
 class ArrayPattern(Pattern):
     def __init__(
         self, name='', shape=(1, ),
@@ -111,9 +112,6 @@ class ArrayPattern(Pattern):
         if lb >= ub:
             raise ValueError(
                 'Upper bound ub must strictly exceed lower bound lb')
-        if val is None:
-            inbounds_value = _get_inbounds_value(lb, ub)
-            val = np.full(self.__shape, inbounds_value)
 
         free_flat_length = flat_length = int(np.product(self.__shape))
 
@@ -135,55 +133,57 @@ class ArrayPattern(Pattern):
                 raise ValueError('Value above upper bound.')
 
     def _free_fold(self, free_flat_val):
-        free_flat_val = np.atleast_1d(free_flat_val)
-        if free_flat_val.size != self.__free_flat_length:
+        if free_flat_val.size != self._free_flat_length:
             error_string = \
                 'Wrong size for array {}.  Expected {}, got {}'.format(
                     self.name,
-                    str(self.__free_flat_length),
+                    str(self._free_flat_length),
                     str(free_flat_val.size))
             raise ValueError(error_string)
-        return _constrain_array(
-            free_flat_val, self.__lb, self.__ub).reshape(self.__shape))
+        constrained_array = _constrain_array(free_flat_val, self.__lb, self.__ub)
+        return constrained_array.reshape(self.__shape)
 
     def _free_flatten(self, folded_val):
         self.validate_folded(folded_val)
-        return _unconstrain_array(folded_val, self.__lb, self.__ub)
+        return _unconstrain_array(folded_val, self.__lb, self.__ub).flatten()
 
-    def _fold(self, flat_val):
-        if flat_val.size != self.__flat_length:
+    def _notfree_fold(self, flat_val):
+        if flat_val.size != self._flat_length:
             error_string = \
                 'Wrong size for array {}.  Expected {}, got {}'.format(
-                    self.name, str(self.__flat_length), str(flat_val.size))
+                    self.name, str(self._flat_length), str(flat_val.size))
             raise ValueError(error_string)
         folded_val = flat_val.reshape(self.__shape)
         self.validate_folded(folded_val)
         return folded_val
 
-    def _flatten(self, folded_val):
+    def _notfree_flatten(self, folded_val):
         self.validate_folded(folded_val)
         return folded_val.flatten()
 
     def fold(self, flat_val, free):
+        flat_val = np.atleast_1d(flat_val)
+        if len(flat_val.shape) != 1:
+            raise ValueError('The argument to fold must be a 1d vector.')
         if free:
             return self._free_fold(flat_val)
         else:
-            return self._fold(flat_val)
+            return self._notfree_fold(flat_val)
 
     def flatten(self, folded_val, free):
         if free:
             return self._free_flatten(folded_val)
         else:
-            return self._flatten(folded_val)
+            return self._notfree_flatten(folded_val)
 
     def shape(self):
         return self.__shape
 
     def flat_length(self, free):
         if free:
-            return self.__free_flat_length
+            return self._free_flat_length
         else:
-            return self.__flat_length
+            return self._flat_length
 
 
 ##########################
@@ -204,13 +204,13 @@ class OrderedDictPattern(Pattern):
 
     def __setitem__(self, pattern_name, pattern):
         self.__pattern_dict[pattern_name] = pattern
-        self.__flat_length += pattern.flat_length(free=False)
-        self.__free_flat_length += pattern.flat_length(free=True)
+        self._flat_length += pattern.flat_length(free=False)
+        self._free_flat_length += pattern.flat_length(free=True)
 
     def __delitem__(self, pattern_name):
         pattern = self.__pattern_dict[pattern_name]
-        self.__flat_length -= pattern.flat_length(free=False)
-        self.__free_flat_length -= pattern.flat_length(free=True)
+        self._flat_length -= pattern.flat_length(free=False)
+        self._free_flat_length -= pattern.flat_length(free=True)
         self.__pattern_dict.pop(pattern_name)
 
     def serialize(self):
@@ -221,6 +221,8 @@ class OrderedDictPattern(Pattern):
 
     def fold(self, flat_val, free):
         flat_val = np.atleast_1d(flat_val)
+        if len(flat_val.shape) != 1:
+            raise ValueError('The argument to fold must be a 1d vector.')
         flat_length = self.flat_length(free)
         if flat_val.size != flat_length:
             error_string = \
@@ -228,7 +230,7 @@ class OrderedDictPattern(Pattern):
                     self.name, str(flat_length), str(flat_val.size))
             raise ValueError(error_string)
 
-        # TODO: add an option to do this -- and other oprations -- in place.
+        # TODO: add an option to do this -- and other operations -- in place.
         folded_val = OrderedDict()
         offset = 0
         for pattern_name, pattern in self.__pattern_dict.iteritems():
@@ -244,10 +246,10 @@ class OrderedDictPattern(Pattern):
         flat_val = np.full(float('nan'), flat_length)
         for pattern_name, pattern in self.__pattern_dict.iteritems():
             pattern_flat_length = pattern.flat_length(free)
-            flat_val[offset:(offset + pattern_flat_length)] =
+            flat_val[offset:(offset + pattern_flat_length)] = \
                 pattern.flatten(folded_val[pattern_name], free)
             offset += pattern_flat_length
         return flat_val
 
     def flat_length(self, free):
-        return self.__free_flat_length if free else self.__flat_length
+        return self._free_flat_length if free else self._flat_length
