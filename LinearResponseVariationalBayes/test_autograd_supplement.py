@@ -37,13 +37,12 @@ class TestAutogradSupplement(unittest.TestCase):
             sign, logdet = np.linalg.slogdet(x)
             return logdet
 
-        D = 3
+        D = 6
         mat = npr.randn(D, D)
-        mat[0, 0] += 1  # Make sure the matrix is not symmetric
+        mat[0, 1] = mat[1, 0] + 1  # Make sure the matrix is not symmetric
 
         check_grads(fun)(mat)
         check_grads(fun)(-mat)
-
 
 if __name__ == '__main__':
     unittest.main()

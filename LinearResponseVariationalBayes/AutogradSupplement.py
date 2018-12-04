@@ -5,7 +5,9 @@ from autograd.core import primitive, defvjp, defjvp
 
 from autograd.numpy.linalg import slogdet, solve, inv
 
-# TODO: Handle broadcasting like the core autograd does.
+
+# Don't use this -- use
+# https://github.com/rgiordan/paragami/pull/32
 
 def inv_jvp(g, ans, x):
     return -1 * ans @ g @ ans
