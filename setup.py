@@ -37,7 +37,7 @@ setup(name='LinearResponseVariationalBayes',
       # to work with later versions of these dependent packages.
       install_requires = [
         'autograd>=1.3.0,<1.4.0',
-        'numpy>=1.13.0,<1.14.0',
+        'numpy>=1.13.0,<=1.16.0',
         'scipy>=0.19.0,<1.0.0',
         'json_tricks<=3.11.0'
       ]
