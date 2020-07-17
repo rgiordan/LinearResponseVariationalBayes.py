@@ -33,10 +33,12 @@ setup(name='LinearResponseVariationalBayes',
         'Topic :: Scientific/Engineering :: Mathematics'
       ],
 
+      # This package is no longer under development, and cannot be guaranteed
+      # to work with later versions of these dependent packages.
       install_requires = [
-        'autograd==1.3.0',
-        'numpy==1.13.3',
-        'scipy==0.19.0',
-        'json_tricks==3.11.0'
+        'autograd>=1.3.0,<1.4.0',
+        'numpy>=1.13.0,<1.14.0',
+        'scipy>=0.19.0,<1.0.0',
+        'json_tricks<=3.11.0'
       ]
 )
