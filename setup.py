@@ -13,7 +13,7 @@ https://arxiv.org/abs/1709.02536
 """
 
 setup(name='LinearResponseVariationalBayes',
-      version='0.2.0',
+      version='0.2.1',
       description='Helper functions for linear response variational Bayes',
       long_description=long_description,
       url='https://github.com/rgiordan/LinearResponseVariationalBayes.py',
